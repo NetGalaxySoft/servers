@@ -350,13 +350,16 @@ echo ""
 echo "== СТЪПКА 2: КОНФИГУРИРАНЕ НА СИСТЕМАТА =="
 
 echo ""
+echo ""
 echo "[6] ОБНОВЯВАНЕ НА СИСТЕМАТА..."
 echo "-------------------------------------------------------------------------"
 
 if sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get autoremove -y; then
   echo "✅ Системата е успешно обновена."
+  RESULT_UPDATE_SYSTEM="✅"
 else
   echo "❌ Възникна грешка при обновяване на системата. Проверете горните съобщения."
+  RESULT_UPDATE_SYSTEM="❌"
   exit 1
 fi
 echo ""
@@ -369,10 +372,12 @@ if sudo apt-get install -y \
     nano unzip git curl wget net-tools htop \
     python3 python3-pip python3-venv build-essential; then
   echo "✅ Всички основни инструменти и зависимости са инсталирани."
+  RESULT_INSTALL_TOOLS="✅"
 else
   echo "❌ Възникна грешка при инсталацията. Проверете:"
   echo "1. Дали apt-get cache е обновен (в предходната стъпка)"
   echo "2. Дали има достатъчно дисково пространство"
+  RESULT_INSTALL_TOOLS="❌"
   exit 1
 fi
 echo ""
@@ -380,25 +385,37 @@ echo ""
 
 echo "[8] СЪЗДАВАНЕ НА АДМИНИСТРАТОРСКИ ПОТРЕБИТЕЛ..."
 echo "-------------------------------------------------------------------------"
+RESULT_CREATE_ADMIN_USER="❔"
 
 # Създаване на потребителя
 if id "$ADMIN_USER" &>/dev/null; then
   echo "ℹ️ Потребителят '$ADMIN_USER' вече съществува – пропускане на създаването."
+  RESULT_CREATE_ADMIN_USER="⚠️"
 else
-  sudo adduser --disabled-password --gecos "" "$ADMIN_USER"
-  echo "$ADMIN_USER:$PASSWORD_1" | sudo chpasswd
-  sudo usermod -aG sudo "$ADMIN_USER"
-  echo "✅ Потребителят '$ADMIN_USER' е създаден и добавен към sudo групата."
+  if sudo adduser --disabled-password --gecos "" "$ADMIN_USER" && \
+     echo "$ADMIN_USER:$PASSWORD_1" | sudo chpasswd && \
+     sudo usermod -aG sudo "$ADMIN_USER"; then
+    echo "✅ Потребителят '$ADMIN_USER' е създаден и добавен към sudo групата."
+    RESULT_CREATE_ADMIN_USER="✅"
+  else
+    echo "❌ Възникна грешка при създаване на потребителя '$ADMIN_USER'."
+    RESULT_CREATE_ADMIN_USER="❌"
+    exit 1
+  fi
 fi
 
 # Настройка на SSH достъп (копиране на ключовете от root)
 if [[ -f /root/.ssh/authorized_keys ]]; then
-  sudo mkdir -p /home/"$ADMIN_USER"/.ssh
-  sudo cp /root/.ssh/authorized_keys /home/"$ADMIN_USER"/.ssh/
-  sudo chown -R "$ADMIN_USER":"$ADMIN_USER" /home/"$ADMIN_USER"/.ssh
-  sudo chmod 700 /home/"$ADMIN_USER"/.ssh
-  sudo chmod 600 /home/"$ADMIN_USER"/.ssh/authorized_keys
-  echo "✅ Копирани са SSH ключовете от root."
+  if sudo mkdir -p /home/"$ADMIN_USER"/.ssh && \
+     sudo cp /root/.ssh/authorized_keys /home/"$ADMIN_USER"/.ssh/ && \
+     sudo chown -R "$ADMIN_USER":"$ADMIN_USER" /home/"$ADMIN_USER"/.ssh && \
+     sudo chmod 700 /home/"$ADMIN_USER"/.ssh && \
+     sudo chmod 600 /home/"$ADMIN_USER"/.ssh/authorized_keys; then
+    echo "✅ Копирани са SSH ключовете от root."
+  else
+    echo "⚠️ Грешка при копиране на SSH ключовете."
+    RESULT_CREATE_ADMIN_USER="⚠️"
+  fi
 else
   echo "⚠️ Не са открити SSH ключове за копиране от root."
 fi
@@ -407,10 +424,12 @@ echo ""
 
 echo "[9] НАСТРОЙКА НА ЛОКАЛИЗАЦИИ..."
 echo "-------------------------------------------------------------------------"
+RESULT_LOCALE_SETUP="❔"
 
 # Инсталация на езикови пакети
 if ! sudo apt-get install -y language-pack-bg language-pack-ru; then
   echo "⚠️ Внимание: Неуспешна инсталация на езикови пакети. Продължение без тях."
+  RESULT_LOCALE_SETUP="⚠️"
 fi
 
 # Конфигуриране на /etc/locale.gen
@@ -426,20 +445,25 @@ grep -qxF 'en_US.UTF-8 UTF-8' /etc/locale.gen || echo 'en_US.UTF-8 UTF-8' | sudo
 # Генериране на локали
 if sudo locale-gen && sudo update-locale; then
   echo "✅ Локализациите са настроени."
+  [[ "$RESULT_LOCALE_SETUP" == "❔" ]] && RESULT_LOCALE_SETUP="✅"
 else
   echo "⚠️ Внимание: Възникна грешка при генериране на локали. Проверете ръчно."
+  RESULT_LOCALE_SETUP="❌"
 fi
 echo ""
 echo ""
 
 echo "[10] КОНФИГУРАЦИЯ НА ВРЕМЕВА ЗОНА UTC..."
 echo "-------------------------------------------------------------------------"
+RESULT_TIMEZONE_SETUP="❔"
 
 # Промяна на системната часова зона на UTC
 if sudo timedatectl set-timezone UTC; then
   echo "✅ Времевата зона е зададена на UTC."
+  RESULT_TIMEZONE_SETUP="✅"
 else
   echo "❌ Неуспешна смяна на времевата зона. Моля, проверете ръчно."
+  RESULT_TIMEZONE_SETUP="❌"
   exit 1
 fi
 echo ""
@@ -447,6 +471,7 @@ echo ""
 
 echo "[11] НАСТРОЙКА НА ВРЕМЕВАТА СИНХРОНИЗАЦИЯ..."
 echo "-------------------------------------------------------------------------"
+RESULT_TIME_SYNC="❔"
 
 # Спиране на други NTP услуги
 echo "🔍 Проверка за активни NTP услуги..."
@@ -457,6 +482,7 @@ sudo systemctl stop systemd-timesyncd 2>/dev/null && sudo systemctl disable syst
 echo "📦 Инсталиране на chrony..."
 if ! sudo apt-get install -y chrony; then
   echo "❌ Неуспешна инсталация на chrony."
+  RESULT_TIME_SYNC="❌"
   exit 1
 fi
 
@@ -485,12 +511,14 @@ chronyc tracking | grep -E 'Stratum|System time'
 chronyc sources | grep '^\^\*'
 
 echo "✅ Времевата синхронизация е конфигурирана."
+RESULT_TIME_SYNC="✅"
 
 echo ""
 echo ""
 
 echo "[12] НАСТРОЙКА НА HOSTNAME..."
 echo "-------------------------------------------------------------------------"
+RESULT_HOSTNAME="❔"
 
 # Извличане на краткото име на хоста от FQDN
 HOSTNAME_SHORT="${FQDN%%.*}"
@@ -498,8 +526,10 @@ HOSTNAME_SHORT="${FQDN%%.*}"
 # Задаване на hostname
 if sudo hostnamectl set-hostname "$FQDN"; then
   echo "✅ Hostname зададен на: $FQDN"
+  RESULT_HOSTNAME="✅"
 else
   echo "❌ Неуспешна смяна на hostname."
+  RESULT_HOSTNAME="❌"
   exit 1
 fi
 
@@ -513,6 +543,8 @@ ff02::2     ip6-allrouters
 EOF
 
 echo "✅ /etc/hosts е актуализиран."
+echo ""
+echo ""
 
 # === СТЪПКА 3: КОНФИГУРАЦИЯ НА UFW И РЕСТАРТ НА СЪРВЪРА ==========================
 echo "=== СТЪПКА 3: КОНФИГУРАЦИЯ НА UFW И РЕСТАРТ НА СЪРВЪРА"
@@ -520,13 +552,14 @@ echo ""
 
 echo "[13] КОНФИГУРАЦИЯ НА UFW И РЕСТАРТ НА СЪРВЪРА..."
 echo "-------------------------------------------------------------------------"
+RESULT_UFW_CONFIG="❔"
 
 # --- ДОБАВЯНЕ НА ДОПЪЛНИТЕЛНИ ДОВЕРЕНИ МРЕЖИ (по избор) ----------------------
 echo ""
 echo "🌐 Ако използвате частна мрежа (VPN, локална LAN и т.н.), можете да добавите разрешение за нея в UFW."
 TRUSTED_NETS=()
 while true; do
-  printf -rp "➤ Въведете CIDR на доверена мрежа (напр. 192.168.1.0/24), Enter за край: " net
+  read -rp "➤ Въведете CIDR на доверена мрежа (напр. 192.168.1.0/24), Enter за край: " net
   if [[ -z "$net" ]]; then
     break
   elif [[ "$net" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
@@ -547,6 +580,7 @@ if ! command -v ufw >/dev/null 2>&1; then
   echo "📦 Инсталиране на UFW..."
   if ! sudo apt-get install -y ufw; then
     echo "❌ Неуспешна инсталация на UFW."
+    RESULT_UFW_CONFIG="❌"
     exit 1
   fi
 fi
@@ -561,10 +595,34 @@ done
 sudo ufw allow "$SSH_PORT"
 
 # Активиране на UFW
-sudo ufw --force enable
+if sudo ufw --force enable; then
+  echo "✅ UFW е активиран и конфигуриран."
+  RESULT_UFW_CONFIG="✅"
+else
+  echo "❌ Неуспешно активиране на UFW."
+  RESULT_UFW_CONFIG="❌"
+  exit 1
+fi
+echo ""
+echo ""
+
+echo "[14] ОБОБЩЕНИЕ НА РЕЗУЛТАТИТЕ ОТ КОНФИГУРАЦИЯТА"
+echo "-------------------------------------------------------------------------"
+
+printf "📌 Системно обновяване:             %s\n" "${RESULT_SYSTEM_UPDATE:-❔}"
+printf "📌 Основни инструменти:             %s\n" "${RESULT_BASE_TOOLS:-❔}"
+printf "📌 Админ. потребител:               %s\n" "${RESULT_ADMIN_USER:-❔}"
+printf "📌 Локализации:                     %s\n" "${RESULT_LOCALES:-❔}"
+printf "📌 Часова зона:                     %s\n" "${RESULT_TIMEZONE:-❔}"
+printf "📌 Времева синхронизация:          %s\n" "${RESULT_NTP_SYNC:-❔}"
+printf "📌 Hostname:                        %s\n" "${RESULT_HOSTNAME:-❔}"
+printf "📌 UFW конфигурация:                %s\n" "${RESULT_UFW_CONFIG:-❔}"
+
+echo ""
+echo "ℹ️  Легенда: ✅ успешно | ❌ неуспешно | ⚠️ частично | ❔ неизвестно"
+echo ""
 
 # Потвърждение за рестарт
-
 echo ""
 echo -e "\e[33mВНИМАНИЕ: Следващото действие ще рестартира сървъра!"
 echo "─────────────────────────────────────────────────────────────────────────"
@@ -596,5 +654,6 @@ while true; do
       ;;
   esac
 done
+echo -e "\n✅ Скриптът достигна края на изпълнението.\n"
 
 # --------- Край на скрипта ---------
