@@ -364,12 +364,28 @@ echo ""
 
 # === СТЪПКА 2: КОНФИГУРИРАНЕ НА СИСТЕМАТА =======================================
 echo "== СТЪПКА 2: КОНФИГУРИРАНЕ НА СИСТЕМАТА =="
+echo ""
+echo ""
 
-echo ""
-echo ""
 echo "[6] ОБНОВЯВАНЕ НА СИСТЕМАТА..."
 echo "-------------------------------------------------------------------------"
 
+# Изчакване, ако системата е заключена от друг apt процес
+MAX_WAIT=60
+COUNTER=0
+echo "⏳ Проверка за заетост на пакетната система..."
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+  sleep 1
+  ((COUNTER++))
+  if ((COUNTER >= MAX_WAIT)); then
+    echo "❌ Пакетната система е заключена от друг процес повече от ${MAX_WAIT} секунди."
+    echo "   Моля, опитайте отново по-късно."
+    RESULT_UPDATE_SYSTEM="❌"
+    exit 1
+  fi
+done
+
+# Изпълнение на обновяването
 if sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get autoremove -y; then
   echo "✅ Системата е успешно обновена."
   RESULT_UPDATE_SYSTEM="✅"
