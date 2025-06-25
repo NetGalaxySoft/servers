@@ -452,48 +452,50 @@ done
 echo ""
 echo ""
 
-# === [6] ПРЕГЛЕД НА ВЪВЕДЕНАТА ИНФОРМАЦИЯ ====================================
+# === [6] ПРЕГЛЕД НА ВЪВЕДЕНАТА ИНФОРМАЦИЯ =====================================
 echo "[6] ПРЕГЛЕД НА ВЪВЕДЕНАТА ИНФОРМАЦИЯ..."
 echo "-------------------------------------------------------------------------"
 echo ""
 
-# Цветове (само ако терминалът го поддържа)
+# Цветове, ако терминалът ги поддържа
 if [[ -t 1 && "$TERM" != "dumb" ]]; then
-  RESET="\e[0m"
-  BOLD_GREEN="\e[1;32m"    # удебелено зелено за значенията
-  YELLOW="\e[33m"          # жълто за названията
+  COLOR_YELLOW="\e[93m"      # Ярко жълт
+  COLOR_GREEN="\e[32;1m"     # Удебелен зелен
+  COLOR_RESET="\e[0m"
 else
-  RESET=""
-  BOLD_GREEN=""
-  YELLOW=""
+  COLOR_YELLOW=""
+  COLOR_GREEN=""
+  COLOR_RESET=""
 fi
 
-echo -e "✅ ${YELLOW}Сървърът ще бъде конфигуриран със следните параметри:${RESET}"
+# Обобщение
+echo -e "✅ ${COLOR_YELLOW}Сървърът ще бъде конфигуриран със следните параметри:${COLOR_RESET}"
 echo ""
-
-echo -e "${YELLOW} - Домейн (FQDN):${RESET} ${BOLD_GREEN}${FQDN}${RESET}"
-echo -e "${YELLOW} - SSH порт:${RESET} ${BOLD_GREEN}${SSH_PORT}${RESET}"
-echo -e "${YELLOW} - Админ потребител:${RESET} ${BOLD_GREEN}${ADMIN_USER}${RESET}"
-echo -e "${YELLOW} - Root достъп по SSH:${RESET} ${BOLD_GREEN}ще бъде забранен${RESET}"
-echo -e "${YELLOW} - IP адрес на сървъра:${RESET} ${BOLD_GREEN}${SERVER_IP}${RESET}"
-echo -e "${YELLOW} - Защитна стена:${RESET} ${BOLD_GREEN}${FIREWALL_SYSTEM}${RESET}"
+echo -e " - ${COLOR_YELLOW}Домейн (FQDN):${COLOR_RESET}           ${COLOR_GREEN}${FQDN}${COLOR_RESET}"
+echo -e " - ${COLOR_YELLOW}SSH порт:${COLOR_RESET}                ${COLOR_GREEN}${SSH_PORT}${COLOR_RESET}"
+echo -e " - ${COLOR_YELLOW}Админ потребител:${COLOR_RESET}         ${COLOR_GREEN}${ADMIN_USER}${COLOR_RESET}"
+echo -e " - ${COLOR_YELLOW}Root достъп по SSH:${COLOR_RESET}       ${COLOR_GREEN}ще бъде забранен${COLOR_RESET}"
+echo ""
+echo -e " - ${COLOR_YELLOW}IP адрес на сървъра:${COLOR_RESET}      ${COLOR_GREEN}${SERVER_IP}${COLOR_RESET}"
+echo -e " - ${COLOR_YELLOW}Защитна стена:${COLOR_RESET}            ${COLOR_GREEN}${FIREWALL_SYSTEM}${COLOR_RESET}"
 
 if [[ ${#PORT_LIST[@]} -gt 0 ]]; then
-  echo -e "${YELLOW} - Допълнителни портове за отваряне:${RESET} ${BOLD_GREEN}${PORT_LIST[*]}${RESET}"
+  echo -e " - ${COLOR_YELLOW}Допълнителни портове:${COLOR_RESET}     ${COLOR_GREEN}${PORT_LIST[*]}${COLOR_RESET}"
 fi
 
-if [[ "$USE_PRIVATE_NETWORKS" == "yes" && ${#TRUSTED_NETS[@]} -gt 0 ]]; then
-  echo -e "${YELLOW} - Частни мрежи с достъп:${RESET} ${BOLD_GREEN}${TRUSTED_NETS[*]}${RESET}"
+if [[ ${#TRUSTED_NETS[@]} -gt 0 ]]; then
+  echo -e " - ${COLOR_YELLOW}Частни мрежи с достъп:${COLOR_RESET}     ${COLOR_GREEN}${TRUSTED_NETS[*]}${COLOR_RESET}"
 else
-  echo -e "${YELLOW} - Частни мрежи с достъп:${RESET} ${BOLD_GREEN}няма${RESET}"
+  echo -e " - ${COLOR_YELLOW}Частни мрежи с достъп:${COLOR_RESET}     ${COLOR_GREEN}няма добавени${COLOR_RESET}"
 fi
 
 echo ""
 echo "🧐 Моля, прегледайте внимателно правилността на въведената информация по-горе."
 echo "Ако имате забележки, прекратете конфигурацията, коригирайте и стартирайте отново този скрипт."
 echo ""
+
 while true; do
-  printf "✔️ Въведете \"${BOLD_GREEN}y${RESET}\" за продължение или \"${BOLD_GREEN}q${RESET}\" за прекратяване: "
+  printf "✔️ Въведете '${COLOR_GREEN}y${COLOR_RESET}' за продължение или '${COLOR_GREEN}q${COLOR_RESET}' за прекратяване: "
   read CONFIRMATION
   if [[ "$CONFIRMATION" == "q" || "$CONFIRMATION" == "Q" ]]; then
     echo "❎ Скриптът беше прекратен от потребителя."
@@ -507,6 +509,7 @@ while true; do
     echo "❌ Моля, отговорете с 'y' за продължение или 'q' за прекратяване."
   fi
 done
+
 echo ""
 echo ""
 
