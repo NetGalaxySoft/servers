@@ -588,7 +588,7 @@ while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
   if ((COUNTER >= MAX_WAIT)); then
     echo "❌ Пакетната система е заключена от друг процес повече от ${MAX_WAIT} секунди."
     echo "   Моля, опитайте отново по-късно."
-    RESULT_UPDATE_SYSTEM="❌"
+    RESULT_SYSTEM_UPDATE="❌"
     exit 1
   fi
 done
@@ -596,10 +596,10 @@ done
 # Изпълнение на обновяването
 if sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get autoremove -y; then
   echo "✅ Системата е успешно обновена."
-  RESULT_UPDATE_SYSTEM="✅"
+  RESULT_SYSTEM_UPDATE="✅"
 else
   echo "❌ Възникна грешка при обновяване на системата. Проверете горните съобщения."
-  RESULT_UPDATE_SYSTEM="❌"
+  RESULT_SYSTEM_UPDATE="❌"
   exit 1
 fi
 echo ""
@@ -612,12 +612,12 @@ if sudo apt-get install -y \
     nano unzip git curl wget net-tools htop \
     python3 python3-pip python3-venv build-essential; then
   echo "✅ Всички основни инструменти и зависимости са инсталирани."
-  RESULT_INSTALL_TOOLS="✅"
+  RESULT_BASE_TOOLS="✅"
 else
   echo "❌ Възникна грешка при инсталацията. Проверете:"
   echo "1. Дали apt-get cache е обновен (в предходната стъпка)"
   echo "2. Дали има достатъчно дисково пространство"
-  RESULT_INSTALL_TOOLS="❌"
+  RESULT_BASE_TOOLS="❌"
   exit 1
 fi
 echo ""
@@ -625,21 +625,21 @@ echo ""
 
 echo "[9] СЪЗДАВАНЕ НА НОВ АДМИНИСТРАТОРСКИ ПРОФИЛ..."
 echo "-------------------------------------------------------------------------"
-RESULT_CREATE_ADMIN_USER="❔"
+RESULT_ADMIN_USER="❔"
 
 # Създаване на потребителя
 if id "$ADMIN_USER" &>/dev/null; then
   echo "ℹ️ Потребителят '$ADMIN_USER' вече съществува – пропускане на създаването."
-  RESULT_CREATE_ADMIN_USER="⚠️"
+  RESULT_ADMIN_USER="⚠️"
 else
   if sudo adduser --disabled-password --gecos "" "$ADMIN_USER" && \
      echo "$ADMIN_USER:$PASSWORD_1" | sudo chpasswd && \
      sudo usermod -aG sudo "$ADMIN_USER"; then
     echo "✅ Потребителят '$ADMIN_USER' е създаден и добавен към sudo групата."
-    RESULT_CREATE_ADMIN_USER="✅"
+    RESULT_ADMIN_USER="✅"
   else
     echo "❌ Възникна грешка при създаване на потребителя '$ADMIN_USER'."
-    RESULT_CREATE_ADMIN_USER="❌"
+    RESULT_ADMIN_USER="❌"
     exit 1
   fi
 fi
@@ -654,7 +654,7 @@ if [[ -f /root/.ssh/authorized_keys ]]; then
     echo "✅ Копирани са SSH ключовете от root."
   else
     echo "⚠️ Грешка при копиране на SSH ключовете."
-    RESULT_CREATE_ADMIN_USER="⚠️"
+    RESULT_ADMIN_USER="⚠️"
   fi
 else
   echo "⚠️ Не са открити SSH ключове за копиране от root."
@@ -664,12 +664,12 @@ echo ""
 
 echo "[10] НАСТРОЙКА НА ЛОКАЛИЗАЦИИ..."
 echo "-------------------------------------------------------------------------"
-RESULT_LOCALE_SETUP="❔"
+RESULT_LOCALES="❔"
 
 # Инсталация на езикови пакети
 if ! sudo apt-get install -y language-pack-bg language-pack-ru; then
   echo "⚠️ Внимание: Неуспешна инсталация на езикови пакети. Продължение без тях."
-  RESULT_LOCALE_SETUP="⚠️"
+  RESULT_LOCALES="⚠️"
 fi
 
 # Конфигуриране на /etc/locale.gen
@@ -685,25 +685,25 @@ grep -qxF 'en_US.UTF-8 UTF-8' /etc/locale.gen || echo 'en_US.UTF-8 UTF-8' | sudo
 # Генериране на локали
 if sudo locale-gen && sudo update-locale; then
   echo "✅ Локализациите са настроени."
-  [[ "$RESULT_LOCALE_SETUP" == "❔" ]] && RESULT_LOCALE_SETUP="✅"
+  [[ "$RESULT_LOCALES" == "❔" ]] && RESULT_LOCALES="✅"
 else
   echo "⚠️ Внимание: Възникна грешка при генериране на локали. Проверете ръчно."
-  RESULT_LOCALE_SETUP="❌"
+  RESULT_LOCALES="❌"
 fi
 echo ""
 echo ""
 
 echo "[11] КОНФИГУРАЦИЯ НА ВРЕМЕВА ЗОНА UTC..."
 echo "-------------------------------------------------------------------------"
-RESULT_TIMEZONE_SETUP="❔"
+RESULT_TIMEZONE="❔"
 
 # Промяна на системната часова зона на UTC
 if sudo timedatectl set-timezone UTC; then
   echo "✅ Времевата зона е зададена на UTC."
-  RESULT_TIMEZONE_SETUP="✅"
+  RESULT_TIMEZONE="✅"
 else
   echo "❌ Неуспешна смяна на времевата зона. Моля, проверете ръчно."
-  RESULT_TIMEZONE_SETUP="❌"
+  RESULT_TIMEZONE="❌"
   exit 1
 fi
 echo ""
@@ -711,7 +711,7 @@ echo ""
 
 echo "[12] НАСТРОЙКА НА ВРЕМЕВАТА СИНХРОНИЗАЦИЯ..."
 echo "-------------------------------------------------------------------------"
-RESULT_TIME_SYNC="❔"
+RESULT_NTP_SYNC="❔"
 
 # Спиране на други NTP услуги
 echo "🔍 Проверка за активни NTP услуги..."
@@ -722,7 +722,7 @@ sudo systemctl stop systemd-timesyncd 2>/dev/null && sudo systemctl disable syst
 echo "📦 Инсталиране на chrony..."
 if ! sudo apt-get install -y chrony; then
   echo "❌ Неуспешна инсталация на chrony."
-  RESULT_TIME_SYNC="❌"
+  RESULT_NTP_SYNC="❌"
   exit 1
 fi
 
@@ -751,8 +751,7 @@ chronyc tracking | grep -E 'Stratum|System time'
 chronyc sources | grep '^\^\*'
 
 echo "✅ Времевата синхронизация е конфигурирана."
-RESULT_TIME_SYNC="✅"
-
+RESULT_NTP_SYNC="✅"
 echo ""
 echo ""
 
