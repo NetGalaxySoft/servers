@@ -133,14 +133,20 @@ while true; do
   fi
 
   # Проверка дали домейнът резолвира (по избор)
-  if ! getent hosts "$FQDN" >/dev/null; then
-    echo "⚠️ Внимание: Домейнът '$FQDN' не резолвира в момента."
-    printf "Искате ли да продължите с този домейн? [y/N]: "
-    read confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-      continue
-    fi
-  fi
+ if ! getent hosts "$FQDN" >/dev/null; then
+   echo "⚠️ Внимание: Домейнът '$FQDN' не резолвира в момента."
+   while true; do
+     printf "❓ Искате ли да продължите с този домейн? (y / n): "
+     read -r confirm
+     if [[ "$confirm" =~ ^[Yy]$ ]]; then
+       break  # продължаваме със същия домейн
+     elif [[ "$confirm" =~ ^[Nn]$ || -z "$confirm" ]]; then
+       continue 2  # връщаме се към въвеждането на нов домейн
+     else
+       echo "❌ Моля, отговорете с 'y' за да продължите или 'n' за нов домейн."
+     fi
+   done
+ fi
 
   break
 done
