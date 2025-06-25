@@ -735,30 +735,20 @@ echo ""
 echo "=== СТЪПКА 3: КОНФИГУРАЦИЯ НА UFW И РЕСТАРТ НА СЪРВЪРА"
 echo ""
 
+# --- [14] КОНФИГУРАЦИЯ НА UFW И РЕСТАРТ НА СЪРВЪРА -----------------------------
 echo "[14] КОНФИГУРАЦИЯ НА UFW И РЕСТАРТ НА СЪРВЪРА..."
 echo "-------------------------------------------------------------------------"
 RESULT_UFW_CONFIG="❔"
 
-# --- ДОБАВЯНЕ НА ДОПЪЛНИТЕЛНИ ДОВЕРЕНИ МРЕЖИ (по избор) ----------------------
-echo ""
-echo "🌐 Ако използвате частна мрежа (VPN, локална LAN и т.н.), можете да добавите разрешение за нея в UFW."
-TRUSTED_NETS=()
-while true; do
-  printf "➤ Въведете CIDR на доверена мрежа (напр. 192.168.1.0/24), Enter за край: " net
-  if [[ -z "$net" ]]; then
-    break
-  elif [[ "$net" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
-    TRUSTED_NETS+=("$net")
-    echo "✅ Добавена мрежа: $net"
-  else
-    echo "❌ Невалиден формат. Използвайте CIDR, напр. 10.8.0.0/24"
-  fi
-done
-
-for net in "${TRUSTED_NETS[@]}"; do
-  echo "🔐 Разрешаване на достъп от $net към всички портове..."
-  sudo ufw allow from "$net"
-done
+# Добавяне на доверени мрежи (ако има въведени)
+if [[ ${#TRUSTED_NETS[@]} -gt 0 ]]; then
+  echo ""
+  echo "🌐 Добавяне на доверени мрежи в защитната стена:"
+  for net in "${TRUSTED_NETS[@]}"; do
+    echo "🔐 Разрешаване на достъп от $net към всички портове..."
+    sudo ufw allow from "$net"
+  done
+fi
 
 # Инсталиране на UFW, ако не е наличен
 if ! command -v ufw >/dev/null 2>&1; then
@@ -788,6 +778,12 @@ else
   RESULT_UFW_CONFIG="❌"
   exit 1
 fi
+
+if [[ ${#TRUSTED_NETS[@]} -gt 0 ]]; then
+  RESULT_TRUSTED_NETS="✅"
+else
+  RESULT_TRUSTED_NETS="🔒 няма"
+fi
 echo ""
 echo ""
 
@@ -799,9 +795,10 @@ printf "📌 Основни инструменти:             %s\n" "${RESULT_
 printf "📌 Админ. потребител:               %s\n" "${RESULT_ADMIN_USER:-❔}"
 printf "📌 Локализации:                     %s\n" "${RESULT_LOCALES:-❔}"
 printf "📌 Часова зона:                     %s\n" "${RESULT_TIMEZONE:-❔}"
-printf "📌 Времева синхронизация:          %s\n" "${RESULT_NTP_SYNC:-❔}"
+printf "📌 Времева синхронизация:           %s\n" "${RESULT_NTP_SYNC:-❔}"
 printf "📌 Hostname:                        %s\n" "${RESULT_HOSTNAME:-❔}"
 printf "📌 UFW конфигурация:                %s\n" "${RESULT_UFW_CONFIG:-❔}"
+printf "📌 Частни мрежи (Trusted):          %s\n" "${RESULT_TRUSTED_NETS:-❔}"
 
 echo ""
 echo "ℹ️  Легенда: ✅ успешно | ❌ неуспешно | ⚠️ частично | ❔ неизвестно"
