@@ -471,22 +471,21 @@ fi
 # Обобщение
 echo -e "✅ ${COLOR_YELLOW}Сървърът ще бъде конфигуриран със следните параметри:${COLOR_RESET}"
 echo ""
-echo -e " - ${COLOR_YELLOW}Домейн (FQDN):${COLOR_RESET}           ${COLOR_GREEN}${FQDN}${COLOR_RESET}"
-echo -e " - ${COLOR_YELLOW}SSH порт:${COLOR_RESET}                ${COLOR_GREEN}${SSH_PORT}${COLOR_RESET}"
-echo -e " - ${COLOR_YELLOW}Админ потребител:${COLOR_RESET}         ${COLOR_GREEN}${ADMIN_USER}${COLOR_RESET}"
-echo -e " - ${COLOR_YELLOW}Root достъп по SSH:${COLOR_RESET}       ${COLOR_GREEN}ще бъде забранен${COLOR_RESET}"
+echo -e " - ${COLOR_YELLOW}IP адрес:${COLOR_RESET}               ${COLOR_GREEN}${SERVER_IP}${COLOR_RESET}"
+echo -e " - ${COLOR_YELLOW}Домейн (FQDN):${COLOR_RESET}          ${COLOR_GREEN}${FQDN}${COLOR_RESET}"
+echo -e " - ${COLOR_YELLOW}SSH порт:${COLOR_RESET}               ${COLOR_GREEN}${SSH_PORT}${COLOR_RESET}"
+echo -e " - ${COLOR_YELLOW}Защитна стена:${COLOR_RESET}          ${COLOR_GREEN}${FIREWALL_SYSTEM}${COLOR_RESET}"
 echo ""
-echo -e " - ${COLOR_YELLOW}IP адрес на сървъра:${COLOR_RESET}      ${COLOR_GREEN}${SERVER_IP}${COLOR_RESET}"
-echo -e " - ${COLOR_YELLOW}Защитна стена:${COLOR_RESET}            ${COLOR_GREEN}${FIREWALL_SYSTEM}${COLOR_RESET}"
-
+echo -e " - ${COLOR_YELLOW}Сървърен администратор:${COLOR_RESET} ${COLOR_GREEN}${ADMIN_USER}${COLOR_RESET}"
+echo -e " - ${COLOR_YELLOW}Root достъп по SSH:${COLOR_RESET}     ${COLOR_GREEN}Ще бъде забранен${COLOR_RESET}"
 if [[ ${#PORT_LIST[@]} -gt 0 ]]; then
-  echo -e " - ${COLOR_YELLOW}Допълнителни портове:${COLOR_RESET}     ${COLOR_GREEN}${PORT_LIST[*]}${COLOR_RESET}"
+  echo -e " - ${COLOR_YELLOW}Допълнителни портове:${COLOR_RESET}   ${COLOR_GREEN}${PORT_LIST[*]}${COLOR_RESET}"
 fi
 
 if [[ ${#TRUSTED_NETS[@]} -gt 0 ]]; then
-  echo -e " - ${COLOR_YELLOW}Частни мрежи с достъп:${COLOR_RESET}     ${COLOR_GREEN}${TRUSTED_NETS[*]}${COLOR_RESET}"
+  echo -e " - ${COLOR_YELLOW}Частни мрежи с достъп:${COLOR_RESET}  ${COLOR_GREEN}${TRUSTED_NETS[*]}${COLOR_RESET}"
 else
-  echo -e " - ${COLOR_YELLOW}Частни мрежи с достъп:${COLOR_RESET}     ${COLOR_GREEN}няма добавени${COLOR_RESET}"
+  echo -e " - ${COLOR_YELLOW}Частни мрежи с достъп:${COLOR_RESET}  ${COLOR_GREEN}няма добавени${COLOR_RESET}"
 fi
 
 echo ""
@@ -509,7 +508,6 @@ while true; do
     echo "❌ Моля, отговорете с 'y' за продължение или 'q' за прекратяване."
   fi
 done
-
 echo ""
 echo ""
 
