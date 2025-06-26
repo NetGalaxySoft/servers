@@ -895,9 +895,29 @@ fi
 echo ""
 echo ""
 
-echo "[16] ОБОБЩЕНИЕ НА РЕЗУЛТАТИТЕ ОТ КОНФИГУРАЦИЯТА"
+echo "[16] ФИНАЛНА ПРОВЕРКА И ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА"
 echo "-------------------------------------------------------------------------"
 
+# Проверка на sshd_config
+SSHD_CONFIG_FILE="/etc/ssh/sshd_config"
+RESULT_SSH_PORT="❔"
+RESULT_SSH_PASSWORD_AUTH="❔"
+RESULT_SSH_ROOT_LOGIN="❔"
+
+EXPECTED_PORT="$SSH_PORT"
+EXPECTED_PERMIT_ROOT="no"
+EXPECTED_PASS_AUTH="yes"
+
+ACTUAL_PORT=$(grep -Ei '^Port ' "$SSHD_CONFIG_FILE" | awk '{print $2}')
+ACTUAL_PERMIT_ROOT=$(grep -Ei '^PermitRootLogin ' "$SSHD_CONFIG_FILE" | awk '{print $2}')
+ACTUAL_PASS_AUTH=$(grep -Ei '^PasswordAuthentication ' "$SSHD_CONFIG_FILE" | awk '{print $2}')
+
+# Сравнения
+[[ "$ACTUAL_PORT" == "$EXPECTED_PORT" ]] && RESULT_SSH_PORT="✅" || RESULT_SSH_PORT="❌"
+[[ "$ACTUAL_PASS_AUTH" == "$EXPECTED_PASS_AUTH" ]] && RESULT_SSH_PASSWORD_AUTH="✅" || RESULT_SSH_PASSWORD_AUTH="❌"
+[[ "$ACTUAL_PERMIT_ROOT" == "$EXPECTED_PERMIT_ROOT" ]] && RESULT_SSH_ROOT_LOGIN="✅" || RESULT_SSH_ROOT_LOGIN="❌"
+
+# Обобщение
 printf "📌 Системно обновяване:             %s\n" "${RESULT_SYSTEM_UPDATE:-❔}"
 printf "📌 Основни инструменти:             %s\n" "${RESULT_BASE_TOOLS:-❔}"
 printf "📌 Админ. потребител:               %s\n" "${RESULT_ADMIN_USER:-❔}"
@@ -907,6 +927,9 @@ printf "📌 Времева синхронизация:           %s\n" "${RESUL
 printf "📌 Hostname:                        %s\n" "${RESULT_HOSTNAME:-❔}"
 printf "📌 UFW конфигурация:                %s\n" "${RESULT_UFW_CONFIG:-❔}"
 printf "📌 Частни мрежи (Trusted):          %s\n" "${RESULT_TRUSTED_NETS:-❔}"
+printf "📌 SSH порт:                         %s\n" "${RESULT_SSH_PORT:-❔}"
+printf "📌 Влизане с парола:                %s\n" "${RESULT_SSH_PASSWORD_AUTH:-❔}"
+printf "📌 Влизане като Root:               %s\n" "${RESULT_SSH_ROOT_LOGIN:-❔}"
 
 echo ""
 echo "ℹ️  Легенда: ✅ успешно | ❌ неуспешно | ⚠️ частично | ❔ неизвестно"
