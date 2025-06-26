@@ -895,41 +895,34 @@ fi
 echo ""
 echo ""
 
-echo "[16] ФИНАЛНА ПРОВЕРКА И ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА"
-echo "-------------------------------------------------------------------------"
+# --- [16] ФИНАЛНО ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА -----------------------------
+echo "[16] ФИНАЛНО ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА"
+echo "------------------------------------------------------------------"
 
-# Проверка на sshd_config
+# 🔍 Извличане на реални конфигурации
 SSHD_CONFIG_FILE="/etc/ssh/sshd_config"
-RESULT_SSH_PORT="❔"
-RESULT_SSH_PASSWORD_AUTH="❔"
-RESULT_SSH_ROOT_LOGIN="❔"
+ACTUAL_SSH_PORT=$(grep -Ei '^Port ' "$SSHD_CONFIG_FILE" | awk '{print $2}' | head -n1)
+ACTUAL_PASS_AUTH=$(grep -Ei '^PasswordAuthentication ' "$SSHD_CONFIG_FILE" | awk '{print $2}' | head -n1)
+ACTUAL_PERMIT_ROOT=$(grep -Ei '^PermitRootLogin ' "$SSHD_CONFIG_FILE" | awk '{print $2}' | head -n1)
+ACTUAL_HOSTNAME=$(hostnamectl status 2>/dev/null | grep 'Static hostname' | awk '{print $3}')
+ACTUAL_LOCALES=$(localectl status 2>/dev/null | grep -i 'System Locale' | cut -d: -f2- | xargs)
+ACTUAL_TIMEZONE=$(timedatectl show -p Timezone --value 2>/dev/null)
+TRUSTED_NETS_LIST=$(sudo ufw status | grep ALLOW | awk '{print $1}' | paste -sd ' ' -)
+ADMIN_USERNAME=$(getent passwd 1000 | cut -d: -f1)
 
-EXPECTED_PORT="$SSH_PORT"
-EXPECTED_PERMIT_ROOT="no"
-EXPECTED_PASS_AUTH="yes"
-
-ACTUAL_PORT=$(grep -Ei '^Port ' "$SSHD_CONFIG_FILE" | awk '{print $2}')
-ACTUAL_PERMIT_ROOT=$(grep -Ei '^PermitRootLogin ' "$SSHD_CONFIG_FILE" | awk '{print $2}')
-ACTUAL_PASS_AUTH=$(grep -Ei '^PasswordAuthentication ' "$SSHD_CONFIG_FILE" | awk '{print $2}')
-
-# Сравнения
-[[ "$ACTUAL_PORT" == "$EXPECTED_PORT" ]] && RESULT_SSH_PORT="✅" || RESULT_SSH_PORT="❌"
-[[ "$ACTUAL_PASS_AUTH" == "$EXPECTED_PASS_AUTH" ]] && RESULT_SSH_PASSWORD_AUTH="✅" || RESULT_SSH_PASSWORD_AUTH="❌"
-[[ "$ACTUAL_PERMIT_ROOT" == "$EXPECTED_PERMIT_ROOT" ]] && RESULT_SSH_ROOT_LOGIN="✅" || RESULT_SSH_ROOT_LOGIN="❌"
-
-# Обобщение
-printf "📌 Системно обновяване:             %s\n" "${RESULT_SYSTEM_UPDATE:-❔}"
-printf "📌 Основни инструменти:             %s\n" "${RESULT_BASE_TOOLS:-❔}"
-printf "📌 Админ. потребител:               %s\n" "${RESULT_ADMIN_USER:-❔}"
-printf "📌 Локализации:                     %s\n" "${RESULT_LOCALES:-❔}"
-printf "📌 Часова зона:                     %s\n" "${RESULT_TIMEZONE:-❔}"
-printf "📌 Времева синхронизация:           %s\n" "${RESULT_NTP_SYNC:-❔}"
-printf "📌 Hostname:                        %s\n" "${RESULT_HOSTNAME:-❔}"
-printf "📌 UFW конфигурация:                %s\n" "${RESULT_UFW_CONFIG:-❔}"
-printf "📌 Частни мрежи (Trusted):          %s\n" "${RESULT_TRUSTED_NETS:-❔}"
-printf "📌 SSH порт:                         %s\n" "${RESULT_SSH_PORT:-❔}"
-printf "📌 Влизане с парола:                %s\n" "${RESULT_SSH_PASSWORD_AUTH:-❔}"
-printf "📌 Влизане като Root:               %s\n" "${RESULT_SSH_ROOT_LOGIN:-❔}"
+# Обобщена таблица
+printf "%-35s %3s   %s\n" "📌 Системно обновяване:"           "${RESULT_SYSTEM_UPDATE:-❔}"      ""
+printf "%-35s %3s   %s\n" "📌 Основни инструменти:"           "${RESULT_BASE_TOOLS:-❔}"         ""
+printf "%-35s %3s   %s\n" "📌 Админ. потребител:"             "${RESULT_ADMIN_USER:-❔}"         "$ADMIN_USERNAME"
+printf "%-35s %3s   %s\n" "📌 Локализации:"                   "${RESULT_LOCALES:-❔}"            "$ACTUAL_LOCALES"
+printf "%-35s %3s   %s\n" "📌 Часова зона:"                   "${RESULT_TIMEZONE:-❔}"           "$ACTUAL_TIMEZONE"
+printf "%-35s %3s   %s\n" "📌 Времева синхронизация:"         "${RESULT_NTP_SYNC:-❔}"           ""
+printf "%-35s %3s   %s\n" "📌 Hostname:"                      "${RESULT_HOSTNAME:-❔}"           "$ACTUAL_HOSTNAME"
+printf "%-35s %3s   %s\n" "📌 UFW конфигурация:"              "${RESULT_UFW_CONFIG:-❔}"         ""
+printf "%-35s %3s   %s\n" "📌 Частни мрежи (Trusted):"        "${RESULT_TRUSTED_NETS:-🔒}"       "$TRUSTED_NETS_LIST"
+printf "%-35s %3s   %s\n" "📌 SSH порт:"                      "${RESULT_SSH_PORT:-❔}"           "$ACTUAL_SSH_PORT"
+printf "%-35s %3s   %s\n" "📌 Влизане с парола:"              "${RESULT_SSH_PASSWORD_AUTH:-❔}"  "$ACTUAL_PASS_AUTH"
+printf "%-35s %3s   %s\n" "📌 Влизане като Root:"             "${RESULT_SSH_ROOT_LOGIN:-❔}"     "$ACTUAL_PERMIT_ROOT"
 
 echo ""
 echo "ℹ️  Легенда: ✅ успешно | ❌ неуспешно | ⚠️ частично | ❔ неизвестно"
@@ -951,10 +944,10 @@ while true; do
       echo "   актуализирайте я с новите данни преди следващото свързване."
       echo "   НАПРИМЕР:"
       echo ""
-      echo "Host ${RESULT_HOSTNAME:-my-vps}"
+      echo "Host ${ACTUAL_HOSTNAME:-my-vps}"
       echo "  HostName $(curl -s ifconfig.me || echo '<IP-АДРЕС>')"
-      echo "  Port ${RESULT_SSH_PORT:-22}"
-      echo "  User ${RESULT_ADMIN_USER:-admin}"
+      echo "  Port ${ACTUAL_SSH_PORT:-22}"
+      echo "  User ${ADMIN_USERNAME:-admin}"
       echo ""
       echo "🔧 За редакция: sudo nano ~/.ssh/config"
       echo ""
