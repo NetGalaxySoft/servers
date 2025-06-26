@@ -946,6 +946,19 @@ while true; do
   read choice
   case "$choice" in
     [Rr]*)
+      echo ""
+      echo "💡 Напомняне: Ако използвате бърза SSH връзка (~/.ssh/config),"
+      echo "   актуализирайте я с новите данни преди следващото свързване."
+      echo "   НАПРИМЕР:"
+      echo ""
+      echo "Host ${RESULT_HOSTNAME:-my-vps}"
+      echo "  HostName $(curl -s ifconfig.me || echo '<IP-АДРЕС>')"
+      echo "  Port ${RESULT_SSH_PORT:-22}"
+      echo "  User ${RESULT_ADMIN_USER:-admin}"
+      echo ""
+      echo "🔧 За редакция: sudo nano ~/.ssh/config"
+      echo ""
+
       SCRIPT_PATH="$(realpath "$0")"
       if [[ -f "$SCRIPT_PATH" && "$SCRIPT_PATH" != "/usr/bin/bash" ]]; then
         echo "🧹 Премахване на инсталационния скрипт: $SCRIPT_PATH"
@@ -967,6 +980,7 @@ while true; do
       ;;
   esac
 done
+
 
 echo -e "\n✅ Скриптът достигна края на изпълнението.\n"
 
