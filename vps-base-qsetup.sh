@@ -899,7 +899,7 @@ echo ""
 echo "[16] ФИНАЛНО ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА"
 echo "------------------------------------------------------------------"
 
-# 🔍 Извличане на реални конфигурации
+# 🔍 Извличане на реални стойности от системата
 SSHD_CONFIG_FILE="/etc/ssh/sshd_config"
 ACTUAL_SSH_PORT=$(grep -Ei '^Port ' "$SSHD_CONFIG_FILE" | awk '{print $2}' | head -n1)
 ACTUAL_PASS_AUTH=$(grep -Ei '^PasswordAuthentication ' "$SSHD_CONFIG_FILE" | awk '{print $2}' | head -n1)
@@ -910,7 +910,7 @@ ACTUAL_TIMEZONE=$(timedatectl show -p Timezone --value 2>/dev/null)
 TRUSTED_NETS_LIST=$(sudo ufw status | grep ALLOW | awk '{print $1}' | paste -sd ' ' -)
 ADMIN_USERNAME=$(getent passwd 1000 | cut -d: -f1)
 
-# Обобщена таблица
+# 📋 Обобщена таблица с реални стойности
 printf "%-35s %3s   %s\n" "📌 Системно обновяване:"           "${RESULT_SYSTEM_UPDATE:-❔}"      ""
 printf "%-35s %3s   %s\n" "📌 Основни инструменти:"           "${RESULT_BASE_TOOLS:-❔}"         ""
 printf "%-35s %3s   %s\n" "📌 Админ. потребител:"             "${RESULT_ADMIN_USER:-❔}"         "$ADMIN_USERNAME"
@@ -919,13 +919,13 @@ printf "%-35s %3s   %s\n" "📌 Часова зона:"                   "${RES
 printf "%-35s %3s   %s\n" "📌 Времева синхронизация:"         "${RESULT_NTP_SYNC:-❔}"           ""
 printf "%-35s %3s   %s\n" "📌 Hostname:"                      "${RESULT_HOSTNAME:-❔}"           "$ACTUAL_HOSTNAME"
 printf "%-35s %3s   %s\n" "📌 UFW конфигурация:"              "${RESULT_UFW_CONFIG:-❔}"         ""
-printf "%-35s %3s   %s\n" "📌 Частни мрежи (Trusted):"        "${RESULT_TRUSTED_NETS:-🔒}"       "$TRUSTED_NETS_LIST"
+printf "%-35s %3s   %s\n" "📌 Частни мрежи (Trusted):"        "${RESULT_TRUSTED_NETS:-🔒}"       "${TRUSTED_NETS_LIST:-няма}"
 printf "%-35s %3s   %s\n" "📌 SSH порт:"                      "${RESULT_SSH_PORT:-❔}"           "$ACTUAL_SSH_PORT"
 printf "%-35s %3s   %s\n" "📌 Влизане с парола:"              "${RESULT_SSH_PASSWORD_AUTH:-❔}"  "$ACTUAL_PASS_AUTH"
 printf "%-35s %3s   %s\n" "📌 Влизане като Root:"             "${RESULT_SSH_ROOT_LOGIN:-❔}"     "$ACTUAL_PERMIT_ROOT"
 
 echo ""
-echo "ℹ️  Легенда: ✅ успешно | ❌ неуспешно | ⚠️ частично | ❔ неизвестно"
+echo "ℹ️  Легенда: ✅ успешно | ❌ неуспешно | 🔒 няма | ❔ неизвестно"
 echo ""
 
 # Потвърждение за рестарт
