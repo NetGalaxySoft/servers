@@ -899,7 +899,7 @@ echo ""
 echo "[16] ФИНАЛНО ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА"
 echo "------------------------------------------------------------------"
 
-# 🔍 Извличане на реални стойности от системата
+# 🔍 Извличане на реални конфигурации
 SSHD_CONFIG_FILE="/etc/ssh/sshd_config"
 ACTUAL_SSH_PORT=$(grep -Ei '^Port ' "$SSHD_CONFIG_FILE" | awk '{print $2}' | head -n1)
 ACTUAL_PASS_AUTH=$(grep -Ei '^PasswordAuthentication ' "$SSHD_CONFIG_FILE" | awk '{print $2}' | head -n1)
@@ -907,22 +907,28 @@ ACTUAL_PERMIT_ROOT=$(grep -Ei '^PermitRootLogin ' "$SSHD_CONFIG_FILE" | awk '{pr
 ACTUAL_HOSTNAME=$(hostnamectl status 2>/dev/null | grep 'Static hostname' | awk '{print $3}')
 ACTUAL_LOCALES=$(localectl status 2>/dev/null | grep -i 'System Locale' | cut -d: -f2- | xargs)
 ACTUAL_TIMEZONE=$(timedatectl show -p Timezone --value 2>/dev/null)
-TRUSTED_NETS_LIST=$(sudo ufw status | grep ALLOW | awk '{print $1}' | paste -sd ' ' -)
+TRUSTED_NETS_LIST=$(sudo ufw status | grep -E "ALLOW IN" | grep -vE "Anywhere|v6" | awk '{print $1}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(/\d+)?$' | paste -sd ' ' -)
 ADMIN_USERNAME=$(getent passwd 1000 | cut -d: -f1)
 
-# 📋 Обобщена таблица с реални стойности
-printf "%-35s %3s   %s\n" "📌 Системно обновяване:"           "${RESULT_SYSTEM_UPDATE:-❔}"      ""
-printf "%-35s %3s   %s\n" "📌 Основни инструменти:"           "${RESULT_BASE_TOOLS:-❔}"         ""
-printf "%-35s %3s   %s\n" "📌 Админ. потребител:"             "${RESULT_ADMIN_USER:-❔}"         "$ADMIN_USERNAME"
-printf "%-35s %3s   %s\n" "📌 Локализации:"                   "${RESULT_LOCALES:-❔}"            "$ACTUAL_LOCALES"
-printf "%-35s %3s   %s\n" "📌 Часова зона:"                   "${RESULT_TIMEZONE:-❔}"           "$ACTUAL_TIMEZONE"
-printf "%-35s %3s   %s\n" "📌 Времева синхронизация:"         "${RESULT_NTP_SYNC:-❔}"           ""
-printf "%-35s %3s   %s\n" "📌 Hostname:"                      "${RESULT_HOSTNAME:-❔}"           "$ACTUAL_HOSTNAME"
-printf "%-35s %3s   %s\n" "📌 UFW конфигурация:"              "${RESULT_UFW_CONFIG:-❔}"         ""
-printf "%-35s %3s   %s\n" "📌 Частни мрежи (Trusted):"        "${RESULT_TRUSTED_NETS:-🔒}"       "${TRUSTED_NETS_LIST:-няма}"
-printf "%-35s %3s   %s\n" "📌 SSH порт:"                      "${RESULT_SSH_PORT:-❔}"           "$ACTUAL_SSH_PORT"
-printf "%-35s %3s   %s\n" "📌 Влизане с парола:"              "${RESULT_SSH_PASSWORD_AUTH:-❔}"  "$ACTUAL_PASS_AUTH"
-printf "%-35s %3s   %s\n" "📌 Влизане като Root:"             "${RESULT_SSH_ROOT_LOGIN:-❔}"     "$ACTUAL_PERMIT_ROOT"
+# 🔁 Проверки на стойности
+RESULT_SSH_PORT=$([[ "$ACTUAL_SSH_PORT" =~ ^[0-9]+$ ]] && echo "✅" || echo "❌")
+RESULT_SSH_PASSWORD_AUTH=$([[ "$ACTUAL_PASS_AUTH" =~ ^(yes|no)$ ]] && echo "✅" || echo "❌")
+RESULT_SSH_ROOT_LOGIN=$([[ "$ACTUAL_PERMIT_ROOT" =~ ^(yes|no|prohibit-password)$ ]] && echo "✅" || echo "❌")
+[[ -z "$TRUSTED_NETS_LIST" ]] && RESULT_TRUSTED_NETS="🔒 няма" || RESULT_TRUSTED_NETS="✅"
+
+# 📋 Обобщена таблица
+printf "%-35s %-3s %s\n" "📌 Системно обновяване:"           "${RESULT_SYSTEM_UPDATE:-❔}"        ""
+printf "%-35s %-3s %s\n" "📌 Основни инструменти:"           "${RESULT_BASE_TOOLS:-❔}"           ""
+printf "%-35s %-3s %s\n" "📌 Админ. потребител:"             "${RESULT_ADMIN_USER:-❔}"           "$ADMIN_USERNAME"
+printf "%-35s %-3s %s\n" "📌 Локализации:"                   "${RESULT_LOCALES:-❔}"              "$ACTUAL_LOCALES"
+printf "%-35s %-3s %s\n" "📌 Часова зона:"                   "${RESULT_TIMEZONE:-❔}"             "$ACTUAL_TIMEZONE"
+printf "%-35s %-3s %s\n" "📌 Времева синхронизация:"         "${RESULT_NTP_SYNC:-❔}"             ""
+printf "%-35s %-3s %s\n" "📌 Hostname:"                      "${RESULT_HOSTNAME:-❔}"             "$ACTUAL_HOSTNAME"
+printf "%-35s %-3s %s\n" "📌 UFW конфигурация:"              "${RESULT_UFW_CONFIG:-❔}"           ""
+printf "%-35s %-3s %s\n" "📌 Частни мрежи (Trusted):"        "${RESULT_TRUSTED_NETS:-❔}"         "$TRUSTED_NETS_LIST"
+printf "%-35s %-3s %s\n" "📌 SSH порт:"                      "${RESULT_SSH_PORT:-❔}"             "$ACTUAL_SSH_PORT"
+printf "%-35s %-3s %s\n" "📌 Влизане с парола:"              "${RESULT_SSH_PASSWORD_AUTH:-❔}"    "$ACTUAL_PASS_AUTH"
+printf "%-35s %-3s %s\n" "📌 Влизане като Root:"             "${RESULT_SSH_ROOT_LOGIN:-❔}"       "$ACTUAL_PERMIT_ROOT"
 
 echo ""
 echo "ℹ️  Легенда: ✅ успешно | ❌ неуспешно | 🔒 няма | ❔ неизвестно"
