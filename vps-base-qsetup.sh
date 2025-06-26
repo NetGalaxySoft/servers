@@ -917,18 +917,22 @@ RESULT_SSH_ROOT_LOGIN=$([[ "$ACTUAL_PERMIT_ROOT" =~ ^(yes|no|prohibit-password)$
 [[ -z "$TRUSTED_NETS_LIST" ]] && RESULT_TRUSTED_NETS="🔒 няма" || RESULT_TRUSTED_NETS="✅"
 
 # 📋 Обобщена таблица
-printf "📌 %-33s %s   %s\n" "Системно обновяване:"           "$(printf '%-3s' "${RESULT_SYSTEM_UPDATE:-❔}")"        ""
-printf "📌 %-33s %s   %s\n" "Основни инструменти:"           "$(printf '%-3s' "${RESULT_BASE_TOOLS:-❔}")"           ""
-printf "📌 %-33s %s   %s\n" "Админ. потребител:"             "$(printf '%-3s' "${RESULT_ADMIN_USER:-❔}")"           "$ADMIN_USERNAME"
-printf "📌 %-33s %s   %s\n" "Локализации:"                   "$(printf '%-3s' "${RESULT_LOCALES:-❔}")"              "$ACTUAL_LOCALES"
-printf "📌 %-33s %s   %s\n" "Часова зона:"                   "$(printf '%-3s' "${RESULT_TIMEZONE:-❔}")"             "$ACTUAL_TIMEZONE"
-printf "📌 %-33s %s   %s\n" "Времева синхронизация:"         "$(printf '%-3s' "${RESULT_NTP_SYNC:-❔}")"             ""
-printf "📌 %-33s %s   %s\n" "Hostname:"                      "$(printf '%-3s' "${RESULT_HOSTNAME:-❔}")"             "$ACTUAL_HOSTNAME"
-printf "📌 %-33s %s   %s\n" "UFW конфигурация:"              "$(printf '%-3s' "${RESULT_UFW_CONFIG:-❔}")"           ""
-printf "📌 %-33s %s   %s\n" "Частни мрежи (Trusted):"        "$(printf '%-3s' "${RESULT_TRUSTED_NETS:-🔒}")"         "$TRUSTED_NETS_LIST"
-printf "📌 %-33s %s   %s\n" "SSH порт:"                      "$(printf '%-3s' "${RESULT_SSH_PORT:-❔}")"             "$ACTUAL_SSH_PORT"
-printf "📌 %-33s %s   %s\n" "Влизане с парола:"              "$(printf '%-3s' "${RESULT_SSH_PASSWORD_AUTH:-❔}")"    "$ACTUAL_PASS_AUTH"
-printf "📌 %-33s %s   %s\n" "Влизане като Root:"             "$(printf '%-3s' "${RESULT_SSH_ROOT_LOGIN:-❔}")"       "$ACTUAL_PERMIT_ROOT"
+echo "📌 Системно обновяване:     ${RESULT_SYSTEM_UPDATE:-❔}"
+echo "📌 Основни инструменти:     ${RESULT_BASE_TOOLS:-❔}"
+echo "📌 Админ. потребител:       ${RESULT_ADMIN_USER:-❔} $ADMIN_USERNAME"
+echo "📌 Локализации:             ${RESULT_LOCALES:-❔} $ACTUAL_LOCALES"
+echo "📌 Часова зона:             ${RESULT_TIMEZONE:-❔} $ACTUAL_TIMEZONE"
+echo "📌 Времева синхронизация:   ${RESULT_NTP_SYNC:-❔}"
+echo "📌 Hostname:                ${RESULT_HOSTNAME:-❔} $ACTUAL_HOSTNAME"
+echo "📌 UFW конфигурация:        ${RESULT_UFW_CONFIG:-❔}"
+if [[ -n "$TRUSTED_NETS_LIST" ]]; then
+  echo "📌 Частни мрежи (Trusted):  ✅ $TRUSTED_NETS_LIST"
+else
+  echo "📌 Частни мрежи (Trusted):  🔒 няма"
+fi
+echo "📌 SSH порт:                ${RESULT_SSH_PORT:-❔} $ACTUAL_SSH_PORT"
+echo "📌 Влизане с парола:        ${RESULT_SSH_PASSWORD_AUTH:-❔} $ACTUAL_PASS_AUTH"
+echo "📌 Влизане като Root:       ${RESULT_SSH_ROOT_LOGIN:-❔} $ACTUAL_PERMIT_ROOT"
 
 echo ""
 echo "ℹ️  Легенда: ✅ успешно | ❌ неуспешно | 🔒 няма | ❔ неизвестно"
