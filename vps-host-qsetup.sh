@@ -123,56 +123,54 @@ while true; do
   esac
 done
 
-if [[ "$DNS_REQUIRED" == "yes" ]]; then
-  while true; do
-    echo "➤ Изберете режим за DNS сървъра:"
-    echo "    1: master"
-    echo "    2: slave"
-    echo "    q: изход"
-    read -rp "Вашият избор: " DNS_MODE
-    case "$DNS_MODE" in
-      1)
-        DNS_MODE="master"
-        DNS_ZONE=$(echo "$SERVER_DOMAIN" | cut -d. -f2-)
-        echo "ℹ️ Използва се основна зона: $DNS_ZONE"
-        break
-        ;;
-      2)
-        DNS_MODE="slave"
-        # останалата част започва след това
-        break
-        ;;
-      q|Q)
-        exit 0
-        ;;
-      *)
-        echo "❌ Невалиден избор. Моля, въведете 1, 2 или q."
-        ;;
-    esac
-  done
-fi
-
-        while true; do
-          read -rp "➤ Въведете IP адреса на master DNS сървъра (или 'q' за изход): " SLAVE_MASTER_IP
-          [[ "$SLAVE_MASTER_IP" == "q" ]] && exit 0
-          if [[ $SLAVE_MASTER_IP == "$SERVER_IP" ]]; then
-            echo "❌ IP адресът на master сървъра не може да съвпада с текущия сървър."
-            continue
-          fi
-          if [[ $SLAVE_MASTER_IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-            echo "ℹ️ Ще се опитаме да проверим достъпа до master сървъра..."
-            if timeout 3 bash -c "> /dev/tcp/$SLAVE_MASTER_IP/53" 2>/dev/null; then
-              echo "✅ Успешна връзка към порт 53 на master DNS сървъра."
-              break
-            else
-              echo "❌ Няма достъп до порт 53 на $SLAVE_MASTER_IP. Проверете firewall или IP."
-            fi
+# === [2a] ВЪПРОС ЗА DNS РЕЖИМ ===================================================
+while true; do
+  echo "➤ Изберете режим за DNS сървъра:"
+  echo "    1: master"
+  echo "    2: slave"
+  echo "    q: изход"
+  read -rp "Вашият избор: " DNS_MODE
+  case "$DNS_MODE" in
+    1)
+      DNS_MODE="master"
+      DNS_ZONE=$(echo "$SERVER_DOMAIN" | cut -d. -f2-)
+      echo "ℹ️ Използва се основна зона: $DNS_ZONE"
+      SLAVE_MASTER_IP=""
+      break
+      ;;
+    2)
+      DNS_MODE="slave"
+      while true; do
+        read -rp "➤ Въведете IP адреса на master DNS сървъра (или 'q' за изход): " SLAVE_MASTER_IP
+        [[ "$SLAVE_MASTER_IP" == "q" ]] && exit 0
+        if [[ $SLAVE_MASTER_IP == "$SERVER_IP" ]]; then
+          echo "❌ IP адресът на master сървъра не може да съвпада с текущия сървър."
+          continue
+        fi
+        if [[ $SLAVE_MASTER_IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+          echo "ℹ️ Ще се опитаме да проверим достъпа до master сървъра..."
+          if timeout 3 bash -c "> /dev/tcp/$SLAVE_MASTER_IP/53" 2>/dev/null; then
+            echo "✅ Успешна връзка към порт 53 на master DNS сървъра."
+            break
           else
-            echo "❌ Невалиден IP адрес. Опитайте отново."
+            echo "❌ Няма достъп до порт 53 на $SLAVE_MASTER_IP. Проверете firewall или IP."
           fi
-        done
+        else
+          echo "❌ Невалиден IP адрес. Опитайте отново."
+        fi
+      done
+      break
+      ;;
+    q|Q)
+      exit 0
+      ;;
+    *)
+      echo "❌ Невалиден избор. Моля, въведете 1, 2 или q."
+      ;;
+  esac
+ done
 
-# Финално потвърждение
+# [3] Финално потвърждение
 INSTALLED_SERVICES="Apache2, MariaDB, PHP, Postfix, Dovecot, Roundcube"
 echo ""
 echo "🔎 Преглед на въведената информация:"
