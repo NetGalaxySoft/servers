@@ -232,206 +232,44 @@ while true; do
   esac
 done
 
-echo "[4] ИНСТАЛАЦИЯ НА APACHE И МОДУЛИ..."
+echo "[4] КОНФИГУРИРАНЕ НА UFW (Отваряне на портове)..."
 echo "-------------------------------------------------------------------------"
 
-# Проверка дали Apache вече е инсталиран
-if dpkg -s apache2 >/dev/null 2>&1; then
-  echo "ℹ️ Apache вече е инсталиран. Пропускане на тази стъпка."
-  RESULT_APACHE="✅ (вече инсталиран)"
-else
-  echo "⏳ Инсталиране на Apache и PHP модули..."
-
-  APACHE_PACKAGES=(
-    apache2
-    apache2-utils
-    libapache2-mod-php
-    php
-    php-cli
-    php-curl
-    php-mbstring
-    php-mysql
-    php-xml
-    php-zip
-  )
-
-  if apt-get install -y "${APACHE_PACKAGES[@]}"; then
-    RESULT_APACHE="✅"
-    echo "✅ Apache и PHP модулите са инсталирани успешно."
-  else
-    RESULT_APACHE="❌"
-    echo "❌ Грешка при инсталиране на Apache или PHP."
-  fi
-fi
-echo ""
-echo ""
-
-echo "[5] ИНСТАЛАЦИЯ НА CERTBOT..."
-echo "-------------------------------------------------------------------------"
-
-# Проверка дали certbot вече е инсталиран
-if command -v certbot >/dev/null 2>&1; then
-  echo "ℹ️ Certbot вече е инсталиран. Пропускане на тази стъпка."
-  RESULT_CERTBOT="✅ (вече инсталиран)"
-else
-  echo "⏳ Инсталиране на Certbot и Apache plugin..."
-
-  CERTBOT_PACKAGES=(
-    certbot
-    python3-certbot-apache
-  )
-
-  if apt-get install -y "${CERTBOT_PACKAGES[@]}"; then
-    RESULT_CERTBOT="✅"
-    echo "✅ Certbot е инсталиран успешно."
-  else
-    RESULT_CERTBOT="❌"
-    echo "❌ Грешка при инсталиране на Certbot."
-  fi
-fi
-echo ""
-echo ""
-
-
-echo "[6] ИНСТАЛАЦИЯ НА ПОЩЕНСКИ СЪРВЪР (Postfix + Dovecot)..."
-echo "-------------------------------------------------------------------------"
-
-# Проверка дали Postfix вече е инсталиран
-if dpkg -s postfix >/dev/null 2>&1; then
-  echo "ℹ️ Пощенският сървър вече е инсталиран. Пропускане на тази стъпка."
-  RESULT_MAIL="✅ (вече инсталиран)"
-else
-  echo "⏳ Инсталиране на Postfix и Dovecot..."
-
-  MAIL_PACKAGES=(
-    postfix
-    dovecot-core
-    dovecot-imapd
-    dovecot-pop3d
-    mailutils
-  )
-
-  # Предотвратява появата на интерактивни диалози от postfix
-  export DEBIAN_FRONTEND=noninteractive
-
-  if apt-get install -y "${MAIL_PACKAGES[@]}"; then
-    RESULT_MAIL="✅"
-    echo "✅ Пощенският сървър е инсталиран успешно."
-  else
-    RESULT_MAIL="❌"
-    echo "❌ Грешка при инсталиране на Postfix или Dovecot."
-  fi
-
-  unset DEBIAN_FRONTEND
-fi
-echo ""
-echo ""
-
-echo "[7] ИНСТАЛАЦИЯ НА ROUNDcube WEBMAIL..."
-echo "-------------------------------------------------------------------------"
-
-# Проверка дали Roundcube вече е инсталиран
-if dpkg -s roundcube >/dev/null 2>&1; then
-  echo "ℹ️ Roundcube вече е инсталиран. Пропускане на тази стъпка."
-  RESULT_ROUNDCUBE="✅ (вече инсталиран)"
-else
-  echo "⏳ Инсталиране на Roundcube и допълнителни модули..."
-
-  ROUNDCUBE_PACKAGES=(
-    roundcube
-    roundcube-core
-    roundcube-mysql
-    roundcube-plugins
-    roundcube-plugins-extra
-  )
-
-  if apt-get install -y "${ROUNDCUBE_PACKAGES[@]}"; then
-    RESULT_ROUNDCUBE="✅"
-    echo "✅ Roundcube е инсталиран успешно."
-  else
-    RESULT_ROUNDCUBE="❌"
-    echo "❌ Грешка при инсталиране на Roundcube."
-  fi
-fi
-echo ""
-echo ""
-
-echo "[8] ИНСТАЛАЦИЯ НА MARIADB (MySQL)..."
-echo "-------------------------------------------------------------------------"
-
-# Проверка дали MariaDB вече е инсталирана
-if dpkg -s mariadb-server >/dev/null 2>&1; then
-  echo "ℹ️ MariaDB вече е инсталирана. Пропускане на тази стъпка."
-  RESULT_MARIADB="✅ (вече инсталирана)"
-else
-  echo "⏳ Инсталиране на MariaDB..."
-
-  DB_PACKAGES=(
-    mariadb-server
-    mariadb-client
-  )
-
-  export DEBIAN_FRONTEND=noninteractive
-
-  if apt-get install -y "${DB_PACKAGES[@]}"; then
-    RESULT_MARIADB="✅"
-    echo "✅ MariaDB е инсталирана успешно."
-  else
-    RESULT_MARIADB="❌"
-    echo "❌ Грешка при инсталиране на MariaDB."
-  fi
-
-  unset DEBIAN_FRONTEND
-fi
-echo ""
-echo ""
-
-echo "[9] СИГУРНОСТ НА MARIADB..."
-echo "-------------------------------------------------------------------------"
-
-SECURE_SQL=$(cat <<EOF
-DELETE FROM mysql.user WHERE User='';
-DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
-DROP DATABASE IF EXISTS test;
-DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
-FLUSH PRIVILEGES;
-EOF
+UFW_PORTS=(
+  22    # SSH
+  53    # DNS
+  80    # HTTP
+  443   # HTTPS
+  25    # SMTP (Postfix)
+  587   # SMTP TLS (Postfix)
+  993   # IMAPS (Dovecot)
+  995   # POP3S (Dovecot)
 )
 
-if echo "$SECURE_SQL" | mysql -u root >/dev/null 2>&1; then
-  RESULT_MARIADB_SECURE="✅"
-  echo "✅ MariaDB е защитена успешно."
-else
-  RESULT_MARIADB_SECURE="❌"
-  echo "❌ Грешка при изпълнение на защитните SQL команди."
+if ! command -v ufw >/dev/null 2>&1; then
+  echo "ℹ️ Инсталираме UFW..."
+  apt-get install -y ufw >/dev/null 2>&1
 fi
+
+echo "🔐 Активиране на UFW и отваряне на нужните портове..."
+
+ufw --force reset >/dev/null 2>&1
+ufw default deny incoming >/dev/null
+ufw default allow outgoing >/dev/null
+
+for port in "${UFW_PORTS[@]}"; do
+  ufw allow "$port" >/dev/null
+done
+
+# Разрешаваме от всякакъв интерфейс (вкл. вътрешни/външни връзки)
+ufw --force enable >/dev/null
+
+RESULT_UFW="✅"
+echo "✅ Файъруолът е конфигуриран и активен."
 echo ""
 echo ""
 
-echo "[10] ИНСТАЛАЦИЯ НА FAIL2BAN..."
-echo "-------------------------------------------------------------------------"
-
-# Проверка дали Fail2ban вече е инсталиран
-if dpkg -s fail2ban >/dev/null 2>&1; then
-  echo "ℹ️ Fail2ban вече е инсталиран. Пропускане на тази стъпка."
-  RESULT_FAIL2BAN="✅ (вече инсталиран)"
-else
-  echo "⏳ Инсталиране и стартиране на Fail2ban..."
-
-  if apt-get install -y fail2ban >/dev/null 2>&1; then
-    systemctl enable fail2ban >/dev/null 2>&1
-    systemctl start fail2ban >/dev/null 2>&1
-    RESULT_FAIL2BAN="✅"
-    echo "✅ Fail2ban е инсталиран и стартиран."
-  else
-    RESULT_FAIL2BAN="❌"
-    echo "❌ Грешка при инсталиране на Fail2ban."
-  fi
-fi
-echo ""
-echo ""
-
-echo "[11] КОНФИГУРИРАНЕ НА DNS СЪРВЪРА (bind9)"
+echo "[5] КОНФИГУРИРАНЕ НА DNS СЪРВЪРА (bind9)"
 echo "-------------------------------------------------------------------------"
 
 DNS_CONFIG_STATUS="❌"
@@ -513,20 +351,218 @@ fi
 echo ""
 echo ""
 
+echo "[6] ИНСТАЛАЦИЯ НА APACHE И МОДУЛИ..."
+echo "-------------------------------------------------------------------------"
+
+# Проверка дали Apache вече е инсталиран
+if dpkg -s apache2 >/dev/null 2>&1; then
+  echo "ℹ️ Apache вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_APACHE="✅ (вече инсталиран)"
+else
+  echo "⏳ Инсталиране на Apache и PHP модули..."
+
+  APACHE_PACKAGES=(
+    apache2
+    apache2-utils
+    libapache2-mod-php
+    php
+    php-cli
+    php-curl
+    php-mbstring
+    php-mysql
+    php-xml
+    php-zip
+  )
+
+  if apt-get install -y "${APACHE_PACKAGES[@]}"; then
+    RESULT_APACHE="✅"
+    echo "✅ Apache и PHP модулите са инсталирани успешно."
+  else
+    RESULT_APACHE="❌"
+    echo "❌ Грешка при инсталиране на Apache или PHP."
+  fi
+fi
+echo ""
+echo ""
+
+echo "[7] ИНСТАЛАЦИЯ НА CERTBOT..."
+echo "-------------------------------------------------------------------------"
+
+# Проверка дали certbot вече е инсталиран
+if command -v certbot >/dev/null 2>&1; then
+  echo "ℹ️ Certbot вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_CERTBOT="✅ (вече инсталиран)"
+else
+  echo "⏳ Инсталиране на Certbot и Apache plugin..."
+
+  CERTBOT_PACKAGES=(
+    certbot
+    python3-certbot-apache
+  )
+
+  if apt-get install -y "${CERTBOT_PACKAGES[@]}"; then
+    RESULT_CERTBOT="✅"
+    echo "✅ Certbot е инсталиран успешно."
+  else
+    RESULT_CERTBOT="❌"
+    echo "❌ Грешка при инсталиране на Certbot."
+  fi
+fi
+echo ""
+echo ""
+
+echo "[8] ИНСТАЛАЦИЯ НА MARIADB (MySQL)..."
+echo "-------------------------------------------------------------------------"
+
+# Проверка дали MariaDB вече е инсталирана
+if dpkg -s mariadb-server >/dev/null 2>&1; then
+  echo "ℹ️ MariaDB вече е инсталирана. Пропускане на тази стъпка."
+  RESULT_MARIADB="✅ (вече инсталирана)"
+else
+  echo "⏳ Инсталиране на MariaDB..."
+
+  DB_PACKAGES=(
+    mariadb-server
+    mariadb-client
+  )
+
+  export DEBIAN_FRONTEND=noninteractive
+
+  if apt-get install -y "${DB_PACKAGES[@]}"; then
+    RESULT_MARIADB="✅"
+    echo "✅ MariaDB е инсталирана успешно."
+  else
+    RESULT_MARIADB="❌"
+    echo "❌ Грешка при инсталиране на MariaDB."
+  fi
+
+  unset DEBIAN_FRONTEND
+fi
+echo ""
+echo ""
+
+echo "[9] СИГУРНОСТ НА MARIADB..."
+echo "-------------------------------------------------------------------------"
+
+SECURE_SQL=$(cat <<EOF
+DELETE FROM mysql.user WHERE User='';
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+DROP DATABASE IF EXISTS test;
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+FLUSH PRIVILEGES;
+EOF
+)
+
+if echo "$SECURE_SQL" | mysql -u root >/dev/null 2>&1; then
+  RESULT_MARIADB_SECURE="✅"
+  echo "✅ MariaDB е защитена успешно."
+else
+  RESULT_MARIADB_SECURE="❌"
+  echo "❌ Грешка при изпълнение на защитните SQL команди."
+fi
+echo ""
+echo ""
+
+echo "[10] ИНСТАЛАЦИЯ НА ПОЩЕНСКИ СЪРВЪР (Postfix + Dovecot)..."
+echo "-------------------------------------------------------------------------"
+
+# Проверка дали Postfix вече е инсталиран
+if dpkg -s postfix >/dev/null 2>&1; then
+  echo "ℹ️ Пощенският сървър вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_MAIL="✅ (вече инсталиран)"
+else
+  echo "⏳ Инсталиране на Postfix и Dovecot..."
+
+  MAIL_PACKAGES=(
+    postfix
+    dovecot-core
+    dovecot-imapd
+    dovecot-pop3d
+    mailutils
+  )
+
+  # Предотвратява появата на интерактивни диалози от postfix
+  export DEBIAN_FRONTEND=noninteractive
+
+  if apt-get install -y "${MAIL_PACKAGES[@]}"; then
+    RESULT_MAIL="✅"
+    echo "✅ Пощенският сървър е инсталиран успешно."
+  else
+    RESULT_MAIL="❌"
+    echo "❌ Грешка при инсталиране на Postfix или Dovecot."
+  fi
+
+  unset DEBIAN_FRONTEND
+fi
+echo ""
+echo ""
+
+echo "[11] ИНСТАЛАЦИЯ НА ROUNDcube WEBMAIL..."
+echo "-------------------------------------------------------------------------"
+
+# Проверка дали Roundcube вече е инсталиран
+if dpkg -s roundcube >/dev/null 2>&1; then
+  echo "ℹ️ Roundcube вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_ROUNDCUBE="✅ (вече инсталиран)"
+else
+  echo "⏳ Инсталиране на Roundcube и допълнителни модули..."
+
+  ROUNDCUBE_PACKAGES=(
+    roundcube
+    roundcube-core
+    roundcube-mysql
+    roundcube-plugins
+    roundcube-plugins-extra
+  )
+
+  if apt-get install -y "${ROUNDCUBE_PACKAGES[@]}"; then
+    RESULT_ROUNDCUBE="✅"
+    echo "✅ Roundcube е инсталиран успешно."
+  else
+    RESULT_ROUNDCUBE="❌"
+    echo "❌ Грешка при инсталиране на Roundcube."
+  fi
+fi
+echo ""
+echo ""
+
+echo "[12] ИНСТАЛАЦИЯ НА FAIL2BAN..."
+echo "-------------------------------------------------------------------------"
+
+# Проверка дали Fail2ban вече е инсталиран
+if dpkg -s fail2ban >/dev/null 2>&1; then
+  echo "ℹ️ Fail2ban вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_FAIL2BAN="✅ (вече инсталиран)"
+else
+  echo "⏳ Инсталиране и стартиране на Fail2ban..."
+
+  if apt-get install -y fail2ban >/dev/null 2>&1; then
+    systemctl enable fail2ban >/dev/null 2>&1
+    systemctl start fail2ban >/dev/null 2>&1
+    RESULT_FAIL2BAN="✅"
+    echo "✅ Fail2ban е инсталиран и стартиран."
+  else
+    RESULT_FAIL2BAN="❌"
+    echo "❌ Грешка при инсталиране на Fail2ban."
+  fi
+fi
+echo ""
+echo ""
+
 echo "-------------------------------------------------------------------------"
 echo "            ОБОБЩЕНИЕ НА РЕЗУЛТАТИТЕ ОТ КОНФИГУРАЦИЯТА"
 echo "-------------------------------------------------------------------------"
 
-printf "📌 Домейн (FQDN):                    %s\n" "$SERVER_DOMAIN"
-printf "📌 IP адрес на сървъра:             %s\n" "$SERVER_IP"
+printf "📌 Домейн (FQDN):                  %s\n" "$SERVER_DOMAIN"
+printf "📌 IP адрес на сървъра:            %s\n" "$SERVER_IP"
 
 if [[ "$DNS_REQUIRED" == "yes" ]]; then
-  printf "📌 DNS сървър:                       ✅ активен (%s режим)\n" "$DNS_MODE"
-  printf "📌 DNS зона:                         %s\n" "$DNS_ZONE"
+  printf "📌 DNS сървър:                     ✅ активен (%s режим)\n" "$DNS_MODE"
+  printf "📌 DNS зона:                       %s\n" "$DNS_ZONE"
   [[ "$DNS_MODE" == "slave" ]] && printf "📌 Master DNS IP:                    %s\n" "$SLAVE_MASTER_IP"
-  printf "📌 Конфигурация на bind9:           %s\n" "${DNS_CONFIG_STATUS:-❔}"
+  printf "📌 Конфигурация на bind9:          %s\n" "${DNS_CONFIG_STATUS:-❔}"
 else
-  printf "📌 DNS сървър:                       ❌ няма да се инсталира\n"
+  printf "📌 DNS сървър:                     ❌ няма да се инсталира\n"
 fi
 
 printf "📌 Apache уеб сървър:              %s\n" "${RESULT_APACHE:-❔}"
