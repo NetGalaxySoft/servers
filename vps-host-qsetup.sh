@@ -467,9 +467,10 @@ echo "[10] ИНСТАЛАЦИЯ НА ПОЩЕНСКИ СЪРВЪР (Postfix + Do
 echo "-------------------------------------------------------------------------"
 
 # Проверка дали Postfix вече е инсталиран
-if dpkg -s postfix >/dev/null 2>&1; then
+if dpkg -s postfix >/dev/null 2>&1 && dpkg -s dovecot-core >/dev/null 2>&1; then
   echo "ℹ️ Пощенският сървър вече е инсталиран. Пропускане на тази стъпка."
-  RESULT_MAIL="✅ (вече инсталиран)"
+  RESULT_POSTFIX="✅ (вече инсталиран)"
+  RESULT_DOVECOT="✅ (вече инсталиран)"
 else
   echo "⏳ Инсталиране на Postfix и Dovecot..."
 
@@ -484,11 +485,13 @@ else
   # Предотвратява появата на интерактивни диалози от postfix
   export DEBIAN_FRONTEND=noninteractive
 
-  if apt-get install -y "${MAIL_PACKAGES[@]}"; then
-    RESULT_MAIL="✅"
+  if apt-get install -y "${MAIL_PACKAGES[@]}" >/dev/null 2>&1; then
+    RESULT_POSTFIX="✅"
+    RESULT_DOVECOT="✅"
     echo "✅ Пощенският сървър е инсталиран успешно."
   else
-    RESULT_MAIL="❌"
+    RESULT_POSTFIX="❌"
+    RESULT_DOVECOT="❌"
     echo "❌ Грешка при инсталиране на Postfix или Dovecot."
   fi
 
