@@ -197,7 +197,7 @@ while true; do
  done
 
 # [3] Финално потвърждение
-INSTALLED_SERVICES="Apache2, MariaDB, PHP, Postfix, Dovecot, Roundcube"
+INSTALLED_SERVICES="Apache2, MariaDB, PHP, Postfix, Dovecot"
 echo ""
 echo "🔎 Преглед на въведената информация:"
 echo "   • Домейн (FQDN):  $SERVER_DOMAIN"
