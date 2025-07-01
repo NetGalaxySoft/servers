@@ -487,7 +487,7 @@ echo ""
 echo "[10] ИНСТАЛАЦИЯ НА ПОЩЕНСКИ СЪРВЪР (Postfix + Dovecot)..."
 echo "-------------------------------------------------------------------------"
 
-# Проверка дали Postfix вече е инсталиран
+# Проверка дали Postfix и Dovecot вече са инсталирани
 if dpkg -s postfix >/dev/null 2>&1 && dpkg -s dovecot-core >/dev/null 2>&1; then
   echo "ℹ️ Пощенският сървър вече е инсталиран. Пропускане на тази стъпка."
   RESULT_POSTFIX="✅ (вече инсталиран)"
@@ -506,7 +506,7 @@ else
   # Предотвратява появата на интерактивни диалози от postfix
   export DEBIAN_FRONTEND=noninteractive
 
-  if apt-get install -y "${MAIL_PACKAGES[@]}" >/dev/null 2>&1; then
+  if apt-get install -y "${MAIL_PACKAGES[@]}"; then
     RESULT_POSTFIX="✅"
     RESULT_DOVECOT="✅"
     echo "✅ Пощенският сървър е инсталиран успешно."
@@ -531,7 +531,7 @@ if dpkg -s fail2ban >/dev/null 2>&1; then
 else
   echo "⏳ Инсталиране и стартиране на Fail2ban..."
 
-  if apt-get install -y fail2ban >/dev/null 2>&1; then
+  if apt-get install -y fail2ban; then
     systemctl enable fail2ban >/dev/null 2>&1
     systemctl start fail2ban >/dev/null 2>&1
     RESULT_FAIL2BAN="✅"
@@ -564,7 +564,6 @@ printf "📌 Apache уеб сървър:              %s\n" "${RESULT_APACHE:-�
 printf "📌 Certbot (Let's Encrypt):        %s\n" "${RESULT_CERTBOT:-❔}"
 printf "📌 Postfix (SMTP сървър):          %s\n" "${RESULT_POSTFIX:-❔}"
 printf "📌 Dovecot (IMAP сървър):          %s\n" "${RESULT_DOVECOT:-❔}"
-printf "📌 Roundcube Webmail:              %s\n" "${RESULT_ROUNDCUBE:-❔}"
 printf "📌 MariaDB сървър:                 %s\n" "${RESULT_MARIADB:-❔}"
 printf "📌 Защита на MariaDB:              %s\n" "${RESULT_MARIADB_SECURE:-❔}"
 printf "📌 Fail2ban защита:                %s\n" "${RESULT_FAIL2BAN:-❔}"
