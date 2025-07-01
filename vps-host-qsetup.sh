@@ -236,7 +236,6 @@ echo "[4] КОНФИГУРИРАНЕ НА UFW (Отваряне на порто�
 echo "-------------------------------------------------------------------------"
 
 UFW_PORTS=(
-  22    # SSH
   53    # DNS
   80    # HTTP
   443   # HTTPS
@@ -246,28 +245,50 @@ UFW_PORTS=(
   995   # POP3S (Dovecot)
 )
 
+# Проверка за наличност
 if ! command -v ufw >/dev/null 2>&1; then
   echo "ℹ️ Инсталираме UFW..."
-  apt-get install -y ufw >/dev/null 2>&1
+  if ! apt-get install -y ufw >/dev/null 2>&1; then
+    RESULT_UFW_SERVICES="❌"
+    echo "❌ Неуспешна инсталация на UFW."
+    echo ""
+    return
+  fi
 fi
 
 echo "🔐 Активиране на UFW и отваряне на нужните портове..."
 
+# Задаване на политики
 ufw --force reset >/dev/null 2>&1
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 
+# Отваряне на портовете
+PORT_ERRORS=0
 for port in "${UFW_PORTS[@]}"; do
-  ufw allow "$port" >/dev/null
+  if ! ufw allow "$port" >/dev/null 2>&1; then
+    echo "⚠️ Грешка при отваряне на порт $port"
+    PORT_ERRORS=$((PORT_ERRORS + 1))
+  fi
 done
 
-# Разрешаваме от всякакъв интерфейс (вкл. вътрешни/външни връзки)
-ufw --force enable >/dev/null
+# Активиране на UFW
+if ufw --force enable >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+  if [[ "$PORT_ERRORS" -eq 0 ]]; then
+    RESULT_UFW_SERVICES="✅"
+    echo "✅ Файъруолът е конфигуриран и активен."
+  else
+    RESULT_UFW_SERVICES="⚠️"
+    echo "⚠️ UFW е активен, но някои портове не се отвориха."
+  fi
+else
+  RESULT_UFW_SERVICES="❌"
+  echo "❌ Неуспешно активиране на UFW."
+fi
 
-RESULT_UFW="✅"
-echo "✅ Файъруолът е конфигуриран и активен."
 echo ""
 echo ""
+
 
 echo "[5] КОНФИГУРИРАНЕ НА DNS СЪРВЪРА (bind9)"
 echo "-------------------------------------------------------------------------"
@@ -548,6 +569,7 @@ printf "📌 MariaDB сървър:                 %s\n" "${RESULT_MARIADB:-❔}
 printf "📌 Защита на MariaDB:              %s\n" "${RESULT_MARIADB_SECURE:-❔}"
 printf "📌 Fail2ban защита:                %s\n" "${RESULT_FAIL2BAN:-❔}"
 printf "📌 UFW правила за услуги:          %s\n" "${RESULT_UFW_SERVICES:-❔}"
+ufw status numbered | sed '1d'  # Премахва първия ред "Status: active"
 
 [[ "$WHOIS_INSTALLED" == "yes" ]] && echo "ℹ️  whois беше инсталиран временно за проверка и може да бъде премахнат."
 
