@@ -497,36 +497,7 @@ fi
 echo ""
 echo ""
 
-echo "[11] ИНСТАЛАЦИЯ НА ROUNDcube WEBMAIL..."
-echo "-------------------------------------------------------------------------"
-
-# Проверка дали Roundcube вече е инсталиран
-if dpkg -s roundcube >/dev/null 2>&1; then
-  echo "ℹ️ Roundcube вече е инсталиран. Пропускане на тази стъпка."
-  RESULT_ROUNDCUBE="✅ (вече инсталиран)"
-else
-  echo "⏳ Инсталиране на Roundcube и допълнителни модули..."
-
-  ROUNDCUBE_PACKAGES=(
-    roundcube
-    roundcube-core
-    roundcube-mysql
-    roundcube-plugins
-    roundcube-plugins-extra
-  )
-
-  if apt-get install -y "${ROUNDCUBE_PACKAGES[@]}"; then
-    RESULT_ROUNDCUBE="✅"
-    echo "✅ Roundcube е инсталиран успешно."
-  else
-    RESULT_ROUNDCUBE="❌"
-    echo "❌ Грешка при инсталиране на Roundcube."
-  fi
-fi
-echo ""
-echo ""
-
-echo "[12] ИНСТАЛАЦИЯ НА FAIL2BAN..."
+echo "[11] ИНСТАЛАЦИЯ НА FAIL2BAN..."
 echo "-------------------------------------------------------------------------"
 
 # Проверка дали Fail2ban вече е инсталиран
