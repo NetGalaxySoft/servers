@@ -235,25 +235,33 @@ done
 echo "[4] ИНСТАЛАЦИЯ НА APACHE И МОДУЛИ..."
 echo "-------------------------------------------------------------------------"
 
-APACHE_PACKAGES=(
-  apache2
-  apache2-utils
-  libapache2-mod-php
-  php
-  php-cli
-  php-curl
-  php-mbstring
-  php-mysql
-  php-xml
-  php-zip
-)
-
-if apt-get install -y "${APACHE_PACKAGES[@]}" >/dev/null 2>&1; then
-  RESULT_APACHE="✅"
-  echo "✅ Apache и PHP модулите са инсталирани успешно."
+# Проверка дали Apache вече е инсталиран
+if dpkg -s apache2 >/dev/null 2>&1; then
+  echo "ℹ️ Apache вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_APACHE="✅ (вече инсталиран)"
 else
-  RESULT_APACHE="❌"
-  echo "❌ Грешка при инсталиране на Apache или PHP."
+  echo "⏳ Инсталиране на Apache и PHP модули..."
+
+  APACHE_PACKAGES=(
+    apache2
+    apache2-utils
+    libapache2-mod-php
+    php
+    php-cli
+    php-curl
+    php-mbstring
+    php-mysql
+    php-xml
+    php-zip
+  )
+
+  if apt-get install -y "${APACHE_PACKAGES[@]}"; then
+    RESULT_APACHE="✅"
+    echo "✅ Apache и PHP модулите са инсталирани успешно."
+  else
+    RESULT_APACHE="❌"
+    echo "❌ Грешка при инсталиране на Apache или PHP."
+  fi
 fi
 echo ""
 echo ""
@@ -261,65 +269,89 @@ echo ""
 echo "[5] ИНСТАЛАЦИЯ НА CERTBOT..."
 echo "-------------------------------------------------------------------------"
 
-CERTBOT_PACKAGES=(
-  certbot
-  python3-certbot-apache
-)
-
-if apt-get install -y "${CERTBOT_PACKAGES[@]}" >/dev/null 2>&1; then
-  RESULT_CERTBOT="✅"
-  echo "✅ Certbot е инсталиран успешно."
+# Проверка дали certbot вече е инсталиран
+if command -v certbot >/dev/null 2>&1; then
+  echo "ℹ️ Certbot вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_CERTBOT="✅ (вече инсталиран)"
 else
-  RESULT_CERTBOT="❌"
-  echo "❌ Грешка при инсталиране на certbot."
+  echo "⏳ Инсталиране на Certbot и Apache plugin..."
+
+  CERTBOT_PACKAGES=(
+    certbot
+    python3-certbot-apache
+  )
+
+  if apt-get install -y "${CERTBOT_PACKAGES[@]}"; then
+    RESULT_CERTBOT="✅"
+    echo "✅ Certbot е инсталиран успешно."
+  else
+    RESULT_CERTBOT="❌"
+    echo "❌ Грешка при инсталиране на Certbot."
+  fi
 fi
 echo ""
 echo ""
+
 
 echo "[6] ИНСТАЛАЦИЯ НА ПОЩЕНСКИ СЪРВЪР (Postfix + Dovecot)..."
 echo "-------------------------------------------------------------------------"
 
-MAIL_PACKAGES=(
-  postfix
-  dovecot-core
-  dovecot-imapd
-  dovecot-pop3d
-  mailutils
-)
-
-# Предотвратява появата на интерактивни диалози от postfix
-export DEBIAN_FRONTEND=noninteractive
-
-if apt-get install -y "${MAIL_PACKAGES[@]}" >/dev/null 2>&1; then
-  RESULT_MAIL="✅"
-  echo "✅ Пощенският сървър е инсталиран успешно."
+# Проверка дали Postfix вече е инсталиран
+if dpkg -s postfix >/dev/null 2>&1; then
+  echo "ℹ️ Пощенският сървър вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_MAIL="✅ (вече инсталиран)"
 else
-  RESULT_MAIL="❌"
-  echo "❌ Грешка при инсталиране на Postfix или Dovecot."
-fi
+  echo "⏳ Инсталиране на Postfix и Dovecot..."
 
-# Връщаме обратно стойността
-unset DEBIAN_FRONTEND
+  MAIL_PACKAGES=(
+    postfix
+    dovecot-core
+    dovecot-imapd
+    dovecot-pop3d
+    mailutils
+  )
+
+  # Предотвратява появата на интерактивни диалози от postfix
+  export DEBIAN_FRONTEND=noninteractive
+
+  if apt-get install -y "${MAIL_PACKAGES[@]}"; then
+    RESULT_MAIL="✅"
+    echo "✅ Пощенският сървър е инсталиран успешно."
+  else
+    RESULT_MAIL="❌"
+    echo "❌ Грешка при инсталиране на Postfix или Dovecot."
+  fi
+
+  unset DEBIAN_FRONTEND
+fi
 echo ""
 echo ""
 
 echo "[7] ИНСТАЛАЦИЯ НА ROUNDcube WEBMAIL..."
 echo "-------------------------------------------------------------------------"
 
-ROUNDCUBE_PACKAGES=(
-  roundcube
-  roundcube-core
-  roundcube-mysql
-  roundcube-plugins
-  roundcube-plugins-extra
-)
-
-if apt-get install -y "${ROUNDCUBE_PACKAGES[@]}" >/dev/null 2>&1; then
-  RESULT_ROUNDCUBE="✅"
-  echo "✅ Roundcube е инсталиран успешно."
+# Проверка дали Roundcube вече е инсталиран
+if dpkg -s roundcube >/dev/null 2>&1; then
+  echo "ℹ️ Roundcube вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_ROUNDCUBE="✅ (вече инсталиран)"
 else
-  RESULT_ROUNDCUBE="❌"
-  echo "❌ Грешка при инсталиране на Roundcube."
+  echo "⏳ Инсталиране на Roundcube и допълнителни модули..."
+
+  ROUNDCUBE_PACKAGES=(
+    roundcube
+    roundcube-core
+    roundcube-mysql
+    roundcube-plugins
+    roundcube-plugins-extra
+  )
+
+  if apt-get install -y "${ROUNDCUBE_PACKAGES[@]}"; then
+    RESULT_ROUNDCUBE="✅"
+    echo "✅ Roundcube е инсталиран успешно."
+  else
+    RESULT_ROUNDCUBE="❌"
+    echo "❌ Грешка при инсталиране на Roundcube."
+  fi
 fi
 echo ""
 echo ""
@@ -327,22 +359,30 @@ echo ""
 echo "[8] ИНСТАЛАЦИЯ НА MARIADB (MySQL)..."
 echo "-------------------------------------------------------------------------"
 
-DB_PACKAGES=(
-  mariadb-server
-  mariadb-client
-)
-
-export DEBIAN_FRONTEND=noninteractive
-
-if apt-get install -y "${DB_PACKAGES[@]}" >/dev/null 2>&1; then
-  RESULT_MARIADB="✅"
-  echo "✅ MariaDB е инсталирана успешно."
+# Проверка дали MariaDB вече е инсталирана
+if dpkg -s mariadb-server >/dev/null 2>&1; then
+  echo "ℹ️ MariaDB вече е инсталирана. Пропускане на тази стъпка."
+  RESULT_MARIADB="✅ (вече инсталирана)"
 else
-  RESULT_MARIADB="❌"
-  echo "❌ Грешка при инсталиране на MariaDB."
-fi
+  echo "⏳ Инсталиране на MariaDB..."
 
-unset DEBIAN_FRONTEND
+  DB_PACKAGES=(
+    mariadb-server
+    mariadb-client
+  )
+
+  export DEBIAN_FRONTEND=noninteractive
+
+  if apt-get install -y "${DB_PACKAGES[@]}"; then
+    RESULT_MARIADB="✅"
+    echo "✅ MariaDB е инсталирана успешно."
+  else
+    RESULT_MARIADB="❌"
+    echo "❌ Грешка при инсталиране на MariaDB."
+  fi
+
+  unset DEBIAN_FRONTEND
+fi
 echo ""
 echo ""
 
@@ -371,36 +411,52 @@ echo ""
 echo "[10] ИНСТАЛАЦИЯ НА FAIL2BAN..."
 echo "-------------------------------------------------------------------------"
 
-if apt-get install -y fail2ban >/dev/null 2>&1; then
-  systemctl enable fail2ban >/dev/null 2>&1
-  systemctl start fail2ban >/dev/null 2>&1
-  RESULT_FAIL2BAN="✅"
-  echo "✅ Fail2ban е инсталиран и стартиран."
+# Проверка дали Fail2ban вече е инсталиран
+if dpkg -s fail2ban >/dev/null 2>&1; then
+  echo "ℹ️ Fail2ban вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_FAIL2BAN="✅ (вече инсталиран)"
 else
-  RESULT_FAIL2BAN="❌"
-  echo "❌ Грешка при инсталиране на Fail2ban."
+  echo "⏳ Инсталиране и стартиране на Fail2ban..."
+
+  if apt-get install -y fail2ban >/dev/null 2>&1; then
+    systemctl enable fail2ban >/dev/null 2>&1
+    systemctl start fail2ban >/dev/null 2>&1
+    RESULT_FAIL2BAN="✅"
+    echo "✅ Fail2ban е инсталиран и стартиран."
+  else
+    RESULT_FAIL2BAN="❌"
+    echo "❌ Грешка при инсталиране на Fail2ban."
+  fi
 fi
 echo ""
 echo ""
 
-# ==========================================================================
-# [12] КОНФИГУРИРАНЕ НА DNS СЪРВЪР
-# ==========================================================================
-echo ""
-echo "[12] КОНФИГУРИРАНЕ НА DNS СЪРВЪРА (bind9)"
+echo "[11] КОНФИГУРИРАНЕ НА DNS СЪРВЪРА (bind9)"
 echo "-------------------------------------------------------------------------"
 
 DNS_CONFIG_STATUS="❌"
 
 if [[ "$DNS_REQUIRED" == "yes" ]]; then
+  echo "⏳ Подготовка на DNS конфигурацията..."
+
+  # Проверка и инсталация на bind9, ако липсва
+  if ! dpkg -s bind9 >/dev/null 2>&1; then
+    echo "ℹ️ bind9 не е инсталиран. Инсталираме bind9..."
+    apt-get install -y bind9 bind9utils >/dev/null 2>&1
+  fi
+
   mkdir -p /etc/bind/zones
   BIND_LOCAL_CONF="/etc/bind/named.conf.local"
 
   if [[ "$DNS_MODE" == "master" ]]; then
     ZONE_FILE="/etc/bind/zones/db.${DNS_ZONE}"
 
-    echo "🔧 Създаване на master зона за $DNS_ZONE..."
-    cat <<EOF >> "$BIND_LOCAL_CONF"
+    if grep -q "zone \"$DNS_ZONE\"" "$BIND_LOCAL_CONF"; then
+      echo "ℹ️ Зоната $DNS_ZONE вече е дефинирана. Пропускане на повторна конфигурация."
+      DNS_CONFIG_STATUS="✅ (вече съществува)"
+    else
+      echo "🔧 Създаване на master зона за $DNS_ZONE..."
+      cat <<EOF >> "$BIND_LOCAL_CONF"
 
 zone "$DNS_ZONE" {
     type master;
@@ -409,7 +465,7 @@ zone "$DNS_ZONE" {
 };
 EOF
 
-    cat <<EOF > "$ZONE_FILE"
+      cat <<EOF > "$ZONE_FILE"
 \$TTL    604800
 @       IN      SOA     ns1.$DNS_ZONE. admin.$DNS_ZONE. (
                              3         ; Serial
@@ -422,10 +478,15 @@ EOF
 @       IN      A       $SERVER_IP
 ns1     IN      A       $SERVER_IP
 EOF
+    fi
 
   elif [[ "$DNS_MODE" == "slave" ]]; then
-    echo "🔧 Създаване на slave зона за $DNS_ZONE..."
-    cat <<EOF >> "$BIND_LOCAL_CONF"
+    if grep -q "zone \"$DNS_ZONE\"" "$BIND_LOCAL_CONF"; then
+      echo "ℹ️ Зоната $DNS_ZONE вече е дефинирана. Пропускане на повторна конфигурация."
+      DNS_CONFIG_STATUS="✅ (вече съществува)"
+    else
+      echo "🔧 Създаване на slave зона за $DNS_ZONE..."
+      cat <<EOF >> "$BIND_LOCAL_CONF"
 
 zone "$DNS_ZONE" {
     type slave;
@@ -433,15 +494,17 @@ zone "$DNS_ZONE" {
     masters { $SLAVE_MASTER_IP; };
 };
 EOF
+    fi
   fi
 
   echo "🔍 Проверка на конфигурацията..."
-  if named-checkconf && named-checkzone "$DNS_ZONE" "$ZONE_FILE" > /dev/null 2>&1; then
+  if named-checkconf >/dev/null 2>&1 && named-checkzone "$DNS_ZONE" "$ZONE_FILE" >/dev/null 2>&1; then
     systemctl restart bind9
     echo "✅ DNS конфигурацията е успешна и bind9 е рестартиран."
     DNS_CONFIG_STATUS="✅"
   else
     echo "❌ Открити са грешки в DNS конфигурацията. Проверете файловете ръчно."
+    DNS_CONFIG_STATUS="❌"
   fi
 else
   echo "ℹ️ DNS сървър няма да бъде конфигуриран – пропускане."
