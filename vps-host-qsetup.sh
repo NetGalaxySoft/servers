@@ -136,6 +136,30 @@ while true; do
       DNS_ZONE=$(echo "$SERVER_DOMAIN" | cut -d. -f2-)
       echo "ℹ️ Използва се основна зона: $DNS_ZONE"
       SLAVE_MASTER_IP=""
+
+      # Проверка и автоматична инсталация на 'dnsutils'
+      if ! command -v dig >/dev/null 2>&1; then
+        echo "ℹ️ Инструментът 'dig' не е наличен. Инсталираме 'dnsutils' за DNS проверка..."
+        apt-get update -qq && apt-get install -y dnsutils >/dev/null
+        RESULT_DNSUTILS="✅"
+      else
+        RESULT_DNSUTILS="✅"
+      fi
+
+      echo "🔍 Проверка дали домейнът $DNS_ZONE сочи към този сървър ($ACTUAL_IP)..."
+      DNS_RESOLVED_IP=$(dig +short "$DNS_ZONE" | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -n1)
+
+      if [[ "$DNS_RESOLVED_IP" != "$ACTUAL_IP" ]]; then
+        echo "❌ Домейнът $DNS_ZONE не сочи към този сървър."
+        echo "👉 Текущ IP адрес:     $ACTUAL_IP"
+        echo "👉 Открит A-запис:     ${DNS_RESOLVED_IP:-(няма)}"
+        echo ""
+        echo "⚠️  Моля, актуализирайте DNS A-записа за $DNS_ZONE да сочи към $ACTUAL_IP."
+        echo "🔁 След това стартирайте скрипта отново."
+        exit 1
+      else
+        echo "✅ Потвърдено: Домейнът сочи към този сървър."
+      fi
       break
       ;;
     2)
@@ -183,6 +207,8 @@ if [[ "$DNS_REQUIRED" == "yes" ]]; then
 else
   echo "   • DNS сървър:     няма да бъде инсталиран"
 fi
+printf "📌 DNS инструменти (dig):            %s\n" "${RESULT_DNSUTILS:-❔}"
+echo ""
 echo "   • Услуги за инсталиране: $INSTALLED_SERVICES"
 
 while true; do
@@ -203,3 +229,184 @@ while true; do
       ;;
   esac
 done
+
+echo "[4] ИНСТАЛАЦИЯ НА APACHE И МОДУЛИ..."
+echo "-------------------------------------------------------------------------"
+
+APACHE_PACKAGES=(
+  apache2
+  apache2-utils
+  libapache2-mod-php
+  php
+  php-cli
+  php-curl
+  php-mbstring
+  php-mysql
+  php-xml
+  php-zip
+)
+
+if apt-get install -y "${APACHE_PACKAGES[@]}" >/dev/null 2>&1; then
+  RESULT_APACHE="✅"
+  echo "✅ Apache и PHP модулите са инсталирани успешно."
+else
+  RESULT_APACHE="❌"
+  echo "❌ Грешка при инсталиране на Apache или PHP."
+fi
+echo ""
+echo ""
+
+echo "[5] ИНСТАЛАЦИЯ НА CERTBOT..."
+echo "-------------------------------------------------------------------------"
+
+CERTBOT_PACKAGES=(
+  certbot
+  python3-certbot-apache
+)
+
+if apt-get install -y "${CERTBOT_PACKAGES[@]}" >/dev/null 2>&1; then
+  RESULT_CERTBOT="✅"
+  echo "✅ Certbot е инсталиран успешно."
+else
+  RESULT_CERTBOT="❌"
+  echo "❌ Грешка при инсталиране на certbot."
+fi
+echo ""
+echo ""
+
+echo "[6] ИНСТАЛАЦИЯ НА ПОЩЕНСКИ СЪРВЪР (Postfix + Dovecot)..."
+echo "-------------------------------------------------------------------------"
+
+MAIL_PACKAGES=(
+  postfix
+  dovecot-core
+  dovecot-imapd
+  dovecot-pop3d
+  mailutils
+)
+
+# Предотвратява появата на интерактивни диалози от postfix
+export DEBIAN_FRONTEND=noninteractive
+
+if apt-get install -y "${MAIL_PACKAGES[@]}" >/dev/null 2>&1; then
+  RESULT_MAIL="✅"
+  echo "✅ Пощенският сървър е инсталиран успешно."
+else
+  RESULT_MAIL="❌"
+  echo "❌ Грешка при инсталиране на Postfix или Dovecot."
+fi
+
+# Връщаме обратно стойността
+unset DEBIAN_FRONTEND
+echo ""
+echo ""
+
+echo "[7] ИНСТАЛАЦИЯ НА ROUNDcube WEBMAIL..."
+echo "-------------------------------------------------------------------------"
+
+ROUNDCUBE_PACKAGES=(
+  roundcube
+  roundcube-core
+  roundcube-mysql
+  roundcube-plugins
+  roundcube-plugins-extra
+)
+
+if apt-get install -y "${ROUNDCUBE_PACKAGES[@]}" >/dev/null 2>&1; then
+  RESULT_ROUNDCUBE="✅"
+  echo "✅ Roundcube е инсталиран успешно."
+else
+  RESULT_ROUNDCUBE="❌"
+  echo "❌ Грешка при инсталиране на Roundcube."
+fi
+echo ""
+echo ""
+
+echo "[8] ИНСТАЛАЦИЯ НА MARIADB (MySQL)..."
+echo "-------------------------------------------------------------------------"
+
+DB_PACKAGES=(
+  mariadb-server
+  mariadb-client
+)
+
+export DEBIAN_FRONTEND=noninteractive
+
+if apt-get install -y "${DB_PACKAGES[@]}" >/dev/null 2>&1; then
+  RESULT_MARIADB="✅"
+  echo "✅ MariaDB е инсталирана успешно."
+else
+  RESULT_MARIADB="❌"
+  echo "❌ Грешка при инсталиране на MariaDB."
+fi
+
+unset DEBIAN_FRONTEND
+echo ""
+echo ""
+
+echo "[9] СИГУРНОСТ НА MARIADB..."
+echo "-------------------------------------------------------------------------"
+
+SECURE_SQL=$(cat <<EOF
+DELETE FROM mysql.user WHERE User='';
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+DROP DATABASE IF EXISTS test;
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+FLUSH PRIVILEGES;
+EOF
+)
+
+if echo "$SECURE_SQL" | mysql -u root >/dev/null 2>&1; then
+  RESULT_MARIADB_SECURE="✅"
+  echo "✅ MariaDB е защитена успешно."
+else
+  RESULT_MARIADB_SECURE="❌"
+  echo "❌ Грешка при изпълнение на защитните SQL команди."
+fi
+echo ""
+echo ""
+
+echo "[10] ИНСТАЛАЦИЯ НА FAIL2BAN..."
+echo "-------------------------------------------------------------------------"
+
+if apt-get install -y fail2ban >/dev/null 2>&1; then
+  systemctl enable fail2ban >/dev/null 2>&1
+  systemctl start fail2ban >/dev/null 2>&1
+  RESULT_FAIL2BAN="✅"
+  echo "✅ Fail2ban е инсталиран и стартиран."
+else
+  RESULT_FAIL2BAN="❌"
+  echo "❌ Грешка при инсталиране на Fail2ban."
+fi
+echo ""
+echo ""
+
+echo ""
+echo "[12] ОБОБЩЕНИЕ НА РЕЗУЛТАТИТЕ ОТ КОНФИГУРАЦИЯТА"
+echo "-------------------------------------------------------------------------"
+
+printf "📌 Домейн (FQDN):                    %s\n" "$SERVER_DOMAIN"
+printf "📌 IP адрес на сървъра:             %s\n" "$SERVER_IP"
+
+if [[ "$DNS_REQUIRED" == "yes" ]]; then
+  printf "📌 DNS сървър:                       ✅ активен (%s режим)\n" "$DNS_MODE"
+  printf "📌 DNS зона:                         %s\n" "$DNS_ZONE"
+  [[ "$DNS_MODE" == "slave" ]] && printf "📌 Master DNS IP:                    %s\n" "$SLAVE_MASTER_IP"
+else
+  printf "📌 DNS сървър:                       ❌ няма да се инсталира\n"
+fi
+
+printf "📌 Apache уеб сървър:               %s\n" "${RESULT_APACHE:-❔}"
+printf "📌 Certbot (Let's Encrypt):        %s\n" "${RESULT_CERTBOT:-❔}"
+printf "📌 Postfix (SMTP сървър):          %s\n" "${RESULT_POSTFIX:-❔}"
+printf "📌 Dovecot (IMAP сървър):          %s\n" "${RESULT_DOVECOT:-❔}"
+printf "📌 Roundcube Webmail:              %s\n" "${RESULT_ROUNDCUBE:-❔}"
+printf "📌 MariaDB сървър:                 %s\n" "${RESULT_MARIADB:-❔}"
+printf "📌 Защита на MariaDB:              %s\n" "${RESULT_MARIADB_SECURE:-❔}"
+printf "📌 Fail2ban защита:                %s\n" "${RESULT_FAIL2BAN:-❔}"
+printf "📌 UFW правила за услуги:          %s\n" "${RESULT_UFW_SERVICES:-❔}"
+
+[[ "$WHOIS_INSTALLED" == "yes" ]] && echo "ℹ️  whois беше инсталиран временно за проверка и може да бъде премахнат."
+
+echo ""
+echo "✅ Скриптът приключи. Можете да започнете работа със сървъра."
