@@ -381,8 +381,75 @@ fi
 echo ""
 echo ""
 
+# ==========================================================================
+# [12] КОНФИГУРИРАНЕ НА DNS СЪРВЪР
+# ==========================================================================
 echo ""
-echo "[12] ОБОБЩЕНИЕ НА РЕЗУЛТАТИТЕ ОТ КОНФИГУРАЦИЯТА"
+echo "[12] КОНФИГУРИРАНЕ НА DNS СЪРВЪРА (bind9)"
+echo "-------------------------------------------------------------------------"
+
+DNS_CONFIG_STATUS="❌"
+
+if [[ "$DNS_REQUIRED" == "yes" ]]; then
+  mkdir -p /etc/bind/zones
+  BIND_LOCAL_CONF="/etc/bind/named.conf.local"
+
+  if [[ "$DNS_MODE" == "master" ]]; then
+    ZONE_FILE="/etc/bind/zones/db.${DNS_ZONE}"
+
+    echo "🔧 Създаване на master зона за $DNS_ZONE..."
+    cat <<EOF >> "$BIND_LOCAL_CONF"
+
+zone "$DNS_ZONE" {
+    type master;
+    file "$ZONE_FILE";
+    allow-transfer { any; };
+};
+EOF
+
+    cat <<EOF > "$ZONE_FILE"
+\$TTL    604800
+@       IN      SOA     ns1.$DNS_ZONE. admin.$DNS_ZONE. (
+                             3         ; Serial
+                        604800         ; Refresh
+                         86400         ; Retry
+                       2419200         ; Expire
+                        604800 )       ; Negative Cache TTL
+;
+@       IN      NS      ns1.$DNS_ZONE.
+@       IN      A       $SERVER_IP
+ns1     IN      A       $SERVER_IP
+EOF
+
+  elif [[ "$DNS_MODE" == "slave" ]]; then
+    echo "🔧 Създаване на slave зона за $DNS_ZONE..."
+    cat <<EOF >> "$BIND_LOCAL_CONF"
+
+zone "$DNS_ZONE" {
+    type slave;
+    file "/var/cache/bind/db.${DNS_ZONE}";
+    masters { $SLAVE_MASTER_IP; };
+};
+EOF
+  fi
+
+  echo "🔍 Проверка на конфигурацията..."
+  if named-checkconf && named-checkzone "$DNS_ZONE" "$ZONE_FILE" > /dev/null 2>&1; then
+    systemctl restart bind9
+    echo "✅ DNS конфигурацията е успешна и bind9 е рестартиран."
+    DNS_CONFIG_STATUS="✅"
+  else
+    echo "❌ Открити са грешки в DNS конфигурацията. Проверете файловете ръчно."
+  fi
+else
+  echo "ℹ️ DNS сървър няма да бъде конфигуриран – пропускане."
+  DNS_CONFIG_STATUS="🔒"
+fi
+echo ""
+echo ""
+
+echo "-------------------------------------------------------------------------"
+echo "            ОБОБЩЕНИЕ НА РЕЗУЛТАТИТЕ ОТ КОНФИГУРАЦИЯТА"
 echo "-------------------------------------------------------------------------"
 
 printf "📌 Домейн (FQDN):                    %s\n" "$SERVER_DOMAIN"
@@ -392,11 +459,12 @@ if [[ "$DNS_REQUIRED" == "yes" ]]; then
   printf "📌 DNS сървър:                       ✅ активен (%s режим)\n" "$DNS_MODE"
   printf "📌 DNS зона:                         %s\n" "$DNS_ZONE"
   [[ "$DNS_MODE" == "slave" ]] && printf "📌 Master DNS IP:                    %s\n" "$SLAVE_MASTER_IP"
+  printf "📌 Конфигурация на bind9:           %s\n" "${DNS_CONFIG_STATUS:-❔}"
 else
   printf "📌 DNS сървър:                       ❌ няма да се инсталира\n"
 fi
 
-printf "📌 Apache уеб сървър:               %s\n" "${RESULT_APACHE:-❔}"
+printf "📌 Apache уеб сървър:              %s\n" "${RESULT_APACHE:-❔}"
 printf "📌 Certbot (Let's Encrypt):        %s\n" "${RESULT_CERTBOT:-❔}"
 printf "📌 Postfix (SMTP сървър):          %s\n" "${RESULT_POSTFIX:-❔}"
 printf "📌 Dovecot (IMAP сървър):          %s\n" "${RESULT_DOVECOT:-❔}"
