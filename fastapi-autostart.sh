@@ -27,9 +27,9 @@ APP_DIR=$(dirname "$MAIN_PATH")
 APP_USER=$(whoami)
 
 echo "🔍 Откриване на uvicorn..."
-UVICORN_PATH=$(find "$APP_DIR" -type f -path "*/venv/bin/uvicorn" | head -n 1)
+UVICORN_PATH="$APP_DIR/venv/bin/uvicorn"
 if [ ! -f "$UVICORN_PATH" ]; then
-  echo "❌ uvicorn не е намерен във виртуалната среда на $APP_DIR"
+  echo "❌ uvicorn не е намерен във виртуалната среда ($UVICORN_PATH)"
   exit 3
 fi
 
