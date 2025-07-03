@@ -2,9 +2,6 @@
 
 # ==========================================================================
 #  fastapi-autostart.sh – Автоматично създаване на systemd услуга за FastAPI
-# --------------------------------------------------------------------------
-#  Използване: ./fastapi-autostart.sh <PORT>
-#  Автор: Ilko Yordanov / NetGalaxy
 # ==========================================================================
 
 PORT=$1
@@ -15,23 +12,25 @@ if [ -z "$PORT" ]; then
   exit 1
 fi
 
-echo "🔍 Откриване на main.py..."
-MAIN_PATH=$(find $HOME -type f -name main.py | head -n 1)
-if [ -z "$MAIN_PATH" ]; then
-  echo "❌ main.py не е намерен в домашната директория"
+# 📁 Директория на скрипта (приема, че е стартиран от папката backend/)
+APP_DIR=$(dirname "$(realpath "$0")")
+APP_USER=$(whoami)
+
+# 📌 Откриване на main.py
+MAIN_PATH="$APP_DIR/main.py"
+if [ ! -f "$MAIN_PATH" ]; then
+  echo "❌ main.py не е намерен в $APP_DIR"
   exit 2
 fi
 
-APP_DIR=$(dirname "$MAIN_PATH")
-APP_USER=$(whoami)
-
-echo "🔍 Откриване на uvicorn..."
-UVICORN_PATH=$(find "$APP_DIR/venv/bin" -type f -name uvicorn | head -n 1)
-if [ -z "$UVICORN_PATH" ]; then
-  echo "❌ uvicorn не е намерен във виртуалната среда на $APP_DIR"
+# 🔍 Откриване на uvicorn
+UVICORN_PATH="$APP_DIR/venv/bin/uvicorn"
+if [ ! -f "$UVICORN_PATH" ]; then
+  echo "❌ uvicorn не е намерен във виртуалната среда ($UVICORN_PATH)"
   exit 3
 fi
 
+# 🧾 Име на услугата
 SERVICE_NAME="netgalaxyup$PORT"
 
 echo "🛠️ Създаване на systemd услуга: $SERVICE_NAME..."
@@ -57,4 +56,4 @@ sudo systemctl enable $SERVICE_NAME
 sudo systemctl start $SERVICE_NAME
 
 echo "✅ Услугата $SERVICE_NAME е стартирана."
-echo "🌍 Приложението е достъпно на: http://$(hostname -I | awk '{print $1}'):$PORT"
+echo "🌍 Достъпно на: http://$(hostname -I | awk '{print $1}'):$PORT"
