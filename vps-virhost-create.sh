@@ -165,7 +165,7 @@ else
 fi
 
 # Извеждане на резултата
-echo "📌 Разпознат домейн:           $SUMMARY_DOMAIN"
+echo "📌 Разпознат домейн:          $SUMMARY_DOMAIN"
 echo "📌 Root домейн:               $SUMMARY_ROOT_DOMAIN"
 echo "📌 Тип:                       $( [[ "$SUMMARY_IS_SUBDOMAIN" == "yes" ]] && echo 'субдомейн' || echo 'основен домейн' )"
 echo "📁 Очаквана директория:       $SUMMARY_WEBROOT"
