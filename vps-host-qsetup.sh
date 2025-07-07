@@ -237,6 +237,7 @@ done
 echo "[4] КОНФИГУРИРАНЕ НА UFW (Отваряне на портове)..."
 echo "-------------------------------------------------------------------------"
 
+# Основни портове
 UFW_PORTS=(
   53    # DNS
   80    # HTTP
@@ -247,7 +248,14 @@ UFW_PORTS=(
   995   # POP3S (Dovecot)
 )
 
-# Проверка за наличност
+# Автоматично добавяне на текущия SSH порт
+SSH_PORT=$(grep -i "^Port" /etc/ssh/sshd_config | awk '{print $2}' | head -n1)
+if [[ -z "$SSH_PORT" ]]; then
+  SSH_PORT=22
+fi
+UFW_PORTS+=("$SSH_PORT")
+
+# Проверка за наличност на ufw
 if ! command -v ufw >/dev/null 2>&1; then
   echo "ℹ️ Инсталираме UFW..."
   if ! apt-get install -y ufw >/dev/null 2>&1; then
@@ -287,10 +295,8 @@ else
   RESULT_UFW_SERVICES="❌"
   echo "❌ Неуспешно активиране на UFW."
 fi
-
 echo ""
 echo ""
-
 
 echo "[5] КОНФИГУРИРАНЕ НА DNS СЪРВЪРА (bind9)"
 echo "-------------------------------------------------------------------------"
