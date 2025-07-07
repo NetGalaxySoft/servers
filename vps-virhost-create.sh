@@ -168,7 +168,7 @@ fi
 echo "📌 Разпознат домейн:          $SUMMARY_DOMAIN"
 echo "📌 Root домейн:               $SUMMARY_ROOT_DOMAIN"
 echo "📌 Тип:                       $( [[ "$SUMMARY_IS_SUBDOMAIN" == "yes" ]] && echo 'субдомейн' || echo 'основен домейн' )"
-echo "📁 Очаквана директория:       $SUMMARY_WEBROOT"
+echo "📁 Директория:                $SUMMARY_WEBROOT"
 
 # === [3] НАЧАЛНА СТРАНИЦА ==========================================
 
@@ -180,7 +180,7 @@ echo "This site is under construction."
 echo "Вие може да добавите допълнителен текст към този."
 echo ""
 
-read -rp "💬 Въведете съобщение: " custom_msg
+read -rp "💬 Въведете съобщение (до 160 символа). Натиснете Enter за пропускане или 'q' за прекратяване: " custom_msg
 
 if [[ "$custom_msg" == "q" ]]; then
   echo "🚪 Прекратяване по заявка на оператора."
@@ -201,31 +201,45 @@ fi
 # === [4] ИЗБОР НА PHP ВЕРСИЯ ===============================================
 
 echo ""
-echo "🧮 Откриване на наличните PHP версии в системата..."
+echo "🧮 Откриване на наличните PHP версии..."
+
+# Списък с всички поддържани версии от ondrej/php
+ALL_PHP_VERSIONS=(8.3 8.2 8.1 8.0 7.4 7.3 7.2 7.1 7.0 5.6)
 php_versions_array=()
-available_php_versions=$(ls /etc/php/ 2>/dev/null | sort -Vr)
+menu_index=1
 
-if [[ -z "$available_php_versions" ]]; then
-  echo "❌ Не са открити инсталирани PHP версии. Скриптът не може да продължи."
-  exit 1
-fi
+# Проверка коя е инсталирана и коя не
+for ver in "${ALL_PHP_VERSIONS[@]}"; do
+  if [[ -d "/etc/php/$ver" ]]; then
+    php_versions_array+=("$ver|installed")
+  else
+    php_versions_array+=("$ver|missing")
+  fi
+done
 
-i=1
+# Меню
 echo ""
 echo "➤ Изберете PHP версия за този виртуален хост:"
-for ver in $available_php_versions; do
-  php_versions_array+=("$ver")
-  if [[ $i -eq 1 ]]; then
-    echo "[$i] PHP $ver (по подразбиране – последна стабилна)"
-  elif [[ "$ver" =~ ^7\.|^5\. ]]; then
-    echo "[$i] PHP $ver ⚠️ (остаряла)"
+for entry in "${php_versions_array[@]}"; do
+  version="${entry%%|*}"
+  status="${entry##*|}"
+
+  if [[ $menu_index -eq 1 ]]; then
+    label="(по подразбиране – последна стабилна)"
   else
-    echo "[$i] PHP $ver"
+    label=""
   fi
-  ((i++))
+
+  if [[ "$status" == "installed" ]]; then
+    echo "[$menu_index] PHP $version $label"
+  else
+    echo "[$menu_index] PHP $version ⚠️ (ще бъде инсталирана) $label"
+  fi
+  ((menu_index++))
 done
 echo "[q] Прекратяване"
 
+# Избор
 while true; do
   read -rp "Вашият избор [1]: " php_choice
 
@@ -243,8 +257,18 @@ while true; do
     continue
   fi
 
-  SUMMARY_PHP_VERSION="${php_versions_array[$((php_choice - 1))]}"
-  echo "✅ Избрана PHP версия: PHP $SUMMARY_PHP_VERSION"
+  selected_entry="${php_versions_array[$((php_choice - 1))]}"
+  selected_version="${selected_entry%%|*}"
+  selected_status="${selected_entry##*|}"
+
+  SUMMARY_PHP_VERSION="$selected_version"
+  echo "✅ Избрана PHP версия: PHP $selected_version"
+
+  if [[ "$selected_status" == "missing" ]]; then
+    SUMMARY_PHP_INSTALL_REQUIRED="yes"
+  else
+    SUMMARY_PHP_INSTALL_REQUIRED="no"
+  fi
   break
 done
 
