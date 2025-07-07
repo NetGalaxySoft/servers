@@ -368,40 +368,60 @@ echo "💽 Създаване на номинален собственик и л
 echo "Това ще създаде потребител $NOMINAL_USER и група $NOMINAL_GROUP."
 echo ""
 
-# Предложение по подразбиране: 1000 MB (1 GB)
-DEFAULT_DISK_LIMIT_MB=1000
+# Проверка на свободното място на root (в GB)
+available_gb=$(df --output=avail / | tail -n1)
+available_gb=$((available_gb / 1024 / 1024))
+reserve_gb=5
+usable_gb=$((available_gb - reserve_gb))
 
-while true; do
-  echo "📦 Лимит по подразбиране: $((DEFAULT_DISK_LIMIT_MB / 1024)) GB"
-  read -rp "➤ Искате ли да промените лимита? (y/N): " change_limit
+if (( usable_gb < 1 )); then
+  echo "❌ Недостатъчно свободно място на диска. Остават само ${available_gb} GB."
+  exit 1
+fi
 
-  if [[ "$change_limit" =~ ^[Yy]$ ]]; then
-    read -rp "💾 Въведете нов лимит в MB (напр. 2000 за 2 GB): " disk_limit_mb
-
-    if ! [[ "$disk_limit_mb" =~ ^[0-9]+$ ]]; then
-      echo "⚠️ Невалиден лимит. Моля, въведете число в MB."
-      continue
-    fi
-
-    SUMMARY_DISK_LIMIT_MB="$disk_limit_mb"
-    break
-
-  elif [[ -z "$change_limit" || "$change_limit" =~ ^[Nn]$ ]]; then
-    SUMMARY_DISK_LIMIT_MB="$DEFAULT_DISK_LIMIT_MB"
-    break
-
-  elif [[ "$change_limit" == "q" ]]; then
-    echo "🚪 Прекратяване по заявка на оператора."
-    exit 0
-
-  else
-    echo "⚠️ Невалиден отговор. Използвайте y / n / q."
+# Дефиниране на допустими лимити
+all_limits=(1 3 7 15 30)
+valid_limits=()
+for lim in "${all_limits[@]}"; do
+  if (( lim <= usable_gb )); then
+    valid_limits+=("$lim")
   fi
 done
 
+# Показване на валидните опции
+echo "📦 Изберете лимит на дисково пространство за сайта:"
+i=1
+for lim in "${valid_limits[@]}"; do
+  echo "[$i] ${lim} GB"
+  ((i++))
+done
+echo "[q] Прекратяване"
+
+while true; do
+  read -rp "Вашият избор [2]: " choice
+
+  [[ "$choice" == "q" ]] && {
+    echo "🚪 Прекратяване по заявка на оператора."
+    exit 0
+  }
+
+  [[ -z "$choice" ]] && choice=2
+
+  if ! [[ "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#valid_limits[@]} )); then
+    echo "⚠️ Невалиден избор. Моля, изберете между 1 и ${#valid_limits[@]}, или 'q'."
+    continue
+  fi
+
+  selected_gb="${valid_limits[$((choice - 1))]}"
+  break
+done
+
+SUMMARY_DISK_LIMIT_GB="$selected_gb"
+SUMMARY_DISK_LIMIT_MB=$((selected_gb * 1024))
 SUMMARY_ENABLE_NOMINAL_USER="yes"
 
 echo ""
 echo "✅ Номинален собственик:     $SUMMARY_NOMINAL_USER"
 echo "✅ Група за достъп:          $SUMMARY_NOMINAL_GROUP"
-echo "📦 Дисков лимит:             $SUMMARY_DISK_LIMIT_MB MB"
+echo "📦 Дисков лимит:             $SUMMARY_DISK_LIMIT_GB GB"
+
