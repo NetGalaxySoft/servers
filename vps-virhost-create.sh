@@ -355,7 +355,7 @@ while true; do
   esac
 done
 
-# === [6] ЛИМИТИ НА ХОСТА (вкл. дисково пространство) ======================
+# === [6] ЛИМИТ НА ХОСТА (дисково пространство) ======================
 
 domain_clean="${SUMMARY_ROOT_DOMAIN//./_}"
 NOMINAL_USER="nom_${domain_clean}"
@@ -364,54 +364,44 @@ SUMMARY_NOMINAL_USER="$NOMINAL_USER"
 SUMMARY_NOMINAL_GROUP="$NOMINAL_GROUP"
 
 echo ""
-echo "💽 Искате ли да създадете номинален собственик и да наложите лимит на дисково пространство?"
-echo "Това ще създаде потребител $NOMINAL_USER и група $NOMINAL_GROUP"
+echo "💽 Създаване на номинален собственик и лимит на дисковото пространство."
+echo "Това ще създаде потребител $NOMINAL_USER и група $NOMINAL_GROUP."
 echo ""
-echo "  [1] Да, с лимит (препоръчително)"
-echo "  [2] Да, без лимит"
-echo "  [3] Не – не създавай потребител и група"
-echo "  [q] Прекратяване"
+
+# Предложение по подразбиране: 1000 MB (1 GB)
+DEFAULT_DISK_LIMIT_MB=1000
 
 while true; do
-  read -rp "Вашият избор [1]: " limit_choice
+  echo "📦 Лимит по подразбиране: $((DEFAULT_DISK_LIMIT_MB / 1024)) GB"
+  read -rp "➤ Искате ли да промените лимита? (y/N): " change_limit
 
-  [[ "$limit_choice" == "q" ]] && {
+  if [[ "$change_limit" =~ ^[Yy]$ ]]; then
+    read -rp "💾 Въведете нов лимит в MB (напр. 2000 за 2 GB): " disk_limit_mb
+
+    if ! [[ "$disk_limit_mb" =~ ^[0-9]+$ ]]; then
+      echo "⚠️ Невалиден лимит. Моля, въведете число в MB."
+      continue
+    fi
+
+    SUMMARY_DISK_LIMIT_MB="$disk_limit_mb"
+    break
+
+  elif [[ -z "$change_limit" || "$change_limit" =~ ^[Nn]$ ]]; then
+    SUMMARY_DISK_LIMIT_MB="$DEFAULT_DISK_LIMIT_MB"
+    break
+
+  elif [[ "$change_limit" == "q" ]]; then
     echo "🚪 Прекратяване по заявка на оператора."
     exit 0
-  }
 
-  [[ -z "$limit_choice" ]] && limit_choice=1
-
-  case "$limit_choice" in
-    1)
-      SUMMARY_ENABLE_NOMINAL_USER="yes"
-      echo ""
-      echo "➤ Въведете лимит на дисково пространство (в MB, напр. 500): "
-      read -rp "MB: " disk_limit_mb
-      if ! [[ "$disk_limit_mb" =~ ^[0-9]+$ ]]; then
-        echo "❌ Невалиден лимит. Прекратяване."
-        exit 1
-      fi
-      SUMMARY_DISK_LIMIT_MB="$disk_limit_mb"
-      break
-      ;;
-    2)
-      SUMMARY_ENABLE_NOMINAL_USER="yes"
-      SUMMARY_DISK_LIMIT_MB="unlimited"
-      break
-      ;;
-    3)
-      SUMMARY_ENABLE_NOMINAL_USER="no"
-      SUMMARY_DISK_LIMIT_MB="n/a"
-      break
-      ;;
-    *)
-      echo "⚠️ Невалиден избор. Моля, изберете 1, 2, 3 или q."
-      ;;
-  esac
+  else
+    echo "⚠️ Невалиден отговор. Използвайте y / n / q."
+  fi
 done
+
+SUMMARY_ENABLE_NOMINAL_USER="yes"
 
 echo ""
 echo "✅ Номинален собственик:     $SUMMARY_NOMINAL_USER"
 echo "✅ Група за достъп:          $SUMMARY_NOMINAL_GROUP"
-echo "📦 Дисков лимит:             $SUMMARY_DISK_LIMIT_MB"
+echo "📦 Дисков лимит:             $SUMMARY_DISK_LIMIT_MB MB"
