@@ -123,78 +123,80 @@ while true; do
   esac
 done
 
-# === [2a] ВЪПРОС ЗА DNS РЕЖИМ ===================================================
-while true; do
-  echo "➤ Изберете режим за DNS сървъра:"
-  echo "    1: master"
-  echo "    2: slave"
-  echo "    q: изход"
-  read -rp "Вашият избор: " DNS_MODE
-  case "$DNS_MODE" in
-    1)
-      DNS_MODE="master"
-      DNS_ZONE=$(echo "$SERVER_DOMAIN" | cut -d. -f2-)
-      echo "ℹ️ Използва се основна зона: $DNS_ZONE"
-      SLAVE_MASTER_IP=""
+# === [2a] ВЪПРОС ЗА DNS РЕЖИМ (само ако има нужда) ============================
+if [[ "$DNS_REQUIRED" == "yes" ]]; then
+  while true; do
+    echo "➤ Изберете режим за DNS сървъра:"
+    echo "    1: master"
+    echo "    2: slave"
+    echo "    q: изход"
+    read -rp "Вашият избор: " DNS_MODE
+    case "$DNS_MODE" in
+      1)
+        DNS_MODE="master"
+        DNS_ZONE=$(echo "$SERVER_DOMAIN" | cut -d. -f2-)
+        echo "ℹ️ Използва се основна зона: $DNS_ZONE"
+        SLAVE_MASTER_IP=""
 
-      # Проверка и автоматична инсталация на 'dnsutils'
-      if ! command -v dig >/dev/null 2>&1; then
-        echo "ℹ️ Инструментът 'dig' не е наличен. Инсталираме 'dnsutils' за DNS проверка..."
-        apt-get update -qq && apt-get install -y dnsutils >/dev/null
-        RESULT_DNSUTILS="✅"
-      else
-        RESULT_DNSUTILS="✅"
-      fi
-
-      EXPECTED_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-      echo "🔍 Проверка дали ns1 и ns2 за $DNS_ZONE сочат към този сървър ($EXPECTED_IP)..."
-      NS1_IP=$(dig +short A ns1.$DNS_ZONE)
-      NS2_IP=$(dig +short A ns2.$DNS_ZONE)
-
-      if [[ "$NS1_IP" == "$EXPECTED_IP" && "$NS2_IP" == "$EXPECTED_IP" ]]; then
-        echo "✅ Потвърдено: ns1 и ns2 сочат към този сървър."
-      else
-        echo "❌ ns1 и/или ns2 не сочат към този сървър:"
-        echo "👉 ns1.$DNS_ZONE → ${NS1_IP:-(няма запис)}"
-        echo "👉 ns2.$DNS_ZONE → ${NS2_IP:-(няма запис)}"
-        echo ""
-        echo "⚠️  Моля, актуализирайте A-записите за ns1 и ns2 да сочат към $EXPECTED_IP."
-        echo "🔁 След това стартирайте скрипта отново."
-        exit 1
-      fi
-      break
-      ;;
-    2)
-      DNS_MODE="slave"
-      while true; do
-        read -rp "➤ Въведете IP адреса на master DNS сървъра (или 'q' за изход): " SLAVE_MASTER_IP
-        [[ "$SLAVE_MASTER_IP" == "q" ]] && exit 0
-        if [[ $SLAVE_MASTER_IP == "$SERVER_IP" ]]; then
-          echo "❌ IP адресът на master сървъра не може да съвпада с текущия сървър."
-          continue
-        fi
-        if [[ $SLAVE_MASTER_IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-          echo "ℹ️ Ще се опитаме да проверим достъпа до master сървъра..."
-          if timeout 3 bash -c "> /dev/tcp/$SLAVE_MASTER_IP/53" 2>/dev/null; then
-            echo "✅ Успешна връзка към порт 53 на master DNS сървъра."
-            break
-          else
-            echo "❌ Няма достъп до порт 53 на $SLAVE_MASTER_IP. Проверете firewall или IP."
-          fi
+        # Проверка и автоматична инсталация на 'dnsutils'
+        if ! command -v dig >/dev/null 2>&1; then
+          echo "ℹ️ Инструментът 'dig' не е наличен. Инсталираме 'dnsutils' за DNS проверка..."
+          apt-get update -qq && apt-get install -y dnsutils >/dev/null
+          RESULT_DNSUTILS="✅"
         else
-          echo "❌ Невалиден IP адрес. Опитайте отново."
+          RESULT_DNSUTILS="✅"
         fi
-      done
-      break
-      ;;
-    q|Q)
-      exit 0
-      ;;
-    *)
-      echo "❌ Невалиден избор. Моля, въведете 1, 2 или q."
-      ;;
-  esac
- done
+
+        EXPECTED_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+        echo "🔍 Проверка дали ns1 и ns2 за $DNS_ZONE сочат към този сървър ($EXPECTED_IP)..."
+        NS1_IP=$(dig +short A ns1.$DNS_ZONE)
+        NS2_IP=$(dig +short A ns2.$DNS_ZONE)
+
+        if [[ "$NS1_IP" == "$EXPECTED_IP" && "$NS2_IP" == "$EXPECTED_IP" ]]; then
+          echo "✅ Потвърдено: ns1 и ns2 сочат към този сървър."
+        else
+          echo "❌ ns1 и/или ns2 не сочат към този сървър:"
+          echo "👉 ns1.$DNS_ZONE → ${NS1_IP:-(няма запис)}"
+          echo "👉 ns2.$DNS_ZONE → ${NS2_IP:-(няма запис)}"
+          echo ""
+          echo "⚠️  Моля, актуализирайте A-записите за ns1 и ns2 да сочат към $EXPECTED_IP."
+          echo "🔁 След това стартирайте скрипта отново."
+          exit 1
+        fi
+        break
+        ;;
+      2)
+        DNS_MODE="slave"
+        while true; do
+          read -rp "➤ Въведете IP адреса на master DNS сървъра (или 'q' за изход): " SLAVE_MASTER_IP
+          [[ "$SLAVE_MASTER_IP" == "q" ]] && exit 0
+          if [[ $SLAVE_MASTER_IP == "$SERVER_IP" ]]; then
+            echo "❌ IP адресът на master сървъра не може да съвпада с текущия сървър."
+            continue
+          fi
+          if [[ $SLAVE_MASTER_IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+            echo "ℹ️ Ще се опитаме да проверим достъпа до master сървъра..."
+            if timeout 3 bash -c "> /dev/tcp/$SLAVE_MASTER_IP/53" 2>/dev/null; then
+              echo "✅ Успешна връзка към порт 53 на master DNS сървъра."
+              break
+            else
+              echo "❌ Няма достъп до порт 53 на $SLAVE_MASTER_IP. Проверете firewall или IP."
+            fi
+          else
+            echo "❌ Невалиден IP адрес. Опитайте отново."
+          fi
+        done
+        break
+        ;;
+      q|Q)
+        exit 0
+        ;;
+      *)
+        echo "❌ Невалиден избор. Моля, въведете 1, 2 или q."
+        ;;
+    esac
+  done
+fi
 
 # [3] Финално потвърждение
 INSTALLED_SERVICES="Apache2, MariaDB, PHP, Postfix, Dovecot"
