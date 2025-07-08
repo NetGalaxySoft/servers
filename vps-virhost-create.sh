@@ -588,10 +588,10 @@ printf "🔐 SSL сертификат:           %s\n" "$( [[ "$SUMMARY_SSL_TYPE
 printf "👤 Номинален собственик:     %s\n" "$SUMMARY_NOMINAL_USER"
 printf "👥 Група за достъп:          %s\n" "$SUMMARY_NOMINAL_GROUP"
 printf "📦 Дисков лимит:             %s GB\n" "$SUMMARY_DISK_LIMIT_GB"
-printf "👨‍💼 Админ. потребител:        %s\n" "$SUMMARY_ADMIN_USER"
+printf "👨‍💼 Админ. потребител:       %s\n" "$SUMMARY_ADMIN_USER"
 printf "👤 Админ принадлежи към:     %s\n" "$SUMMARY_NOMINAL_GROUP"
 [[ -n "$SUMMARY_DB_NAME" ]] && {
-  printf "🛢️ База данни:              %s\n" "$SUMMARY_DB_NAME"
+  printf "🛢️ База данни:               %s\n" "$SUMMARY_DB_NAME"
   printf "👤 Потребител на БД:        %s\n" "$SUMMARY_DB_USER"
 }
 [[ "$SUMMARY_CREATE_FTP" == "yes" ]] && {
