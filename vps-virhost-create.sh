@@ -56,6 +56,26 @@ SUMMARY_PHP_VERSION=""
 SUMMARY_SSL_TYPE=""
 SUMMARY_CUSTOM_MESSAGE=""
 
+# Променливи за собственост и достъп
+SUMMARY_NOMINAL_USER=""          # напр. nomhost__humanizma_eu
+SUMMARY_NOMINAL_GROUP=""         # напр. host0_humanizma_eu
+
+# Променливи за лимит
+SUMMARY_DISK_LIMIT_MB=""
+SUMMARY_ENABLE_NOMINAL_USER=""
+
+# Променливи за главен администратор
+SUMMARY_ADMIN_USER=""
+SUMMARY_ADMIN_PASSWORD=""
+
+# Променливи за база данни
+SUMMARY_DB_NAME=""
+SUMMARY_DB_USER=""
+SUMMARY_DB_PASSWORD=""
+
+# FTP достъп
+SUMMARY_ENABLE_FTP=""
+
 echo "=================================================================="
 echo " 🌐 NetGalaxy - Създаване на виртуален хост за Apache сървър"
 echo "=================================================================="
