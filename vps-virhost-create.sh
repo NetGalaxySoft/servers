@@ -823,3 +823,56 @@ else
   echo "⚠️ Няма избран валиден метод за SSL. Пропускане."
   RESULT_SSL_CONFIG="❌ (няма избор)"
 fi
+
+# === [16] СЪЗДАВАНЕ НА НАЧАЛНА СТРАНИЦА (index.html) =======================
+
+echo ""
+echo "[16] Създаване на начална страница index.html..."
+echo "-------------------------------------------------------------------------"
+
+INDEX_FILE="${SUMMARY_WEBROOT}/index.html"
+
+sudo tee "$INDEX_FILE" >/dev/null <<EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${SUMMARY_DOMAIN}</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 100px;
+      background: #f2f2f2;
+      color: #333;
+    }
+    h1 { font-size: 2.5em; }
+    p { font-size: 1.2em; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>www.${SUMMARY_DOMAIN}</h1>
+  <p>This site is under construction.</p>
+EOF
+
+# Добавяне на потребителско съобщение, ако има
+if [[ -n "$SUMMARY_CUSTOM_MESSAGE" ]]; then
+  sudo tee -a "$INDEX_FILE" >/dev/null <<EOF
+  <p>${SUMMARY_CUSTOM_MESSAGE}</p>
+EOF
+fi
+
+# Затваряне на HTML
+sudo tee -a "$INDEX_FILE" >/dev/null <<EOF
+</body>
+</html>
+EOF
+
+# Права
+sudo chown "$SUMMARY_NOMINAL_USER:$SUMMARY_NOMINAL_GROUP" "$INDEX_FILE"
+sudo chmod 640 "$INDEX_FILE"
+
+echo "✅ Началната страница беше създадена успешно."
+RESULT_CREATE_INDEX="✅"
+
+
