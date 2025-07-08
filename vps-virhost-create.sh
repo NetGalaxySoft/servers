@@ -907,5 +907,43 @@ else
   RESULT_DB_CREATE="⚠️ (пропуснато)"
 fi
 
+# === [18] СЪЗДАВАНЕ НА FTP АКАУНТ ==========================================
+
+echo ""
+echo "[18] Създаване на FTP акаунт за администратора..."
+echo "-------------------------------------------------------------------------"
+
+if [[ "$SUMMARY_CREATE_FTP" == "yes" ]]; then
+
+  FTP_USER="$SUMMARY_FTP_USER"
+  FTP_HOME="$SUMMARY_FTP_HOME"
+  FTP_GROUP="$SUMMARY_NOMINAL_GROUP"
+
+  echo "⏳ Създаване/настройване на FTP акаунт: $FTP_USER"
+
+  # Проверка дали потребителят съществува
+  if ! id "$FTP_USER" >/dev/null 2>&1; then
+    sudo useradd -m -d "$FTP_HOME" -s /bin/bash -g "$FTP_GROUP" "$FTP_USER"
+    echo "✅ Потребителят $FTP_USER беше създаден."
+  else
+    echo "ℹ️ Потребителят $FTP_USER вече съществува. Ще бъде използван."
+  fi
+
+  # Задаване на парола (използва се тази от администратора)
+  echo "${FTP_USER}:${SUMMARY_ADMIN_PASS}" | sudo chpasswd
+
+  # Ограничаване достъпа до уеб директорията
+  sudo usermod -d "$FTP_HOME" "$FTP_USER"
+
+  # Правилни права
+  sudo chown -R "$SUMMARY_NOMINAL_USER:$FTP_GROUP" "$FTP_HOME"
+
+  echo "✅ FTP достъп за $FTP_USER е конфигуриран до $FTP_HOME"
+  RESULT_FTP_CREATE="✅"
+
+else
+  echo "ℹ️ Създаването на FTP акаунт е пропуснато."
+  RESULT_FTP_CREATE="⚠️ (пропуснато)"
+fi
 
 
