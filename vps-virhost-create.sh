@@ -588,15 +588,15 @@ printf "🔐 SSL сертификат:           %s\n" "$( [[ "$SUMMARY_SSL_TYPE
 printf "👤 Номинален собственик:     %s\n" "$SUMMARY_NOMINAL_USER"
 printf "👥 Група за достъп:          %s\n" "$SUMMARY_NOMINAL_GROUP"
 printf "📦 Дисков лимит:             %s GB\n" "$SUMMARY_DISK_LIMIT_GB"
-printf "👨‍💼 Админ. потребител:       %s\n" "$SUMMARY_ADMIN_USER"
+printf "👨‍💼 Админ. потребител:        %s\n" "$SUMMARY_ADMIN_USER"
 printf "👤 Админ принадлежи към:     %s\n" "$SUMMARY_NOMINAL_GROUP"
 [[ -n "$SUMMARY_DB_NAME" ]] && {
-  printf "🛢️ База данни:               %s\n" "$SUMMARY_DB_NAME"
-  printf "👤 Потребител на БД:         %s\n" "$SUMMARY_DB_USER"
+  printf "🛢️ База данни:              %s\n" "$SUMMARY_DB_NAME"
+  printf "👤 Потребител на БД:        %s\n" "$SUMMARY_DB_USER"
 }
 [[ "$SUMMARY_CREATE_FTP" == "yes" ]] && {
-  printf "📡 FTP акаунт:               %s\n" "$SUMMARY_FTP_USER"
-  printf "📁 FTP достъп до:            %s\n" "$SUMMARY_FTP_HOME"
+  printf "📡 FTP акаунт:              %s\n" "$SUMMARY_FTP_USER"
+  printf "📁 FTP достъп до:           %s\n" "$SUMMARY_FTP_HOME"
 }
 echo "------------------------------------------------------------"
 
@@ -627,3 +627,68 @@ while true; do
       ;;
   esac
 done
+
+# === [11] СЪЗДАВАНЕ НА УЕБ ДИРЕКТОРИЯ И ПРАВА ===============================
+
+echo ""
+echo "[11] Създаване на уеб директория, потребител и група..."
+echo "-------------------------------------------------------------------------"
+
+# Създаване на групата
+if ! getent group "$SUMMARY_NOMINAL_GROUP" >/dev/null; then
+  sudo groupadd "$SUMMARY_NOMINAL_GROUP"
+  echo "✅ Групата $SUMMARY_NOMINAL_GROUP беше създадена."
+else
+  echo "ℹ️ Групата $SUMMARY_NOMINAL_GROUP вече съществува."
+fi
+
+# Създаване на номиналния потребител (без възможност за вход)
+if ! id -u "$SUMMARY_NOMINAL_USER" >/dev/null 2>&1; then
+  sudo useradd -r -d "$SUMMARY_WEBROOT" -s /usr/sbin/nologin -g "$SUMMARY_NOMINAL_GROUP" "$SUMMARY_NOMINAL_USER"
+  echo "✅ Потребителят $SUMMARY_NOMINAL_USER беше създаден."
+else
+  echo "ℹ️ Потребителят $SUMMARY_NOMINAL_USER вече съществува."
+fi
+
+# Създаване на уеб директорията
+if [ ! -d "$SUMMARY_WEBROOT" ]; then
+  sudo mkdir -p "$SUMMARY_WEBROOT"
+  echo "✅ Създадена директория: $SUMMARY_WEBROOT"
+else
+  echo "ℹ️ Директорията $SUMMARY_WEBROOT вече съществува."
+fi
+
+# Задаване на собственост и права
+sudo chown "$SUMMARY_NOMINAL_USER:$SUMMARY_NOMINAL_GROUP" "$SUMMARY_WEBROOT"
+sudo chmod 750 "$SUMMARY_WEBROOT"
+
+RESULT_CREATE_WEBROOT="✅"
+
+# === [12] ЗАДАВАНЕ НА КВОТА НА ПОТРЕБИТЕЛЯ =================================
+
+echo ""
+echo "[12] Задаване на квота за потребителя $SUMMARY_NOMINAL_USER..."
+echo "-------------------------------------------------------------------------"
+
+# Проверка дали квотите са активни
+if mount | grep 'on / type' | grep -q 'usrquota' && quotaon -p / >/dev/null 2>&1; then
+
+  # Преобразуване от GB към KB (за командата setquota)
+  block_limit_kb=$((SUMMARY_DISK_LIMIT_GB * 1024 * 1024))
+
+  sudo setquota -u "$SUMMARY_NOMINAL_USER" "$block_limit_kb" "$block_limit_kb" 0 0 /
+
+  if [[ $? -eq 0 ]]; then
+    echo "✅ Квота от ${SUMMARY_DISK_LIMIT_GB} GB беше зададена успешно на $SUMMARY_NOMINAL_USER."
+    RESULT_USER_QUOTA="✅"
+  else
+    echo "❌ Възникна грешка при задаване на квотата за $SUMMARY_NOMINAL_USER."
+    RESULT_USER_QUOTA="❌"
+  fi
+
+else
+  echo "⚠️ Квотите не са активни или не се поддържат на root файловата система."
+  echo "ℹ️ Пропускане на задаването на квота."
+  RESULT_USER_QUOTA="⚠️ (неподдържана)"
+fi
+
