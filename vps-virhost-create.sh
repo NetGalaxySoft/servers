@@ -763,3 +763,63 @@ else
   echo "❌ Възникна грешка при активирането на сайта."
   RESULT_APACHE_VHOST="❌"
 fi
+
+# === [15] НАСТРОЙВАНЕ НА SSL (HTTPS) =======================================
+
+echo ""
+echo "[15] Настройване на SSL сертификат за домейна..."
+echo "-------------------------------------------------------------------------"
+
+if [[ "$SUMMARY_SSL_TYPE" == "letsencrypt" ]]; then
+  echo "⏳ Издаване на Let's Encrypt сертификат чрез certbot..."
+  sudo certbot --apache -n --agree-tos --redirect --no-eff-email -m admin@${SUMMARY_ROOT_DOMAIN} -d "$SUMMARY_DOMAIN" -d "www.${SUMMARY_DOMAIN}"
+
+  if [[ $? -eq 0 ]]; then
+    echo "✅ Сертификатът е издаден и инсталиран успешно."
+    RESULT_SSL_CONFIG="✅ (Let's Encrypt)"
+  else
+    echo "❌ Възникна грешка при издаването на Let's Encrypt сертификат."
+    RESULT_SSL_CONFIG="❌"
+  fi
+
+elif [[ "$SUMMARY_SSL_TYPE" == "custom" ]]; then
+  echo "⏳ Конфигуриране с потребителски SSL сертификат..."
+
+  SSL_CONF_PATH="/etc/apache2/sites-available/${SUMMARY_DOMAIN}-ssl.conf"
+
+  cat <<EOF | sudo tee "$SSL_CONF_PATH" >/dev/null
+<VirtualHost *:443>
+    ServerName ${SUMMARY_DOMAIN}
+    ServerAlias www.${SUMMARY_DOMAIN}
+    DocumentRoot ${SUMMARY_WEBROOT}
+
+    SSLEngine on
+    SSLCertificateFile ${SUMMARY_SSL_CRT_PATH}
+    SSLCertificateKeyFile ${SUMMARY_SSL_KEY_PATH}
+
+    <Directory ${SUMMARY_WEBROOT}>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/${SUMMARY_DOMAIN}_ssl_error.log
+    CustomLog \${APACHE_LOG_DIR}/${SUMMARY_DOMAIN}_ssl_access.log combined
+</VirtualHost>
+EOF
+
+  sudo a2enmod ssl >/dev/null 2>&1
+  sudo a2ensite "${SUMMARY_DOMAIN}-ssl.conf" >/dev/null 2>&1
+  sudo systemctl reload apache2
+
+  if [[ $? -eq 0 ]]; then
+    echo "✅ Потребителският сертификат е конфигуриран успешно."
+    RESULT_SSL_CONFIG="✅ (custom)"
+  else
+    echo "❌ Възникна грешка при конфигурацията със собствен сертификат."
+    RESULT_SSL_CONFIG="❌"
+  fi
+else
+  echo "⚠️ Няма избран валиден метод за SSL. Пропускане."
+  RESULT_SSL_CONFIG="❌ (няма избор)"
+fi
