@@ -837,6 +837,18 @@ echo "-------------------------------------------------------------------------"
 
 if [[ "$SUMMARY_SSL_TYPE" == "letsencrypt" ]]; then
   echo "⏳ Издаване на Let's Encrypt сертификат чрез certbot..."
+
+  # Проверка дали домейнът отговаря с HTTP статус 200
+  echo "⏳ Проверка дали сайтът ${SUMMARY_DOMAIN} е достъпен преди заявка за сертификат..."
+  if curl -s --head --request GET "http://${SUMMARY_DOMAIN}" | grep -q "200 OK"; then
+    echo "✅ Сайтът отговаря успешно. Продължаваме със заявката към Let's Encrypt."
+  else
+    echo "❌ Сайтът не е достъпен през HTTP. Прекратяване на заявката за сертификат."
+    RESULT_SSL_CONFIG="❌ (недостъпен сайт)"
+    exit 1
+  fi
+
+  # Издаване на сертификат
   sudo certbot --apache -n --agree-tos --redirect --no-eff-email -m admin@${SUMMARY_ROOT_DOMAIN} -d "$SUMMARY_DOMAIN" -d "www.${SUMMARY_DOMAIN}"
 
   if [[ $? -eq 0 ]]; then
