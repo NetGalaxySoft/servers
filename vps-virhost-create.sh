@@ -588,10 +588,10 @@ printf "🔐 SSL сертификат:           %s\n" "$( [[ "$SUMMARY_SSL_TYPE
 printf "👤 Номинален собственик:     %s\n" "$SUMMARY_NOMINAL_USER"
 printf "👥 Група за достъп:          %s\n" "$SUMMARY_NOMINAL_GROUP"
 printf "📦 Дисков лимит:             %s GB\n" "$SUMMARY_DISK_LIMIT_GB"
-printf "👨‍💼 Админ. потребител:       %s\n" "$SUMMARY_ADMIN_USER"
+printf "👨‍💼 Админ. потребител:      %s\n" "$SUMMARY_ADMIN_USER"
 printf "👤 Админ принадлежи към:     %s\n" "$SUMMARY_NOMINAL_GROUP"
 [[ -n "$SUMMARY_DB_NAME" ]] && {
-  printf "🛢️ База данни:               %s\n" "$SUMMARY_DB_NAME"
+  printf "🛢️  База данни:             %s\n" "$SUMMARY_DB_NAME"
   printf "👤 Потребител на БД:        %s\n" "$SUMMARY_DB_USER"
 }
 [[ "$SUMMARY_CREATE_FTP" == "yes" ]] && {
@@ -699,12 +699,18 @@ echo "[13] Инсталиране на PHP ${SUMMARY_PHP_VERSION} (ако е н�
 echo "-------------------------------------------------------------------------"
 
 if [[ "$SUMMARY_PHP_INSTALL_REQUIRED" == "yes" ]]; then
-  echo "⏳ Избраната PHP версия не е инсталирана. Започва инсталация..."
+  echo "⏳ Избраната PHP версия не е инсталирана. Проверка за необходимите хранилища..."
 
-  sudo apt update -qq
+  # Добавяне на PPA, ако липсва
+  if ! apt-cache policy | grep -q "ondrej/php"; then
+    echo "➕ Добавяне на хранилище ppa:ondrej/php..."
+    sudo apt install -y software-properties-common lsb-release ca-certificates apt-transport-https
+    sudo add-apt-repository -y ppa:ondrej/php
+    sudo apt update
+  fi
 
-  PHP_PKG_VERSION="${SUMMARY_PHP_VERSION//./}"  # Преобразуване 8.3 -> 83
-  sudo apt install -y php${SUMMARY_PHP_VERSION} php${SUMMARY_PHP_VERSION}-cli php${SUMMARY_PHP_VERSION}-common php${SUMMARY_PHP_VERSION}-fpm php${SUMMARY_PHP_VERSION}-mysql php${SUMMARY_PHP_VERSION}-mbstring php${SUMMARY_PHP_VERSION}-xml php${SUMMARY_PHP_VERSION}-curl php${SUMMARY_PHP_VERSION}-zip
+  echo "⏳ Инсталиране на PHP ${SUMMARY_PHP_VERSION} и нужните модули..."
+  sudo apt install -y php${SUMMARY_PHP_VERSION} php${SUMMARY_PHP_VERSION}-{cli,common,fpm,mysql,mbstring,xml,curl,zip}
 
   if [[ $? -eq 0 ]]; then
     echo "✅ PHP ${SUMMARY_PHP_VERSION} беше инсталиран успешно."
