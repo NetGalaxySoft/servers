@@ -539,59 +539,69 @@ while true; do
   fi
 done
 
-# === [8] СЪЗДАВАНЕ НА БАЗА ДАННИ =========================================
+
+# === [8] СЪЗДАВАНЕ НА БАЗА ДАННИ ==================================
 echo ""
 echo "[8] СЪЗДАВАНЕ НА БАЗА ДАННИ..."
 echo "-------------------------------------------------------------------------"
-echo ""
-
-echo "🗄️  Създаване на база данни (MariaDB) за хоста"
+echo "\n🗄️  Създаване на база данни (MariaDB) за хоста"
 echo "-------------------------------------------------------------------------"
-echo "Име на базата и потребителя ще бъде извлечено от домейна."
-echo ""
 
-db_name="db_${SUMMARY_ROOT_DOMAIN//./_}"
-db_user="$db_name"
-db_password="$SUMMARY_ADMIN_PASSWORD"
+# Извличане и анализ на домейна
+subdomain=$(echo "$domain" | cut -d. -f1)
+domain_main=$(echo "$domain" | awk -F. '{print $(NF-1)}')
+domain_tld=$(echo "$domain" | awk -F. '{print $NF}')
+main_short="${domain_main:0:3}"
+sub_short="${subdomain:0:3}"
+rnd_digits=$(shuf -i 10-99 -n 1)
 
-echo "➡️  Предложено име на базата:      $db_name"
-echo "➡️  Потребител за базата:          $db_user"
+# Определяне на име
+if [[ "$subdomain" == "$domain_main" ]]; then
+  db_id="${main_short}${rnd_digits}_${domain_tld}"
+else
+  db_id="${sub_short}_${main_short}${rnd_digits}_${domain_tld}"
+fi
+
+DB_NAME="db_${db_id}"
+DB_USER="usr_${db_id}"
+
+# Записване в обобщението
+SUMMARY_DB_NAME="$DB_NAME"
+SUMMARY_DB_USER="$DB_USER"
+
+# Извеждане на предложение
+echo "➡️  Предложено име на базата:      $DB_NAME"
+echo "➡️  Потребител за базата:          $DB_USER"
 echo "➡️  Паролата ще бъде тази на хост администратора."
-
 echo ""
-echo "🗄️  Искате ли да създадете база данни за този хост?"
-echo "  [1] Да"
-echo "  [2] Не (по подразбиране)"
-echo "  [q] Прекратяване"
 
 while true; do
+  echo "🗄️  Искате ли да създадете база данни за този хост?"
+  echo "  [1] Да"
+  echo "  [2] Не (по подразбиране)"
+  echo "  [q] Прекратяване"
   read -rp "Вашият избор [2]: " db_choice
-  [[ "$db_choice" == "q" ]] && {
-    echo "🚪 Прекратяване по заявка на оператора."
-    exit 0
-  }
-
-  [[ -z "$db_choice" ]] && db_choice=2
+  db_choice=${db_choice:-2}
 
   case "$db_choice" in
     1)
-      SUMMARY_DB_CREATE="yes"
-      SUMMARY_DB_NAME="$db_name"
-      SUMMARY_DB_USER="$db_user"
-      SUMMARY_DB_PASSWORD="$db_password"
-      echo "✅ Базата ще бъде създадена."
+      echo "⏳ Създаване на база данни и потребител..."
+      sudo mariadb -e "CREATE DATABASE $DB_NAME CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+      sudo mariadb -e "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$SUMMARY_ADMIN_PASS';"
+      sudo mariadb -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';"
+      sudo mariadb -e "FLUSH PRIVILEGES;"
+      echo "✅ Базата данни и потребителят са създадени успешно."
       break
       ;;
     2)
-      SUMMARY_DB_CREATE="no"
-      SUMMARY_DB_NAME="n/a"
-      SUMMARY_DB_USER="n/a"
-      SUMMARY_DB_PASSWORD="n/a"
-      echo "ℹ️  Базата няма да бъде създадена."
+      echo "ℹ️ Пропуснато създаване на база данни."
       break
       ;;
+    q|Q)
+      echo "🚪 Прекратяване по заявка на оператора." && exit 0
+      ;;
     *)
-      echo "⚠️  Невалиден избор. Моля, изберете 1, 2 или q."
+      echo "❗ Невалиден избор. Моля, изберете 1, 2 или q."
       ;;
   esac
 done
@@ -648,7 +658,7 @@ printf "📦 Дисков лимит:             %s GB\n" "$SUMMARY_DISK_LIMIT_
 printf "👨‍💼 Админ. потребител:      %s\n" "$SUMMARY_ADMIN_USER"
 printf "👤 Админ принадлежи към:     %s\n" "$SUMMARY_NOMINAL_GROUP"
 [[ -n "$SUMMARY_DB_NAME" ]] && {
-  printf "🛢️  База данни:             %s\n" "$SUMMARY_DB_NAME"
+  printf "🛢️  База данни:              %s\n" "$SUMMARY_DB_NAME"
   printf "👤 Потребител на БД:        %s\n" "$SUMMARY_DB_USER"
 }
 [[ "$SUMMARY_CREATE_FTP" == "yes" ]] && {
