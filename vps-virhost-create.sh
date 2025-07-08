@@ -718,3 +718,48 @@ else
   echo "ℹ️ PHP ${SUMMARY_PHP_VERSION} вече е инсталиран. Пропускане на тази стъпка."
   RESULT_PHP_INSTALL="✅ (вече инсталиран)"
 fi
+
+# === [14] СЪЗДАВАНЕ НА КОНФИГУРАЦИЯ ЗА APACHE =============================
+
+echo ""
+echo "[14] Създаване на конфигурационен файл за Apache..."
+echo "-------------------------------------------------------------------------"
+
+VHOST_FILE="/etc/apache2/sites-available/${SUMMARY_DOMAIN}.conf"
+DOC_ROOT="$SUMMARY_WEBROOT"
+SSL_CONF=""
+
+# Създаване на конфигурацията за виртуалния хост
+cat <<EOF | sudo tee "$VHOST_FILE" >/dev/null
+<VirtualHost *:80>
+    ServerName ${SUMMARY_DOMAIN}
+    ServerAlias www.${SUMMARY_DOMAIN}
+    DocumentRoot ${DOC_ROOT}
+    DirectoryIndex index.php index.html
+    <Directory ${DOC_ROOT}>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog \${APACHE_LOG_DIR}/${SUMMARY_DOMAIN}_error.log
+    CustomLog \${APACHE_LOG_DIR}/${SUMMARY_DOMAIN}_access.log combined
+</VirtualHost>
+EOF
+
+echo "✅ Конфигурационен файл създаден: $VHOST_FILE"
+
+# Активиране на сайта
+echo "⏳ Активиране на сайта..."
+sudo a2ensite "${SUMMARY_DOMAIN}.conf" >/dev/null 2>&1
+
+# Рестартиране на Apache
+echo "🔁 Рестартиране на Apache..."
+sudo systemctl reload apache2
+
+if [[ $? -eq 0 ]]; then
+  echo "✅ Сайтът ${SUMMARY_DOMAIN} е активиран успешно."
+  RESULT_APACHE_VHOST="✅"
+else
+  echo "❌ Възникна грешка при активирането на сайта."
+  RESULT_APACHE_VHOST="❌"
+fi
