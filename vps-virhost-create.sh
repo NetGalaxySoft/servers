@@ -692,3 +692,29 @@ else
   RESULT_USER_QUOTA="⚠️ (неподдържана)"
 fi
 
+# === [13] ИНСТАЛИРАНЕ НА ИЗБРАНАТА PHP ВЕРСИЯ =============================
+
+echo ""
+echo "[13] Инсталиране на PHP ${SUMMARY_PHP_VERSION} (ако е необходимо)..."
+echo "-------------------------------------------------------------------------"
+
+if [[ "$SUMMARY_PHP_INSTALL_REQUIRED" == "yes" ]]; then
+  echo "⏳ Избраната PHP версия не е инсталирана. Започва инсталация..."
+
+  sudo apt update -qq
+
+  PHP_PKG_VERSION="${SUMMARY_PHP_VERSION//./}"  # Преобразуване 8.3 -> 83
+  sudo apt install -y php${SUMMARY_PHP_VERSION} php${SUMMARY_PHP_VERSION}-cli php${SUMMARY_PHP_VERSION}-common php${SUMMARY_PHP_VERSION}-fpm php${SUMMARY_PHP_VERSION}-mysql php${SUMMARY_PHP_VERSION}-mbstring php${SUMMARY_PHP_VERSION}-xml php${SUMMARY_PHP_VERSION}-curl php${SUMMARY_PHP_VERSION}-zip
+
+  if [[ $? -eq 0 ]]; then
+    echo "✅ PHP ${SUMMARY_PHP_VERSION} беше инсталиран успешно."
+    RESULT_PHP_INSTALL="✅"
+  else
+    echo "❌ Възникна грешка при инсталирането на PHP ${SUMMARY_PHP_VERSION}."
+    RESULT_PHP_INSTALL="❌"
+  fi
+
+else
+  echo "ℹ️ PHP ${SUMMARY_PHP_VERSION} вече е инсталиран. Пропускане на тази стъпка."
+  RESULT_PHP_INSTALL="✅ (вече инсталиран)"
+fi
