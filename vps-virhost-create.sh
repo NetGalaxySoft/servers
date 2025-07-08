@@ -875,4 +875,49 @@ sudo chmod 640 "$INDEX_FILE"
 echo "✅ Началната страница беше създадена успешно."
 RESULT_CREATE_INDEX="✅"
 
+# === [17] СЪЗДАВАНЕ НА БАЗА ДАННИ (MariaDB) ================================
+
+echo ""
+echo "[17] Създаване на база данни за хоста..."
+echo "-------------------------------------------------------------------------"
+
+if [[ "$SUMMARY_DB_CREATE" == "yes" ]]; then
+
+  echo "⏳ Създаване на база: $SUMMARY_DB_NAME и потребител: $SUMMARY_DB_USER"
+
+  SQL_COMMANDS="
+    CREATE DATABASE IF NOT EXISTS \`${SUMMARY_DB_NAME}\`;
+    CREATE USER IF NOT EXISTS '${SUMMARY_DB_USER}'@'localhost' IDENTIFIED BY '${SUMMARY_DB_PASSWORD}';
+    GRANT ALL PRIVILEGES ON \`${SUMMARY_DB_NAME}\`.* TO '${SUMMARY_DB_USER}'@'localhost';
+    FLUSH PRIVILEGES;
+  "
+
+  echo "$SQL_COMMANDS" | sudo mariadb
+
+  if [[ $? -eq 0 ]]; then
+    echo "✅ Базата и потребителят бяха създадени успешно."
+    RESULT_DB_CREATE="✅"
+  else
+    echo "❌ Възникна грешка при създаването на базата данни."
+    RESULT_DB_CREATE="❌"
+  fi
+
+else
+  echo "ℹ️ Създаването на база данни е пропуснато."
+  RESULT_DB_CREATE="⚠️ (пропуснато)"
+fi
+
+## [17] СЪЗДАВАНЕ НА БАЗА ДАННИ (MariaDB)
+
+- Добавена секция [17], която създава база данни и потребител в MariaDB,
+  ако в секция [8] е избрана опцията "да".
+- Използват се променливите SUMMARY_DB_NAME, SUMMARY_DB_USER, SUMMARY_DB_PASSWORD.
+- Изпълняват се следните SQL команди:
+  - CREATE DATABASE IF NOT EXISTS;
+  - CREATE USER IF NOT EXISTS;
+  - GRANT ALL PRIVILEGES;
+  - FLUSH PRIVILEGES.
+- Добавена променлива RESULT_DB_CREATE.
+- В обобщението е добавен ред:
+  🛢️ База данни (създаване):         ${RESULT_DB_CREATE:-❔}
 
