@@ -473,16 +473,15 @@ echo "-------------------------------------------------------------------------"
 echo ""
 echo "👤 Създаване на профил за мениджъра на този хост."
 
-DEFAULT_ADMIN_USER="admin_${domain_clean}"
+default_admin_user="admin_${domain_clean}"
 
 while true; do
-  read -rp "🔑 Въведете потребителско име [${DEFAULT_ADMIN_USER}]: " input_user
+  read -rp "🔑 Въведете потребителско име [${default_admin_user}]: " input_user
   [[ "$input_user" == "q" ]] && echo "🚪 Прекратяване по заявка на оператора." && exit 0
-  [[ -z "$input_user" ]] && input_user="$DEFAULT_ADMIN_USER"
+  [[ -z "$input_user" ]] && input_user="$default_admin_user"
 
-  # Проверка за валидно системно потребителско име
   if ! [[ "$input_user" =~ ^[a-z_][a-z0-9_-]{2,30}$ ]]; then
-    echo "❗ Невалидно потребителско име. Допустими са само малки букви, цифри, '-', '_' и минимум 3 символа."
+    echo "❗️ Невалидно име. Използвайте само малки букви, цифри, '-', '_' и минимум 3 символа."
     continue
   fi
 
@@ -492,52 +491,44 @@ while true; do
       read -rp "❓ Искате ли да използвате този съществуващ потребител? [y/n/q]: " reuse
       case "$reuse" in
         y|Y)
-          # Потвърждение на паролата чрез сравнение на хешове
-          while true; do
-            read -rsp "🔒 Въведете паролата на $input_user: " pass1
-            echo
-            TMP_USER="__verifytmp_$(uuidgen | cut -c1-8)"
-            sudo useradd -M -s /usr/sbin/nologin "$TMP_USER"
-            echo "$TMP_USER:$pass1" | sudo chpasswd
-            orig_hash=$(sudo getent shadow "$input_user" | cut -d: -f2)
-            tmp_hash=$(sudo getent shadow "$TMP_USER" | cut -d: -f2)
-            sudo userdel "$TMP_USER"
+          echo "⏳ Проверка на паролата..."
+          read -rsp "🔐 Въведете паролата на $input_user: " pass1
+          echo
 
-            if [[ "$orig_hash" == "$tmp_hash" ]]; then
-              SUMMARY_ADMIN_USER="$input_user"
-              SUMMARY_ADMIN_PASS="$pass1"
-              echo "✅ Използва се съществуващ потребител: $SUMMARY_ADMIN_USER"
-              break 3
-            else
-              echo "❌ Невалидна парола за '$input_user'."
-              while true; do
-                read -rp "🔁 Искате ли да опитате пак (p), да въведете друг потребител (n), или да прекратите (q)? [p/n/q]: " retry
-                case "$retry" in
-                  p|P) break ;;         # повтаряне на паролата
-                  n|N) continue 3 ;;    # ново потребителско име
-                  q|Q) echo "🚪 Прекратяване по заявка на оператора." && exit 0 ;;
-                  *) echo "❗ Моля, изберете: p (опитай пак), n (нов потребител), q (изход)." ;;
-                esac
-              done
-            fi
-          done
+          TMP_USER="tmpchk_$(tr -dc a-z0-9 </dev/urandom | head -c 6)"
+          sudo useradd -M -s /usr/sbin/nologin "$TMP_USER" 2>/dev/null
+          echo "$TMP_USER:$pass1" | sudo chpasswd
+
+          ORIG_HASH=$(sudo getent shadow "$input_user" | cut -d: -f2)
+          TEST_HASH=$(sudo getent shadow "$TMP_USER" | cut -d: -f2)
+
+          sudo userdel "$TMP_USER"
+
+          if [[ "$ORIG_HASH" == "$TEST_HASH" ]]; then
+            echo "✅ Потребителят е автентичен."
+            SUMMARY_ADMIN_USER="$input_user"
+            SUMMARY_ADMIN_PASS="$pass1"
+            break 2
+          else
+            echo "❌ Невярна парола."
+            continue 2
+          fi
           ;;
-        n|N) break ;;  # ново потребителско име
+        n|N) break ;;
         q|Q) echo "🚪 Прекратяване по заявка на оператора." && exit 0 ;;
-        *) echo "❗ Моля, отговорете с y (да), n (не) или q (изход)." ;;
+        *) echo "❗️ Моля, изберете: y/n/q" ;;
       esac
     done
   else
-    # Нов потребител – създаване и задаване на парола
     while true; do
-      read -rsp "🔒 Въведете парола за $input_user: " pass1
+      read -rsp "🔐 Въведете парола за $input_user: " pass1
       echo
-      read -rsp "🔒 Повторете паролата: " pass2
+      read -rsp "🔐 Повторете паролата: " pass2
       echo
       if [[ "$pass1" != "$pass2" ]]; then
-        echo "❗ Паролите не съвпадат. Опитайте отново."
+        echo "❗️ Паролите не съвпадат."
       elif [[ ${#pass1} -lt 8 ]]; then
-        echo "❗ Паролата трябва да е поне 8 символа."
+        echo "❗️ Паролата трябва да е поне 8 символа."
       else
         SUMMARY_ADMIN_USER="$input_user"
         SUMMARY_ADMIN_PASS="$pass1"
