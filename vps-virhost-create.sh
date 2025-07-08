@@ -1006,7 +1006,7 @@ printf "🐘 PHP инсталация:                %s\n" "${RESULT_PHP_INSTAL
 printf "🌐 Apache конфигурация:           %s\n" "${RESULT_APACHE_VHOST:-❔}"
 printf "🔐 SSL конфигурация:              %s\n" "${RESULT_SSL_CONFIG:-❔}"
 printf "📄 Начална страница:              %s\n" "${RESULT_CREATE_INDEX:-❔}"
-printf "🛢️ База данни:                   %s\n" "${RESULT_DB_CREATE:-❔}"
+printf "🛢️  База данни:                   %s\n" "${RESULT_DB_CREATE:-❔}"
 printf "📡 FTP акаунт:                    %s\n" "${RESULT_FTP_CREATE:-❔}"
 
 echo ""
