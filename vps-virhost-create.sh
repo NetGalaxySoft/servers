@@ -545,6 +545,29 @@ while true; do
   esac
 done
 
+# === [9] СЪЗДАВАНЕ НА FTP ДОСТЪП ===========================================
+
+echo ""
+echo "📡 Създаване на FTP достъп за главния администратор на хоста..."
+
+FTP_USER="$SUMMARY_ADMIN_USER"
+FTP_HOME_DIR="$SUMMARY_WEBROOT"
+
+# Проверка за наличност на vsftpd
+if ! dpkg -s vsftpd >/dev/null 2>&1; then
+  echo "⏳ Ще бъде инсталиран vsftpd сървър."
+  SUMMARY_NEEDS_VSFTPD="yes"
+else
+  echo "✅ Наличен vsftpd сървър."
+  SUMMARY_NEEDS_VSFTPD="no"
+fi
+
+SUMMARY_CREATE_FTP="yes"
+SUMMARY_FTP_USER="$FTP_USER"
+SUMMARY_FTP_HOME="$FTP_HOME_DIR"
+
+echo "✅ Ще бъде създаден FTP профил за: $FTP_USER"
+echo "📁 с достъп само до: $FTP_HOME_DIR"
 
 # === [10] ПРЕДВАРИТЕЛЕН ПРЕГЛЕД И ПОТВЪРЖДЕНИЕ ==============================
 
