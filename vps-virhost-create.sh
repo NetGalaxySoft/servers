@@ -378,8 +378,8 @@ done
 # === [6] ЛИМИТ НА ХОСТА (дисково пространство) ======================
 
 domain_clean="${SUMMARY_ROOT_DOMAIN//./_}"
-NOMINAL_USER="nom_${domain_clean}"
-NOMINAL_GROUP="grp_${domain_clean}"
+NOMINAL_USER="nomhost__${domain_clean}"
+NOMINAL_GROUP="host0_${domain_clean}"
 SUMMARY_NOMINAL_USER="$NOMINAL_USER"
 SUMMARY_NOMINAL_GROUP="$NOMINAL_GROUP"
 
@@ -389,8 +389,8 @@ echo "Това ще създаде потребител $NOMINAL_USER и гру�
 echo ""
 
 # Проверка на свободното място на root (в GB)
-available_gb=$(df --output=avail / | tail -n1)
-available_gb=$((available_gb / 1024 / 1024))
+available_kb=$(df --output=avail / | tail -n1)
+available_gb=$((available_kb / 1024 / 1024))
 reserve_gb=5
 usable_gb=$((available_gb - reserve_gb))
 
@@ -445,7 +445,10 @@ echo "✅ Номинален собственик:     $SUMMARY_NOMINAL_USER"
 echo "✅ Група за достъп:          $SUMMARY_NOMINAL_GROUP"
 echo "📦 Дисков лимит:             $SUMMARY_DISK_LIMIT_GB GB"
 
-# === [7] ПРЕДВАРИТЕЛЕН ПРЕГЛЕД И ПОТВЪРЖДЕНИЕ ==============================
+
+
+
+# === [10] ПРЕДВАРИТЕЛЕН ПРЕГЛЕД И ПОТВЪРЖДЕНИЕ ==============================
 
 echo ""
 echo "🧾 Преглед на конфигурацията преди инсталация:"
