@@ -758,6 +758,9 @@ echo "✅ Конфигурационен файл създаден: $VHOST_FILE"
 echo "⏳ Активиране на сайта..."
 sudo a2ensite "${SUMMARY_DOMAIN}.conf" >/dev/null 2>&1
 
+# Уверяване, че mod_rewrite е активен
+sudo a2enmod rewrite >/dev/null 2>&1
+
 # Рестартиране на Apache
 echo "🔁 Рестартиране на Apache..."
 sudo systemctl reload apache2
@@ -770,10 +773,66 @@ else
   RESULT_APACHE_VHOST="❌"
 fi
 
-# === [15] НАСТРОЙВАНЕ НА SSL (HTTPS) =======================================
+# === [15] СЪЗДАВАНЕ НА НАЧАЛНА СТРАНИЦА (index.html) =======================
 
 echo ""
-echo "[15] Настройване на SSL сертификат за домейна..."
+echo "[15] Създаване на начална страница index.html..."
+echo "-------------------------------------------------------------------------"
+
+INDEX_FILE="${SUMMARY_WEBROOT}/index.html"
+
+sudo tee "$INDEX_FILE" >/dev/null <<EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${SUMMARY_DOMAIN}</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 100px;
+      background: #f2f2f2;
+      color: #333;
+    }
+    h1 { font-size: 2.5em; }
+    p { font-size: 1.2em; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>www.${SUMMARY_DOMAIN}</h1>
+  <p>This site is under construction.</p>
+EOF
+
+# Добавяне на потребителско съобщение, ако има
+if [[ -n "$SUMMARY_CUSTOM_MESSAGE" ]]; then
+  sudo tee -a "$INDEX_FILE" >/dev/null <<EOF
+  <p>${SUMMARY_CUSTOM_MESSAGE}</p>
+EOF
+fi
+
+# Затваряне на HTML
+sudo tee -a "$INDEX_FILE" >/dev/null <<EOF
+</body>
+</html>
+EOF
+
+# Права
+sudo chown "$SUMMARY_NOMINAL_USER:$SUMMARY_NOMINAL_GROUP" "$INDEX_FILE"
+sudo chmod 640 "$INDEX_FILE"
+
+echo "✅ Началната страница беше създадена успешно."
+RESULT_CREATE_INDEX="✅"
+
+# Създаване на .well-known/acme-challenge
+sudo mkdir -p "${SUMMARY_WEBROOT}/.well-known/acme-challenge"
+sudo chown -R "$SUMMARY_NOMINAL_USER:$SUMMARY_NOMINAL_GROUP" "${SUMMARY_WEBROOT}/.well-known"
+sudo chmod -R 755 "${SUMMARY_WEBROOT}/.well-known"
+
+# === [16] НАСТРОЙВАНЕ НА SSL (HTTPS) =======================================
+
+echo ""
+echo "[16] Настройване на SSL сертификат за домейна..."
 echo "-------------------------------------------------------------------------"
 
 if [[ "$SUMMARY_SSL_TYPE" == "letsencrypt" ]]; then
@@ -829,57 +888,6 @@ else
   echo "⚠️ Няма избран валиден метод за SSL. Пропускане."
   RESULT_SSL_CONFIG="❌ (няма избор)"
 fi
-
-# === [16] СЪЗДАВАНЕ НА НАЧАЛНА СТРАНИЦА (index.html) =======================
-
-echo ""
-echo "[16] Създаване на начална страница index.html..."
-echo "-------------------------------------------------------------------------"
-
-INDEX_FILE="${SUMMARY_WEBROOT}/index.html"
-
-sudo tee "$INDEX_FILE" >/dev/null <<EOF
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>${SUMMARY_DOMAIN}</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      padding: 100px;
-      background: #f2f2f2;
-      color: #333;
-    }
-    h1 { font-size: 2.5em; }
-    p { font-size: 1.2em; color: #666; }
-  </style>
-</head>
-<body>
-  <h1>www.${SUMMARY_DOMAIN}</h1>
-  <p>This site is under construction.</p>
-EOF
-
-# Добавяне на потребителско съобщение, ако има
-if [[ -n "$SUMMARY_CUSTOM_MESSAGE" ]]; then
-  sudo tee -a "$INDEX_FILE" >/dev/null <<EOF
-  <p>${SUMMARY_CUSTOM_MESSAGE}</p>
-EOF
-fi
-
-# Затваряне на HTML
-sudo tee -a "$INDEX_FILE" >/dev/null <<EOF
-</body>
-</html>
-EOF
-
-# Права
-sudo chown "$SUMMARY_NOMINAL_USER:$SUMMARY_NOMINAL_GROUP" "$INDEX_FILE"
-sudo chmod 640 "$INDEX_FILE"
-
-echo "✅ Началната страница беше създадена успешно."
-RESULT_CREATE_INDEX="✅"
 
 # === [17] СЪЗДАВАНЕ НА БАЗА ДАННИ (MariaDB) ================================
 
