@@ -662,8 +662,8 @@ printf "📦 Дисков лимит:             %s GB\n" "$SUMMARY_DISK_LIMIT_
 printf "👨‍💼 Админ. потребител:      %s\n" "$SUMMARY_ADMIN_USER"
 printf "👤 Админ принадлежи към:     %s\n" "$SUMMARY_NOMINAL_GROUP"
 [[ -n "$SUMMARY_DB_NAME" ]] && {
-  printf "🛢️  База данни:              %s\n" "$SUMMARY_DB_NAME"
-  printf "👤 Потребител на БД:        %s\n" "$SUMMARY_DB_USER"
+  printf "🛢️  База данни:               %s\n" "$SUMMARY_DB_NAME"
+  printf "👤 Потребител на БД:         %s\n" "$SUMMARY_DB_USER"
 }
 [[ "$SUMMARY_CREATE_FTP" == "yes" ]] && {
   printf "📡 FTP акаунт:               %s\n" "$SUMMARY_FTP_USER"
