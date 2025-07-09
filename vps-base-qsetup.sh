@@ -59,21 +59,33 @@ echo ""
 # === ИНИЦИАЛИЗАЦИЯ НА СПИСЪК С МОДУЛИ ======================================
 MODULES_FILE="todo.modules"
 
+# mod_01_ip_check             # Въвеждане и проверка на IP адрес
+# mod_02_fqdn_config          # Конфигурация на FQDN (hostname)
+# mod_03_system_update        # Обновяване на системата
+# mod_04_base_tools           # Инсталиране на основни инструменти
+# mod_05_locales              # Настройка на локализации
+# mod_06_timezone_ntp         # Времева зона и времева синхронизация
+# mod_07_ssh_port             # Промяна на SSH порта
+# mod_08_admin_user           # Създаване на администраторски потребител
+# mod_09_firewall_setup       # Инсталиране и настройка на защитна стена (UFW)
+# mod_10_firewall_trusted     # Добавяне на доверени мрежи (VPN/LAN)
+# mod_11_summary_reboot       # Обобщение, активиране на UFW и рестарт
+
 if [[ ! -f "$MODULES_FILE" ]]; then
   echo "⏳ Създаване на файл със списък на модулите ($MODULES_FILE)..."
 
   cat > "$MODULES_FILE" <<EOF
-mod_01_ip_check             # Въвеждане и проверка на IP адрес
-mod_02_fqdn_config          # Конфигурация на FQDN (hostname)
-mod_03_system_update        # Обновяване на системата
-mod_04_base_tools           # Инсталиране на основни инструменти
-mod_05_locales              # Настройка на локализации
-mod_06_timezone_ntp         # Времева зона и времева синхронизация
-mod_07_ssh_port             # Промяна на SSH порта
-mod_08_admin_user           # Създаване на администраторски потребител
-mod_09_firewall_setup       # Инсталиране и настройка на защитна стена (UFW)
-mod_10_firewall_trusted     # Добавяне на доверени мрежи (VPN/LAN)
-mod_11_summary_reboot       # Обобщение, активиране на UFW и рестарт
+mod_01_ip_check
+mod_02_fqdn_config
+mod_03_system_update
+mod_04_base_tools
+mod_05_locales
+mod_06_timezone_ntp
+mod_07_ssh_port
+mod_08_admin_user
+mod_09_firewall_setup
+mod_10_firewall_trusted
+mod_11_summary_reboot
 EOF
 
   echo "✅ Списъкът с модули беше създаден успешно."
