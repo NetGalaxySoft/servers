@@ -748,17 +748,37 @@ echo "[12] Задаване на квота за потребителя $SUMMARY
 echo "-------------------------------------------------------------------------"
 echo ""
 
+# Проверка за наличност на setquota
+if ! command -v setquota >/dev/null 2>&1; then
+  echo "❌ Липсва команда 'setquota'. Уверете се, че пакетът 'quota' е инсталиран."
+  RESULT_USER_QUOTA="❌ (липсва setquota)"
+  exit 1
+fi
+
+# Проверка за валидност на квотата
+if ! [[ "$SUMMARY_DISK_LIMIT_GB" =~ ^[0-9]+$ ]]; then
+  echo "❌ Грешка: дисковият лимит (SUMMARY_DISK_LIMIT_GB) не е валиден."
+  RESULT_USER_QUOTA="❌ (невалиден лимит)"
+  exit 1
+fi
+
 # Проверка дали квотите са активни
 if mount | grep 'on / type' | grep -q 'usrquota' && quotaon -p / >/dev/null 2>&1; then
 
-  # Преобразуване от GB към KB (за командата setquota)
   block_limit_kb=$((SUMMARY_DISK_LIMIT_GB * 1024 * 1024))
 
   sudo setquota -u "$SUMMARY_NOMINAL_USER" "$block_limit_kb" "$block_limit_kb" 0 0 /
 
   if [[ $? -eq 0 ]]; then
-    echo "✅ Квота от ${SUMMARY_DISK_LIMIT_GB} GB беше зададена успешно на $SUMMARY_NOMINAL_USER."
-    RESULT_USER_QUOTA="✅"
+    # Проверка с quota -u
+    quota_output=$(quota -u "$SUMMARY_NOMINAL_USER" | awk 'NR>2 {print $2}')
+    if [[ "$quota_output" -gt 0 ]]; then
+      echo "✅ Квота от ${SUMMARY_DISK_LIMIT_GB} GB беше зададена успешно на $SUMMARY_NOMINAL_USER."
+      RESULT_USER_QUOTA="✅"
+    else
+      echo "⚠️ Командата setquota беше изпълнена, но резултатът не е потвърден от quota -u."
+      RESULT_USER_QUOTA="⚠️ (непотвърдено)"
+    fi
   else
     echo "❌ Възникна грешка при задаване на квотата за $SUMMARY_NOMINAL_USER."
     RESULT_USER_QUOTA="❌"
