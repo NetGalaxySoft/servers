@@ -763,7 +763,7 @@ if ! [[ "$SUMMARY_DISK_LIMIT_GB" =~ ^[0-9]+$ ]]; then
 fi
 
 # Проверка дали квотите са активни
-if quotaon -p / >/dev/null 2>&1 && mount | grep 'on / type' | grep -q 'usrquota'; then
+if mount | grep 'on / type' | grep -q 'usrquota' && [ -f /aquota.user ]; then
 
   # Преобразуване от GB към KB за setquota
   block_limit_kb=$((SUMMARY_DISK_LIMIT_GB * 1024 * 1024))
