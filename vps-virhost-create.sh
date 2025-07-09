@@ -799,12 +799,18 @@ echo ""
 if [[ "$SUMMARY_PHP_INSTALL_REQUIRED" == "yes" ]]; then
   echo "⏳ Избраната PHP версия не е инсталирана. Проверка за необходимите хранилища..."
 
-  # Добавяне на PPA, ако липсва
-  if ! apt-cache policy | grep -q "ondrej/php"; then
+  # Проверка дали PPA-то е добавено
+  if ! grep -r "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/ >/dev/null 2>&1; then
     echo "➕ Добавяне на хранилище ppa:ondrej/php..."
     sudo apt install -y software-properties-common lsb-release ca-certificates apt-transport-https
+    if [[ $? -ne 0 ]]; then
+      echo "❌ Неуспешна инсталация на зависимости за PPA."
+      RESULT_PHP_INSTALL="❌"
+      exit 1
+    fi
+
     sudo add-apt-repository -y ppa:ondrej/php
-    sudo apt update
+    sudo apt update -qq
   fi
 
   echo "⏳ Инсталиране на PHP ${SUMMARY_PHP_VERSION} и нужните модули..."
@@ -812,6 +818,11 @@ if [[ "$SUMMARY_PHP_INSTALL_REQUIRED" == "yes" ]]; then
 
   if [[ $? -eq 0 ]]; then
     echo "✅ PHP ${SUMMARY_PHP_VERSION} беше инсталиран успешно."
+
+    # Опит за стартиране и активиране на php-fpm
+    sudo systemctl enable php${SUMMARY_PHP_VERSION}-fpm >/dev/null 2>&1
+    sudo systemctl start php${SUMMARY_PHP_VERSION}-fpm >/dev/null 2>&1
+
     RESULT_PHP_INSTALL="✅"
   else
     echo "❌ Възникна грешка при инсталирането на PHP ${SUMMARY_PHP_VERSION}."
