@@ -622,7 +622,7 @@ fi
 for VERSION in "${PHP_VERSIONS[@]}"; do
   echo "⏳ Инсталиране на PHP $VERSION и нужните модули..."
   sudo apt-get install -y php$VERSION php$VERSION-{cli,common,fpm,mysql,mbstring,xml,curl,zip} 2>/dev/null
-  
+
   if [[ $? -eq 0 ]]; then
     echo "✅ PHP $VERSION беше инсталиран успешно."
     sudo systemctl enable php$VERSION-fpm >/dev/null 2>&1
@@ -630,60 +630,79 @@ for VERSION in "${PHP_VERSIONS[@]}"; do
   else
     echo "⚠️ Пропусната версия PHP $VERSION – не е налична в хранилищата."
   fi
+
 done
-echo ""
-echo ""
 
 RESULT_PHP_ALL_VERSIONS="✅"
 
-# ОБОБЩЕНИЕ
+# === [14] ИНСТАЛИРАНЕ НА PHPMYADMIN =========================================
+echo ""
+echo "[14] Инсталиране на phpMyAdmin..."
 echo "-------------------------------------------------------------------------"
-echo "            ОБОБЩЕНИЕ НА РЕЗУЛТАТИТЕ ОТ КОНФИГУРАЦИЯТА"
-echo "-------------------------------------------------------------------------"
+echo ""
 
-printf "📌 Домейн (FQDN):                  %s\n" "$SERVER_DOMAIN"
-printf "📌 IP адрес на сървъра:            %s\n" "$SERVER_IP"
+# Инсталиране без интерактивен debconf
+export DEBIAN_FRONTEND=noninteractive
+sudo apt-get install -y phpmyadmin 2>/dev/null
 
-if [[ "$DNS_REQUIRED" == "yes" ]]; then
-  printf "📌 DNS сървър:                     ✅ активен (%s режим)\n" "$DNS_MODE"
-  printf "📌 DNS зона:                       %s\n" "$DNS_ZONE"
-  [[ "$DNS_MODE" == "slave" ]] && printf "📌 Master DNS IP:                    %s\n" "$SLAVE_MASTER_IP"
-  printf "📌 Конфигурация на bind9:          %s\n" "${DNS_CONFIG_STATUS:-❔}"
+if [[ $? -eq 0 ]]; then
+  echo "✅ phpMyAdmin беше инсталиран успешно."
+  RESULT_PHPMYADMIN_INSTALL="✅"
 else
-  printf "📌 DNS сървър:                     ❌ няма да се инсталира\n"
+  echo "⚠️ Възникна проблем при инсталацията на phpMyAdmin."
+  RESULT_PHPMYADMIN_INSTALL="⚠️"
 fi
 
-printf "📌 Apache уеб сървър:              %s\n" "${RESULT_APACHE:-❔}"
-printf "📌 Certbot (Let's Encrypt):        %s\n" "${RESULT_CERTBOT:-❔}"
-printf "📌 Postfix (SMTP сървър):          %s\n" "${RESULT_POSTFIX:-❔}"
-printf "📌 Dovecot (IMAP сървър):          %s\n" "${RESULT_DOVECOT:-❔}"
-printf "📌 MariaDB сървър:                 %s\n" "${RESULT_MARIADB:-❔}"
-printf "📌 Защита на MariaDB:              %s\n" "${RESULT_MARIADB_SECURE:-❔}"
-printf "📌 Fail2ban защита:                %s\n" "${RESULT_FAIL2BAN:-❔}"
-printf "📌 Квоти за дисково пространство:  %s\n" "${RESULT_QUOTAS:-❔}"
-printf "📌 UFW правила за услуги:          %s\n" "${RESULT_UFW_SERVICES:-❔}"
-ufw status numbered | sed '1d'
+# Възстановяване на стандартен режим на debconf
+unset DEBIAN_FRONTEND
 
-[[ "$WHOIS_INSTALLED" == "yes" ]] && echo "ℹ️  whois беше инсталиран временно и може да бъде премахнат."
+# === ОБОБЩЕНИЕ НА ИНСТАЛАЦИЯТА =======================================
+echo ""
+echo "========================================================================="
+echo "           ✅ ИНСТАЛАЦИЯТА НА ВИРТУАЛНИЯ ХОСТ Е ПРИКЛЮЧЕНА"
+echo "========================================================================="
+echo ""
+printf "🌐 Домейн:                        %s\n" "$SUMMARY_DOMAIN"
+printf "📁 Уеб директория:                %s\n" "$SUMMARY_WEBROOT"
+printf "👤 Номинален потребител:          %s\n" "$SUMMARY_NOMINAL_USER"
+printf "👥 Група:                         %s\n" "$SUMMARY_NOMINAL_GROUP"
+printf "📦 Квота:                         %s GB\n" "$SUMMARY_DISK_LIMIT_GB"
+printf "🐘 PHP версия:                    %s\n" "$SUMMARY_PHP_VERSION"
+printf "🔐 SSL тип:                       %s\n" "$([
+  case "$SUMMARY_SSL_TYPE" in
+    letsencrypt) echo "Let's Encrypt" ;;
+    custom) echo "Потребителски" ;;
+    *) echo "Няма" ;;
+  esac
+])"
 
-# Проверка дали root е монтиран с квоти
-if [[ "$RESULT_QUOTAS" == "✅" ]]; then
-  if ! mount | grep -E 'on / type' | grep -q 'usrquota' || ! mount | grep -E 'on / type' | grep -q 'grpquota'; then
-    echo ""
-    echo "⚠️  Root файловата система все още не е монтирана с активни квоти."
-    echo "🔁 Необходим е рестарт на системата, за да се приложат промените."
+[[ "$RESULT_DB_CREATE" == "✅" ]] && {
+  printf "🛢️  База данни:                   %s\n" "$SUMMARY_DB_NAME"
+  printf "👤 Потребител на БД:             %s\n" "$SUMMARY_DB_USER"
+}
 
-    read -rp "❓ Желаете ли да рестартирате системата сега? (y/N): " RESTART_CONFIRM
-    if [[ "$RESTART_CONFIRM" =~ ^[Yy]$ ]]; then
-      echo "🔄 Рестартиране на системата..."
-      sudo reboot
-      exit 0
-    else
-      echo "ℹ️ Можете да рестартирате по-късно с командата: sudo reboot"
-    fi
-  fi
-fi
+[[ "$RESULT_FTP_CREATE" == "✅" ]] && {
+  printf "📡 FTP потребител:               %s\n" "$SUMMARY_FTP_USER"
+  printf "📁 FTP достъп до:                %s\n" "$SUMMARY_FTP_HOME"
+}
 
 echo ""
-echo "✅ Скриптът приключи успешно и беше изтрит от системата."
+echo "🟢 Статус на изпълнение по секции:"
+echo "-------------------------------------------------------------------------"
+printf "📁 Уеб директория:                %s\n" "${RESULT_CREATE_WEBROOT:-❔}"
+printf "📦 Квота за потребителя:          %s\n" "${RESULT_USER_QUOTA:-❔}"
+printf "🐘 PHP инсталация:                %s\n" "${RESULT_PHP_INSTALL:-❔}"
+printf "🌐 Apache конфигурация:           %s\n" "${RESULT_APACHE_VHOST:-❔}"
+printf "📄 Начална страница:              %s\n" "${RESULT_CREATE_INDEX:-❔}"
+printf "🛢️  База данни:                    %s\n" "${RESULT_DB_CREATE:-❔}"
+printf "📡 FTP акаунт:                    %s\n" "${RESULT_FTP_CREATE:-❔}"
+printf "🔐 SSL конфигурация:              %s\n" "${RESULT_SSL_CONFIG:-❔}"
+printf "🐘 Всички PHP версии:             %s\n" "${RESULT_PHP_ALL_VERSIONS:-❔}"
+printf "📦 phpMyAdmin:                    %s\n" "${RESULT_PHPMYADMIN_INSTALL:-❔}"
+
+echo ""
+echo "✅ Скриптът приключи успешно и беше изтрит."
+echo "========================================================================="
+
 rm -- "$0"
+
