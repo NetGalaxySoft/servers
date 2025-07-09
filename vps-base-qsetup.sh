@@ -87,7 +87,7 @@ echo ""
 
 # === [МОДУЛ 1] ВЪВЕЖДАНЕ И ПРОВЕРКА НА IP АДРЕС НА СЪРВЪРА ================
 MODULE_NAME="mod_01_ip_check"
-if ! grep -q "^$MODULE_NAME$" todo.modules; then
+if ! grep -q "^$MODULE_NAME\b" todo.modules; then
   echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
   return 0 2>/dev/null || exit 0
 fi
