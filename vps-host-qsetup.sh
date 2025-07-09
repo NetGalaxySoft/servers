@@ -593,6 +593,48 @@ else
     RESULT_QUOTAS="⚠️  Изисква рестарт"
   fi
 fi
+echo ""
+echo ""
+
+# === [13] ИНСТАЛИРАНЕ НА ВСИЧКИ ПОДДЪРЖАНИ PHP ВЕРСИИ ======================
+echo ""
+echo "[13] Инсталиране на всички поддържани версии на PHP..."
+echo "-------------------------------------------------------------------------"
+echo ""
+
+# Списък с всички поддържани версии
+PHP_VERSIONS=(8.3 8.2 8.1 8.0 7.4 7.3 7.2 7.1 7.0 5.6)
+
+# Инсталиране на нужните зависимости
+sudo apt-get update -qq
+sudo apt-get install -y software-properties-common lsb-release ca-certificates apt-transport-https
+
+# Добавяне на PPA хранилище, ако липсва
+if ! grep -r "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/ >/dev/null 2>&1; then
+  echo "➕ Добавяне на хранилище ppa:ondrej/php..."
+  sudo add-apt-repository -y ppa:ondrej/php
+  sudo apt-get update -qq
+else
+  echo "ℹ️ Хранилището ppa:ondrej/php вече е добавено."
+fi
+
+# Цикъл по всички версии
+for VERSION in "${PHP_VERSIONS[@]}"; do
+  echo "⏳ Инсталиране на PHP $VERSION и нужните модули..."
+  sudo apt-get install -y php$VERSION php$VERSION-{cli,common,fpm,mysql,mbstring,xml,curl,zip} 2>/dev/null
+  
+  if [[ $? -eq 0 ]]; then
+    echo "✅ PHP $VERSION беше инсталиран успешно."
+    sudo systemctl enable php$VERSION-fpm >/dev/null 2>&1
+    sudo systemctl start php$VERSION-fpm >/dev/null 2>&1
+  else
+    echo "⚠️ Пропусната версия PHP $VERSION – не е налична в хранилищата."
+  fi
+done
+echo ""
+echo ""
+
+RESULT_PHP_ALL_VERSIONS="✅"
 
 # ОБОБЩЕНИЕ
 echo "-------------------------------------------------------------------------"
