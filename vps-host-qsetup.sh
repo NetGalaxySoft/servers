@@ -598,42 +598,36 @@ echo ""
 
 # === [13] ИНСТАЛИРАНЕ НА ВСИЧКИ ПОДДЪРЖАНИ PHP ВЕРСИИ ======================
 echo ""
-echo "[13] Инсталиране на всички поддържани версии на PHP..."
+echo "[13] Изтегляне на всички поддържани версии на PHP (5.6–7.3)..."
 echo "-------------------------------------------------------------------------"
 echo ""
 
-# Списък с всички поддържани версии
-PHP_VERSIONS=(8.3 8.2 8.1 8.0 7.4 7.3 7.2 7.1 7.0 5.6)
+# Директория за съхранение на пакетите
+TARGET_DIR="/opt/php-packages"
+sudo mkdir -p "$TARGET_DIR"
+cd "$TARGET_DIR" || exit 1
 
-# Инсталиране на нужните зависимости
-sudo apt-get update -qq
-sudo apt-get install -y software-properties-common lsb-release ca-certificates apt-transport-https
+# Версии и модули
+PHP_OLD_VERSIONS=(5.6 7.0 7.1 7.2 7.3)
+MODULES=(cli common fpm mysql mbstring xml curl zip)
 
-# Добавяне на PPA хранилище, ако липсва
-if ! grep -r "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/ >/dev/null 2>&1; then
-  echo "➕ Добавяне на хранилище ppa:ondrej/php..."
-  sudo add-apt-repository -y ppa:ondrej/php
-  sudo apt-get update -qq
-else
-  echo "ℹ️ Хранилището ppa:ondrej/php вече е добавено."
-fi
-
-# Цикъл по всички версии
-for VERSION in "${PHP_VERSIONS[@]}"; do
-  echo "⏳ Инсталиране на PHP $VERSION и нужните модули..."
-  sudo apt-get install -y php$VERSION php$VERSION-{cli,common,fpm,mysql,mbstring,xml,curl,zip} 2>/dev/null
-
-  if [[ $? -eq 0 ]]; then
-    echo "✅ PHP $VERSION беше инсталиран успешно."
-    sudo systemctl enable php$VERSION-fpm >/dev/null 2>&1
-    sudo systemctl start php$VERSION-fpm >/dev/null 2>&1
-  else
-    echo "⚠️ Пропусната версия PHP $VERSION – не е налична в хранилищата."
-  fi
-
+# Сваляне на всички .deb пакети
+for VERSION in "${PHP_OLD_VERSIONS[@]}"; do
+  echo "⏳ PHP $VERSION..."
+  for MODULE in "${MODULES[@]}"; do
+    echo "  → php${VERSION}-${MODULE}"
+    apt-get download php${VERSION}-${MODULE} 2>/dev/null
+  done
+  echo "  → php${VERSION}"
+  apt-get download php${VERSION} 2>/dev/null
+  echo ""
 done
 
 RESULT_PHP_ALL_VERSIONS="✅"
+echo "✅ Свалянето на наличните PHP пакети завърши."
+echo "📦 Файловете се намират в: $TARGET_DIR"
+echo ""
+echo ""
 
 # === [14] ИНСТАЛИРАНЕ НА PHPMYADMIN =========================================
 echo ""
