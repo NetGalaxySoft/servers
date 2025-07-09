@@ -748,47 +748,54 @@ echo "[12] Задаване на квота за потребителя $SUMMARY
 echo "-------------------------------------------------------------------------"
 echo ""
 
-# Проверка за наличност на setquota
+# Проверка за наличност на командата setquota
 if ! command -v setquota >/dev/null 2>&1; then
   echo "❌ Липсва команда 'setquota'. Уверете се, че пакетът 'quota' е инсталиран."
   RESULT_USER_QUOTA="❌ (липсва setquota)"
   exit 1
 fi
 
-# Проверка за валидност на квотата
+# Проверка за валидност на зададената квота
 if ! [[ "$SUMMARY_DISK_LIMIT_GB" =~ ^[0-9]+$ ]]; then
   echo "❌ Грешка: дисковият лимит (SUMMARY_DISK_LIMIT_GB) не е валиден."
   RESULT_USER_QUOTA="❌ (невалиден лимит)"
   exit 1
 fi
 
-# Проверка дали квотите са активни
-if mount | grep 'on / type' | grep -q 'usrquota' && [ -f /aquota.user ]; then
+# Проверка за наличие на файл за потребителски квоти
+if [[ ! -f /aquota.user ]]; then
+  echo "⚠️ Липсва файлът /aquota.user – ще бъде създаден..."
+  sudo quotacheck -cum /
+fi
 
-  # Преобразуване от GB към KB за setquota
-  block_limit_kb=$((SUMMARY_DISK_LIMIT_GB * 1024 * 1024))
-
-  sudo setquota -u "$SUMMARY_NOMINAL_USER" "$block_limit_kb" "$block_limit_kb" 0 0 /
-
-  if [[ $? -eq 0 ]]; then
-    # Потвърждение чрез команда quota
-    quota_output=$(quota -u "$SUMMARY_NOMINAL_USER" | awk 'NR>2 {print $2}')
-    if [[ "$quota_output" -gt 0 ]]; then
-      echo "✅ Квота от ${SUMMARY_DISK_LIMIT_GB} GB беше зададена успешно на $SUMMARY_NOMINAL_USER."
-      RESULT_USER_QUOTA="✅"
-    else
-      echo "⚠️ setquota бе изпълнена, но quota -u не потвърди лимит."
-      RESULT_USER_QUOTA="⚠️ (непотвърдено)"
-    fi
-  else
-    echo "❌ Възникна грешка при задаване на квотата за $SUMMARY_NOMINAL_USER."
-    RESULT_USER_QUOTA="❌"
-  fi
-
+# Активиране на потребителските квоти (ако все още не са активни)
+quotaon_output=$(sudo quotaon -v / 2>&1)
+if echo "$quotaon_output" | grep -qi "user quotas turned on"; then
+  echo "✅ Потребителските квоти са активни."
 else
-  echo "⚠️ Квотите не са активни или root файловата система не ги поддържа."
-  echo "ℹ️ Уверете се, че сървърът е рестартиран след първоначалната конфигурация."
-  RESULT_USER_QUOTA="⚠️ (неактивни)"
+  echo "⚠️ Неуспешен опит за активиране на квоти: $quotaon_output"
+  RESULT_USER_QUOTA="❌ (неуспешно quotaon)"
+  exit 1
+fi
+
+# Преобразуване от GB към KB
+block_limit_kb=$((SUMMARY_DISK_LIMIT_GB * 1024 * 1024))
+
+# Задаване на квота
+sudo setquota -u "$SUMMARY_NOMINAL_USER" "$block_limit_kb" "$block_limit_kb" 0 0 /
+
+if [[ $? -eq 0 ]]; then
+  quota_check=$(quota -u "$SUMMARY_NOMINAL_USER" | awk 'NR>2 {print $2}')
+  if [[ "$quota_check" -gt 0 ]]; then
+    echo "✅ Квота от ${SUMMARY_DISK_LIMIT_GB} GB беше зададена успешно на $SUMMARY_NOMINAL_USER."
+    RESULT_USER_QUOTA="✅"
+  else
+    echo "⚠️ Зададена е квота, но проверката с 'quota -u' не потвърди лимита."
+    RESULT_USER_QUOTA="⚠️ (непотвърдено)"
+  fi
+else
+  echo "❌ Възникна грешка при задаване на квотата за $SUMMARY_NOMINAL_USER."
+  RESULT_USER_QUOTA="❌"
 fi
 
 # === [13] ИНСТАЛИРАНЕ НА ИЗБРАНАТА PHP ВЕРСИЯ =============================
