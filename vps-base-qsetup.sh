@@ -681,118 +681,116 @@ fi
 echo ""
 echo ""
 
-exit 0
 
-# === [МОДУЛ 9] КОНФИГУРИРАНЕ НА UFW И ДЕАКТИВАЦИЯ НА ДРУГИ FIREWALL ПОРТОВЕ ==============
+# === [МОДУЛ 9] КОНФИГУРИРАНЕ НА UFW И ДЕАКТИВАЦИЯ НА ДРУГИ FIREWALL ПОРТОВЕ ============
 MODULE_NAME="mod_09_firewall_setup"
-echo "[9] КОНФИГУРИРАНЕ НА UFW И ДЕАКТИВАЦИЯ НА ДРУГИ FIREWALL..."
-echo "-------------------------------------------------------------------------"
-echo ""
 
-RESULT_FIREWALL_SETUP="❔"
+if grep -q "^$MODULE_NAME\b" todo.modules; then
 
-# Проверка дали модулът вече е изпълнен
-if ! grep -q "^$MODULE_NAME\b" todo.modules; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  return 0 2>/dev/null || exit 0
-fi
+  echo "[9] КОНФИГУРИРАНЕ НА UFW И ДЕАКТИВАЦИЯ НА ДРУГИ FIREWALL..."
+  echo "-------------------------------------------------------------------------"
+  echo ""
 
-FIREWALL_SYSTEM="none"
+  RESULT_FIREWALL_SETUP="❔"
+  FIREWALL_SYSTEM="none"
 
-# --- Деинсталиране на други защитни стени ---
-if command -v firewalld >/dev/null 2>&1; then
-  echo "❌ Засечена неподдържана система: firewalld – ще бъде премахната."
-  sudo systemctl stop firewalld
-  sudo systemctl disable firewalld
-  sudo apt-get remove -y firewalld
-elif command -v iptables >/dev/null 2>&1; then
-  echo "❌ Засечена неподдържана система: iptables – ще бъде премахната."
-  sudo iptables -F
-  sudo apt-get remove -y iptables
-fi
-
-# --- Инсталиране на UFW, ако липсва ---
-if ! dpkg -s ufw >/dev/null 2>&1; then
-  echo "📦 UFW не е инсталиран. Инсталираме..."
-  sudo apt-get update
-  sudo apt-get install -y ufw
-  INSTALL_SUCCESS=$?
-else
-  echo "✅ UFW вече е инсталиран."
-  INSTALL_SUCCESS=0
-fi
-
-if [[ "$INSTALL_SUCCESS" -ne 0 ]]; then
-  echo "❌ Възникна грешка при инсталацията на UFW!"
-  RESULT_FIREWALL_SETUP="❌"
-  echo "RESULT_FIREWALL_SETUP=\"$RESULT_FIREWALL_SETUP\"" >> .setup.env
-  exit 1
-fi
-
-FIREWALL_SYSTEM="ufw"
-echo "FIREWALL_SYSTEM=ufw" >> .setup.env
-
-# --- Зареждане на SSH_PORT, ако е наличен ---
-if [[ -f .setup.env ]]; then
-  source .setup.env
-fi
-
-if [[ -n "$SSH_PORT" ]]; then
-  echo "🔐 Разрешаване на SSH порт: $SSH_PORT"
-  sudo ufw allow "$SSH_PORT"/tcp
-else
-  echo "⚠️ SSH порт не е открит. Пропуска се автоматично разрешение."
-fi
-
-# --- Въвеждане на допълнителни портове ---
-echo ""
-echo "🔧 ВЪВЕДЕТЕ ДОПЪЛНИТЕЛНИ ПОРТОВЕ ЗА ОТВАРЯНЕ (ENTER за край, 'q' за изход)"
-PORT_LIST=()
-
-while true; do
-  printf "➤ Порт: "
-  read -r port
-
-  if [[ "$port" == "q" || "$port" == "Q" ]]; then
-    echo "❎ Скриптът беше прекратен от потребителя."
-    exit 0
-  elif [[ -z "$port" ]]; then
-    break
-  elif ! [[ "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
-    echo "❌ Невалиден порт. Използвайте число между 1 и 65535."
-  elif [[ " ${PORT_LIST[*]} " =~ " $port " ]]; then
-    echo "⚠️ Портът вече е добавен."
-  else
-    PORT_LIST+=("$port")
-    sudo ufw allow "$port"/tcp
-    echo "✅ Разрешен порт: $port"
+  # --- Деинсталиране на други защитни стени ---
+  if command -v firewalld >/dev/null 2>&1; then
+    echo "❌ Засечена неподдържана система: firewalld – ще бъде премахната."
+    sudo systemctl stop firewalld
+    sudo systemctl disable firewalld
+    sudo apt-get remove -y firewalld
+  elif command -v iptables >/dev/null 2>&1; then
+    echo "❌ Засечена неподдържана система: iptables – ще бъде премахната."
+    sudo iptables -F
+    sudo apt-get remove -y iptables
   fi
-done
 
-# --- Запис на портовете във .setup.env (по избор) ---
-echo "PORT_LIST=\"${PORT_LIST[*]}\"" >> .setup.env
+  # --- Инсталиране на UFW, ако липсва ---
+  if ! dpkg -s ufw >/dev/null 2>&1; then
+    echo "📦 UFW не е инсталиран. Инсталираме..."
+    sudo apt-get update
+    sudo apt-get install -y ufw
+    INSTALL_SUCCESS=$?
+  else
+    echo "✅ UFW вече е инсталиран."
+    INSTALL_SUCCESS=0
+  fi
 
-echo ""
-echo "✅ Правилата за UFW са подготвени, но защитната стена все още НЕ е активирана."
-echo "   Това ще бъде направено в следващия модул."
+  if [[ "$INSTALL_SUCCESS" -ne 0 ]]; then
+    echo "❌ Възникна грешка при инсталацията на UFW!"
 
-# Успешен резултат
-RESULT_FIREWALL_SETUP="✅"
-echo "RESULT_FIREWALL_SETUP=\"$RESULT_FIREWALL_SETUP\"" >> .setup.env
+    # 📝 Записване на резултата в .setup.env за обобщението
+    RESULT_FIREWALL_SETUP="❌"
+    echo "RESULT_FIREWALL_SETUP=\"$RESULT_FIREWALL_SETUP\"" >> .setup.env
+    return 1 2>/dev/null || exit 1
+  fi
 
-# 🔚 Премахване от списъка:
-sed -i "/^$MODULE_NAME$/d" todo.modules
+  FIREWALL_SYSTEM="ufw"
+  # 📝 Записване на използваната система в .setup.env
+  echo "FIREWALL_SYSTEM=ufw" >> .setup.env
 
-# 🔄 Продължение:
-echo ""
-read -p "➡️ Продължаване към следващия модул? [Enter за ДА, 'q' за прекратяване]: " next
-if [[ "$next" == "q" || "$next" == "Q" ]]; then
-  echo "⛔ Скриптът беше прекратен от потребителя след модул 9."
-  exit 0
+  # --- Зареждане на SSH_PORT, ако е наличен ---
+  if [[ -f .setup.env ]]; then
+    source .setup.env
+  fi
+
+  if [[ -n "$SSH_PORT" ]]; then
+    echo "🔐 Разрешаване на SSH порт: $SSH_PORT"
+    sudo ufw allow "$SSH_PORT"/tcp
+  else
+    echo "⚠️ SSH порт не е открит. Пропуска се автоматично разрешение."
+  fi
+
+  # --- Въвеждане на допълнителни портове ---
+  echo ""
+  echo "🔧 ВЪВЕДЕТЕ ДОПЪЛНИТЕЛНИ ПОРТОВЕ ЗА ОТВАРЯНЕ (ENTER за край, 'q' за изход)"
+  PORT_LIST=()
+
+  while true; do
+    printf "➤ Порт: "
+    read -r port
+
+    if [[ "$port" == "q" || "$port" == "Q" ]]; then
+      echo "❎ Скриптът беше прекратен от потребителя."
+      exit 0
+    elif [[ -z "$port" ]]; then
+      break
+    elif ! [[ "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+      echo "❌ Невалиден порт. Използвайте число между 1 и 65535."
+    elif [[ " ${PORT_LIST[*]} " =~ " $port " ]]; then
+      echo "⚠️ Портът вече е добавен."
+    else
+      PORT_LIST+=("$port")
+      sudo ufw allow "$port"/tcp
+      echo "✅ Разрешен порт: $port"
+    fi
+  done
+
+  # 📝 Записване на портовете във .setup.env за бъдещи справки
+  echo "PORT_LIST=\"${PORT_LIST[*]}\"" >> .setup.env
+
+  echo ""
+  echo "✅ Правилата за UFW са подготвени, но защитната стена все още НЕ е активирана."
+  echo "   Това ще бъде направено в следващия модул."
+
+  # 📝 Записване на резултата в .setup.env за обобщението
+  RESULT_FIREWALL_SETUP="✅"
+  echo "RESULT_FIREWALL_SETUP=\"$RESULT_FIREWALL_SETUP\"" >> .setup.env
+
+  # 🔚 Премахване от списъка:
+  sed -i "/^$MODULE_NAME$/d" todo.modules
+  echo ""
+  echo ""
+
+else
+  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
+  echo ""
 fi
 echo ""
 echo ""
 
+exit 0
 
 # === [МОДУЛ 10] TRUSTED МРЕЖИ И АКТИВИРАНЕ НА UFW ============================
 MODULE_NAME="mod_10_firewall_trusted"
