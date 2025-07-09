@@ -235,64 +235,47 @@ echo "[4] ИЗБОР НА PHP ВЕРСИЯ..."
 echo "-------------------------------------------------------------------------"
 echo ""
 
-echo "🧮 Откриване на наличните PHP версии..."
-
-# Списък с всички поддържани версии от ondrej/php
+PHP_PACKAGE_DIR="/opt/php-packages"
 ALL_PHP_VERSIONS=(8.3 8.2 8.1 8.0 7.4 7.3 7.2 7.1 7.0 5.6)
 php_versions_array=()
 menu_index=1
 
-# Проверка коя е инсталирана и коя е налична локално за инсталиране
+echo "🧮 Откриване на наличните PHP версии..."
+
 for ver in "${ALL_PHP_VERSIONS[@]}"; do
   if [[ -d "/etc/php/$ver" ]]; then
     php_versions_array+=("$ver|installed")
-  elif ls /opt/php-packages/php${ver}-*.deb >/dev/null 2>&1; then
-    php_versions_array+=("$ver|available")
+  elif ls "$PHP_PACKAGE_DIR"/php${ver}-cli_*.deb &>/dev/null; then
+    php_versions_array+=("$ver|local")
   else
     php_versions_array+=("$ver|missing")
   fi
 done
 
-# Меню
 echo ""
 echo "➤ Изберете PHP версия за този виртуален хост:"
 for entry in "${php_versions_array[@]}"; do
   version="${entry%%|*}"
   status="${entry##*|}"
+  label=""
 
-  if [[ $menu_index -eq 1 ]]; then
-    label="(по подразбиране – последна стабилна)"
-  else
-    label=""
-  fi
+  [[ $menu_index -eq 1 ]] && label="(по подразбиране – последна стабилна)"
 
   case "$status" in
-    installed)
-      echo "[$menu_index] PHP $version $label"
-      ;;
-    available)
-      echo "[$menu_index] PHP $version ⚠️ (наличен локално за инсталиране) $label"
-      ;;
-    missing)
-      echo "[$menu_index] PHP $version ❌ (не е наличен) $label"
-      ;;
+    installed) echo "[$menu_index] PHP $version $label" ;;
+    local)     echo "[$menu_index] PHP $version 📦 (локално наличен) $label" ;;
+    *)         echo "[$menu_index] PHP $version ❌ (не е наличен) $label" ;;
   esac
+
   ((menu_index++))
 done
 echo "[q] Прекратяване"
 
-# Избор
 while true; do
   read -rp "Вашият избор [1]: " php_choice
 
-  if [[ "$php_choice" == "q" ]]; then
-    echo "🚪 Прекратяване по заявка на оператора."
-    exit 0
-  fi
-
-  if [[ -z "$php_choice" ]]; then
-    php_choice=1
-  fi
+  [[ "$php_choice" == "q" ]] && { echo "🚪 Прекратяване по заявка на оператора."; exit 0; }
+  [[ -z "$php_choice" ]] && php_choice=1
 
   if ! [[ "$php_choice" =~ ^[0-9]+$ ]] || (( php_choice < 1 || php_choice > ${#php_versions_array[@]} )); then
     echo "⚠️ Невалиден избор. Опитайте отново."
@@ -307,18 +290,14 @@ while true; do
   echo "✅ Избрана PHP версия: PHP $selected_version"
 
   case "$selected_status" in
-    installed)
-      SUMMARY_PHP_INSTALL_REQUIRED="no"
-      ;;
-    available)
-      SUMMARY_PHP_INSTALL_REQUIRED="local"
-      ;;
-    missing)
-      SUMMARY_PHP_INSTALL_REQUIRED="yes"
-      ;;
+    installed) SUMMARY_PHP_INSTALL_REQUIRED="no" ;;
+    local)     SUMMARY_PHP_INSTALL_REQUIRED="local" ;;
+    missing)   SUMMARY_PHP_INSTALL_REQUIRED="yes" ;;
   esac
+
   break
 done
+
 
 # === [5] ИЗБОР НА СЕРТИФИКАТ ==============================================
 echo ""
