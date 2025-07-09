@@ -457,92 +457,91 @@ echo ""
 echo ""
 
 
+# === [МОДУЛ 7] ПРОМЯНА НА SSH ПОРТА ============================================
+MODULE_NAME="mod_07_ssh_port"
+
+if grep -q "^$MODULE_NAME\b" todo.modules; then
+
+  echo "[7] ПРОМЯНА НА SSH ПОРТА..."
+  echo "-------------------------------------------------------------------------"
+  echo ""
+
+  RESULT_SSH_PORT="❔"
+
+  CURRENT_SSH_PORT=$(ss -tlpn 2>/dev/null | grep sshd | awk -F: '/LISTEN/ {print $2}' | awk '{print $1}' | head -n 1)
+  CURRENT_SSH_PORT="${CURRENT_SSH_PORT:-22}"
+
+  while true; do
+    printf "👉 В момента използвате SSH порт %s.\n" "$CURRENT_SSH_PORT"
+    echo "   Въведете нов порт, ако желаете да го промените,"
+    echo "   или натиснете Enter без въвеждане за запазване на съществуващия (или 'q' за прекратяване):"
+    printf "➤ SSH порт: "
+    read -r SSH_PORT_INPUT
+
+    if [[ "$SSH_PORT_INPUT" == "q" || "$SSH_PORT_INPUT" == "Q" ]]; then
+      echo "❎ Скриптът беше прекратен от потребителя."
+      exit 0
+
+    elif [[ -z "$SSH_PORT_INPUT" ]]; then
+      SSH_PORT="$CURRENT_SSH_PORT"
+      echo "✅ SSH портът ще остане: $SSH_PORT"
+      break
+
+    elif [[ "$SSH_PORT_INPUT" =~ ^[0-9]+$ ]] && (( SSH_PORT_INPUT >= 1024 && SSH_PORT_INPUT <= 65535 )); then
+      SSH_PORT="$SSH_PORT_INPUT"
+      echo "✅ Нов SSH порт ще бъде: $SSH_PORT"
+      break
+
+    else
+      echo "❌ Невалиден номер на порт. Допустими стойности: 1024–65535. Опитайте отново."
+    fi
+  done
+
+  # Промяна в sshd_config, ако портът е различен от текущия
+  if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
+    echo "🔧 Актуализиране на /etc/ssh/sshd_config..."
+
+    if grep -q "^#*Port " /etc/ssh/sshd_config; then
+      sudo sed -i "s/^#*Port .*/Port $SSH_PORT/" /etc/ssh/sshd_config
+    else
+      echo "Port $SSH_PORT" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+    fi
+
+    echo "🔄 Рестартиране на SSH услугата..."
+    if sudo systemctl restart ssh; then
+      echo "✅ SSH портът е променен успешно на $SSH_PORT и услугата е рестартирана."
+      RESULT_SSH_PORT="✅"
+    else
+      echo "❌ Грешка при рестартиране на SSH! Провери конфигурацията ръчно!"
+
+      # 📝 Записване на резултата в .setup.env за обобщението
+      RESULT_SSH_PORT="❌"
+      echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" >> .setup.env
+      return 1 2>/dev/null || exit 1
+    fi
+  else
+    echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
+    RESULT_SSH_PORT="✅"
+  fi
+
+  # 📝 Записване на резултата в .setup.env за обобщението
+  echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" >> .setup.env
+
+  # 🔚 Премахване от списъка:
+  sed -i "/^$MODULE_NAME$/d" todo.modules
+  echo ""
+  echo ""
+
+else
+  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
+  echo ""
+fi
+echo ""
+echo ""
+
 
 exit 0
 
-# === [7] ПРОМЯНА НА SSH ПОРТА ========================================
-MODULE_NAME="mod_07_ssh_port"
-echo "[7] ПРОМЯНА НА SSH ПОРТА..."
-echo "-------------------------------------------------------------------------"
-echo ""
-
-# Проверка дали модулът вече е изпълнен
-if ! grep -q "^$MODULE_NAME\b" todo.modules; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  return 0 2>/dev/null || exit 0
-fi
-
-RESULT_SSH_PORT="❔"
-
-CURRENT_SSH_PORT=$(ss -tlpn 2>/dev/null | grep sshd | awk -F: '/LISTEN/ {print $2}' | awk '{print $1}' | head -n 1)
-CURRENT_SSH_PORT="${CURRENT_SSH_PORT:-22}"
-
-while true; do
-  printf "👉 В момента използвате SSH порт %s.\n" "$CURRENT_SSH_PORT"
-  echo "   Въведете нов порт, ако желаете да го промените,"
-  echo "   или натиснете Enter без въвеждане за запазване на съществуващия (или 'q' за прекратяване):"
-  printf "➤ SSH порт: "
-  read -r SSH_PORT_INPUT
-
-  if [[ "$SSH_PORT_INPUT" == "q" || "$SSH_PORT_INPUT" == "Q" ]]; then
-    echo "❎ Скриптът беше прекратен от потребителя."
-    exit 0
-
-  elif [[ -z "$SSH_PORT_INPUT" ]]; then
-    SSH_PORT="$CURRENT_SSH_PORT"
-    echo "✅ SSH портът ще остане: $SSH_PORT"
-    break
-
-  elif [[ "$SSH_PORT_INPUT" =~ ^[0-9]+$ ]] && (( SSH_PORT_INPUT >= 1024 && SSH_PORT_INPUT <= 65535 )); then
-    SSH_PORT="$SSH_PORT_INPUT"
-    echo "✅ Нов SSH порт ще бъде: $SSH_PORT"
-    break
-
-  else
-    echo "❌ Невалиден номер на порт. Допустими стойности: 1024–65535. Опитайте отново."
-  fi
-done
-
-# Промяна в sshd_config, ако портът е различен от текущия
-if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
-  echo "🔧 Актуализиране на /etc/ssh/sshd_config..."
-
-  if grep -q "^#*Port " /etc/ssh/sshd_config; then
-    sudo sed -i "s/^#*Port .*/Port $SSH_PORT/" /etc/ssh/sshd_config
-  else
-    echo "Port $SSH_PORT" | sudo tee -a /etc/ssh/sshd_config > /dev/null
-  fi
-
-  echo "🔄 Рестартиране на SSH услугата..."
-  if sudo systemctl restart ssh; then
-    echo "✅ SSH портът е променен успешно на $SSH_PORT и услугата е рестартирана."
-    RESULT_SSH_PORT="✅"
-  else
-    echo "❌ Грешка при рестартиране на SSH! Провери конфигурацията ръчно!"
-    RESULT_SSH_PORT="❌"
-    echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" >> .setup.env
-    exit 1
-  fi
-else
-  echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
-  RESULT_SSH_PORT="✅"
-fi
-
-# Записване на резултата
-echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" >> .setup.env
-
-# 🔚 Премахване от списъка:
-sed -i "/^$MODULE_NAME$/d" todo.modules
-
-# 🔄 Запитване дали да се продължи:
-echo ""
-read -p "➡️ Продължаване към следващия модул? [Enter за ДА, 'q' за прекратяване]: " next
-if [[ "$next" == "q" || "$next" == "Q" ]]; then
-  echo "⛔ Скриптът беше прекратен от потребителя след модул 7."
-  exit 0
-fi
-echo ""
-echo ""
 
 
 # === [МОДУЛ 8] СЪЗДАВАНЕ НА НОВ АДМИНИСТРАТОРСКИ ПРОФИЛ ====================
@@ -687,6 +686,7 @@ if [[ "$next" == "q" || "$next" == "Q" ]]; then
 fi
 echo ""
 echo ""
+
 
 
 # === [МОДУЛ 9] КОНФИГУРИРАНЕ НА UFW И ДЕАКТИВАЦИЯ НА ДРУГИ FIREWALL ПОРТОВЕ ==============
