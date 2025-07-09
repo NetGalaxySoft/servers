@@ -842,10 +842,14 @@ echo ""
 
 VHOST_FILE="/etc/apache2/sites-available/${SUMMARY_DOMAIN}.conf"
 DOC_ROOT="$SUMMARY_WEBROOT"
-SSL_CONF=""
 
-# Създаване на конфигурацията за виртуалния хост
-cat <<EOF | sudo tee "$VHOST_FILE" >/dev/null
+# Проверка дали конфигурационният файл вече съществува
+if [[ -f "$VHOST_FILE" ]]; then
+  echo "⚠️ Конфигурационният файл вече съществува: $VHOST_FILE"
+  echo "ℹ️ Пропускане на създаването му."
+else
+  # Създаване на конфигурацията
+  cat <<EOF | sudo tee "$VHOST_FILE" >/dev/null
 <VirtualHost *:80>
     ServerName ${SUMMARY_DOMAIN}
     ServerAlias www.${SUMMARY_DOMAIN}
@@ -860,14 +864,18 @@ cat <<EOF | sudo tee "$VHOST_FILE" >/dev/null
     CustomLog \${APACHE_LOG_DIR}/${SUMMARY_DOMAIN}_access.log combined
 </VirtualHost>
 EOF
+  echo "✅ Създаден е конфигурационен файл: $VHOST_FILE"
+fi
 
-echo "✅ Конфигурационен файл създаден: $VHOST_FILE"
+# Проверка дали сайтът вече е активиран
+if [[ -L "/etc/apache2/sites-enabled/${SUMMARY_DOMAIN}.conf" ]]; then
+  echo "ℹ️ Виртуалният хост ${SUMMARY_DOMAIN} вече е активиран."
+else
+  echo "⏳ Активиране на сайта..."
+  sudo a2ensite "${SUMMARY_DOMAIN}.conf" >/dev/null 2>&1
+fi
 
-# Активиране на сайта
-echo "⏳ Активиране на сайта..."
-sudo a2ensite "${SUMMARY_DOMAIN}.conf" >/dev/null 2>&1
-
-# Уверяване, че mod_rewrite е активен
+# Уверяване, че mod_rewrite е активиран
 sudo a2enmod rewrite >/dev/null 2>&1
 
 # Рестартиране на Apache
@@ -875,10 +883,10 @@ echo "🔁 Рестартиране на Apache..."
 sudo systemctl reload apache2
 
 if [[ $? -eq 0 ]]; then
-  echo "✅ Сайтът ${SUMMARY_DOMAIN} е активиран успешно."
+  echo "✅ Сайтът ${SUMMARY_DOMAIN} е достъпен чрез Apache."
   RESULT_APACHE_VHOST="✅"
 else
-  echo "❌ Възникна грешка при активирането на сайта."
+  echo "❌ Възникна грешка при зареждане на конфигурацията."
   RESULT_APACHE_VHOST="❌"
 fi
 
