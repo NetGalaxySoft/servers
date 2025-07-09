@@ -242,10 +242,12 @@ ALL_PHP_VERSIONS=(8.3 8.2 8.1 8.0 7.4 7.3 7.2 7.1 7.0 5.6)
 php_versions_array=()
 menu_index=1
 
-# Проверка коя е инсталирана и коя не
+# Проверка коя е инсталирана и коя е налична локално за инсталиране
 for ver in "${ALL_PHP_VERSIONS[@]}"; do
   if [[ -d "/etc/php/$ver" ]]; then
     php_versions_array+=("$ver|installed")
+  elif ls /opt/php-packages/php${ver}-*.deb >/dev/null 2>&1; then
+    php_versions_array+=("$ver|available")
   else
     php_versions_array+=("$ver|missing")
   fi
@@ -264,11 +266,17 @@ for entry in "${php_versions_array[@]}"; do
     label=""
   fi
 
-  if [[ "$status" == "installed" ]]; then
-    echo "[$menu_index] PHP $version $label"
-  else
-    echo "[$menu_index] PHP $version ⚠️ (ще бъде инсталирана) $label"
-  fi
+  case "$status" in
+    installed)
+      echo "[$menu_index] PHP $version $label"
+      ;;
+    available)
+      echo "[$menu_index] PHP $version ⚠️ (наличен локално за инсталиране) $label"
+      ;;
+    missing)
+      echo "[$menu_index] PHP $version ❌ (не е наличен) $label"
+      ;;
+  esac
   ((menu_index++))
 done
 echo "[q] Прекратяване"
@@ -298,11 +306,17 @@ while true; do
   SUMMARY_PHP_VERSION="$selected_version"
   echo "✅ Избрана PHP версия: PHP $selected_version"
 
-  if [[ "$selected_status" == "missing" ]]; then
-    SUMMARY_PHP_INSTALL_REQUIRED="yes"
-  else
-    SUMMARY_PHP_INSTALL_REQUIRED="no"
-  fi
+  case "$selected_status" in
+    installed)
+      SUMMARY_PHP_INSTALL_REQUIRED="no"
+      ;;
+    available)
+      SUMMARY_PHP_INSTALL_REQUIRED="local"
+      ;;
+    missing)
+      SUMMARY_PHP_INSTALL_REQUIRED="yes"
+      ;;
+  esac
   break
 done
 
