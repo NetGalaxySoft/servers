@@ -762,32 +762,45 @@ if ! [[ "$SUMMARY_DISK_LIMIT_GB" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-# Проверка дали квотите са активни
-if mount | grep 'on / type' | grep -q 'usrquota' && quotaon -p / >/dev/null 2>&1; then
+# Проверка дали root файловата система поддържа квоти
+if ! mount | grep 'on / ' | grep -q 'usrquota'; then
+  echo "❌ Root дялът не е монтиран с опция usrquota. Скриптът не може да зададе квоти."
+  RESULT_USER_QUOTA="❌ (fstab липсва usrquota)"
+  exit 1
+fi
 
+# Проверка и създаване на /aquota.user, ако липсва
+if [ ! -f /aquota.user ]; then
+  echo "⏳ Файлът /aquota.user липсва. Създаване и стартиране на квоти..."
+  sudo touch /aquota.user
+  sudo chmod 600 /aquota.user
+  sudo quotacheck -cum /
+  sudo quotaon /
+fi
+
+# Финална проверка дали квотите са активни
+if quotaon -p / >/dev/null 2>&1; then
   block_limit_kb=$((SUMMARY_DISK_LIMIT_GB * 1024 * 1024))
 
   sudo setquota -u "$SUMMARY_NOMINAL_USER" "$block_limit_kb" "$block_limit_kb" 0 0 /
 
   if [[ $? -eq 0 ]]; then
-    # Проверка с quota -u
+    # Потвърждение с команда quota
     quota_output=$(quota -u "$SUMMARY_NOMINAL_USER" | awk 'NR>2 {print $2}')
     if [[ "$quota_output" -gt 0 ]]; then
       echo "✅ Квота от ${SUMMARY_DISK_LIMIT_GB} GB беше зададена успешно на $SUMMARY_NOMINAL_USER."
       RESULT_USER_QUOTA="✅"
     else
-      echo "⚠️ Командата setquota беше изпълнена, но резултатът не е потвърден от quota -u."
+      echo "⚠️ Командата setquota беше изпълнена, но не е потвърдена от quota -u."
       RESULT_USER_QUOTA="⚠️ (непотвърдено)"
     fi
   else
     echo "❌ Възникна грешка при задаване на квотата за $SUMMARY_NOMINAL_USER."
     RESULT_USER_QUOTA="❌"
   fi
-
 else
-  echo "⚠️ Квотите не са активни или не се поддържат на root файловата система."
-  echo "ℹ️ Пропускане на задаването на квота."
-  RESULT_USER_QUOTA="⚠️ (неподдържана)"
+  echo "❌ Квотите не са активни. Прекратяване на опита."
+  RESULT_USER_QUOTA="❌ (неактивна квота)"
 fi
 
 # === [13] ИНСТАЛИРАНЕ НА ИЗБРАНАТА PHP ВЕРСИЯ =============================
