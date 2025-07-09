@@ -282,6 +282,8 @@ else
   echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
   echo ""
 fi
+echo ""
+echo ""
 
 
 # === [МОДУЛ 4] ИНСТАЛИРАНЕ НА ОСНОВНИ ИНСТРУМЕНТИ =============================
@@ -320,109 +322,103 @@ else
   echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
   echo ""
 fi
+echo ""
+echo ""
 
 
-exit 0
-
-
-
-
-# --- [5] НАСТРОЙКА НА ЛОКАЛИЗАЦИИ -----------------------------------------------
+# === [МОДУЛ 5] НАСТРОЙКА НА ЛОКАЛИЗАЦИИ =======================================
 MODULE_NAME="mod_05_locales"
-echo "[5] НАСТРОЙКА НА ЛОКАЛИЗАЦИИ..."
-echo "-------------------------------------------------------------------------"
-echo ""
 
-# Проверка дали модулът вече е изпълнен
-if ! grep -q "^$MODULE_NAME\b" todo.modules; then
+if grep -q "^$MODULE_NAME\b" todo.modules; then
+
+  echo "[5] НАСТРОЙКА НА ЛОКАЛИЗАЦИИ..."
+  echo "-------------------------------------------------------------------------"
+  echo ""
+
+  RESULT_LOCALES="❔"
+
+  echo "🌐 Инсталиране на езикови пакети (BG, RU)..."
+  if sudo apt-get install -y language-pack-bg language-pack-ru; then
+    echo "✅ Езиковите пакети са инсталирани."
+  else
+    echo "⚠️ Неуспешна инсталация на езикови пакети. Продължаваме."
+    RESULT_LOCALES="⚠️"
+  fi
+
+  echo "🔧 Активиране на UTF-8 локали в /etc/locale.gen..."
+  sudo sed -i '/^# *bg_BG.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
+  sudo sed -i '/^# *ru_RU.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
+  sudo sed -i '/^# *en_US.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
+
+  grep -qxF 'bg_BG.UTF-8 UTF-8' /etc/locale.gen || echo 'bg_BG.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
+  grep -qxF 'ru_RU.UTF-8 UTF-8' /etc/locale.gen || echo 'ru_RU.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
+  grep -qxF 'en_US.UTF-8 UTF-8' /etc/locale.gen || echo 'en_US.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
+
+  echo "⚙️ Генериране на UTF-8 локали (задължително за съвместимост с NetGalaxy)..."
+  if sudo locale-gen && sudo update-locale; then
+    echo "✅ Локалите са успешно конфигурирани."
+    [[ "$RESULT_LOCALES" == "❔" ]] && RESULT_LOCALES="✅"
+  else
+    echo "❌ Грешка при генериране на локали."
+    RESULT_LOCALES="❌"
+  fi
+
+  # 📝 Записване на резултата в .setup.env за обобщението
+  echo "RESULT_LOCALES=\"$RESULT_LOCALES\"" >> .setup.env
+
+  # Премахване от списъка
+  sed -i "/^$MODULE_NAME$/d" todo.modules
+  echo ""
+  echo ""
+
+else
   echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  return 0 2>/dev/null || exit 0
-fi
-
-RESULT_LOCALES="❔"
-
-echo "🌐 Инсталиране на езикови пакети (BG, RU)..."
-if sudo apt-get install -y language-pack-bg language-pack-ru; then
-  echo "✅ Езиковите пакети са инсталирани."
-else
-  echo "⚠️ Неуспешна инсталация на езикови пакети. Продължаваме."
-  RESULT_LOCALES="⚠️"
-fi
-
-echo "🔧 Активиране на UTF-8 локали в /etc/locale.gen..."
-sudo sed -i '/^# *bg_BG.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
-sudo sed -i '/^# *ru_RU.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
-sudo sed -i '/^# *en_US.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
-
-grep -qxF 'bg_BG.UTF-8 UTF-8' /etc/locale.gen || echo 'bg_BG.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
-grep -qxF 'ru_RU.UTF-8 UTF-8' /etc/locale.gen || echo 'ru_RU.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
-grep -qxF 'en_US.UTF-8 UTF-8' /etc/locale.gen || echo 'en_US.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
-
-echo "⚙️ Генериране на UTF-8 локали (задължително за съвместимост с NetGalaxy)..."
-if sudo locale-gen && sudo update-locale; then
-  echo "✅ Локалите са успешно конфигурирани."
-  [[ "$RESULT_LOCALES" == "❔" ]] && RESULT_LOCALES="✅"
-else
-  echo "❌ Грешка при генериране на локали."
-  RESULT_LOCALES="❌"
-fi
-
-# Записване на резултата
-echo "RESULT_LOCALES=\"$RESULT_LOCALES\"" >> .setup.env
-
-# Премахване от списъка
-sed -i "/^$MODULE_NAME$/d" todo.modules
-
-# Запитване дали да се продължи
-echo ""
-read -p "➡️ Продължаване към следващия модул? [Enter за ДА, 'q' за прекратяване]: " next
-if [[ "$next" == "q" || "$next" == "Q" ]]; then
-  echo "⛔ Скриптът беше прекратен от потребителя след модул 5."
-  exit 0
+  echo ""
 fi
 echo ""
 echo ""
 
 
-# --- [6] НАСТРОЙКА НА ВРЕМЕВА ЗОНА И NTP СИНХРОНИЗАЦИЯ ------------------------
+# === [МОДУЛ 6] ВРЕМЕВА ЗОНА И NTP СИНХРОНИЗАЦИЯ ================================
 MODULE_NAME="mod_06_timezone_ntp"
-echo "[6] НАСТРОЙКА НА ВРЕМЕВА ЗОНА И NTP СИНХРОНИЗАЦИЯ..."
-echo "-------------------------------------------------------------------------"
-echo ""
 
-# Проверка дали модулът вече е изпълнен
-if ! grep -q "^$MODULE_NAME\b" todo.modules; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  return 0 2>/dev/null || exit 0
-fi
+if grep -q "^$MODULE_NAME\b" todo.modules; then
 
-RESULT_TIMEZONE_NTP="❔"
+  echo "[6] НАСТРОЙКА НА ВРЕМЕВА ЗОНА И NTP СИНХРОНИЗАЦИЯ..."
+  echo "-------------------------------------------------------------------------"
+  echo ""
 
-echo "🌍 Задаване на времева зона на UTC (унифициран стандарт в мрежата NetGalaxy)..."
-if sudo timedatectl set-timezone UTC; then
-  echo "✅ Времевата зона е зададена на UTC."
-else
-  echo "❌ Неуспешна смяна на времевата зона."
-  RESULT_TIMEZONE_NTP="❌"
-  echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" >> .setup.env
-  exit 1
-fi
+  RESULT_TIMEZONE_NTP="❔"
 
-echo "🔧 Изключване на други NTP услуги..."
-sudo systemctl stop ntpd 2>/dev/null && sudo systemctl disable ntpd 2>/dev/null
-sudo systemctl stop systemd-timesyncd 2>/dev/null && sudo systemctl disable systemd-timesyncd 2>/dev/null
+  echo "🌍 Задаване на времева зона на UTC (унифициран стандарт в мрежата NetGalaxy)..."
+  if sudo timedatectl set-timezone UTC; then
+    echo "✅ Времевата зона е зададена на UTC."
+  else
+    echo "❌ Неуспешна смяна на времевата зона."
 
-echo "📦 Инсталиране и конфигуриране на chrony..."
-if ! sudo apt-get install -y chrony; then
-  echo "❌ Неуспешна инсталация на chrony."
-  RESULT_TIMEZONE_NTP="❌"
-  echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" >> .setup.env
-  exit 1
-fi
+    # 📝 Записване на резултата в .setup.env за обобщението
+    RESULT_TIMEZONE_NTP="❌"
+    echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" >> .setup.env
+    return 1 2>/dev/null || exit 1
+  fi
 
-NTP_SERVERS=(0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org)
-echo "⚙️ Конфигуриране на /etc/chrony/chrony.conf..."
-echo -e "server ${NTP_SERVERS[0]} iburst
+  echo "🔧 Изключване на други NTP услуги..."
+  sudo systemctl stop ntpd 2>/dev/null && sudo systemctl disable ntpd 2>/dev/null
+  sudo systemctl stop systemd-timesyncd 2>/dev/null && sudo systemctl disable systemd-timesyncd 2>/dev/null
+
+  echo "📦 Инсталиране и конфигуриране на chrony..."
+  if ! sudo apt-get install -y chrony; then
+    echo "❌ Неуспешна инсталация на chrony."
+
+    # 📝 Записване на резултата в .setup.env за обобщението
+    RESULT_TIMEZONE_NTP="❌"
+    echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" >> .setup.env
+    return 1 2>/dev/null || exit 1
+  fi
+
+  NTP_SERVERS=(0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org)
+  echo "⚙️ Конфигуриране на /etc/chrony/chrony.conf..."
+  echo -e "server ${NTP_SERVERS[0]} iburst
 server ${NTP_SERVERS[1]} iburst
 server ${NTP_SERVERS[2]} iburst
 server ${NTP_SERVERS[3]} iburst
@@ -432,35 +428,37 @@ makestep 1.0 3
 driftfile /var/lib/chrony/drift
 logdir /var/log/chrony" | sudo tee /etc/chrony/chrony.conf > /dev/null
 
-echo "🔄 Рестартиране на услугата..."
-sudo systemctl restart chrony
-sudo systemctl enable chrony
+  echo "🔄 Рестартиране на услугата..."
+  sudo systemctl restart chrony
+  sudo systemctl enable chrony
 
-echo "🔎 Проверка на синхронизацията..."
-timedatectl | grep 'Time zone'
-echo "NTP статус:"
-chronyc tracking | grep -E 'Stratum|System time'
-chronyc sources | grep '^\^\*'
+  echo "🔎 Проверка на синхронизацията..."
+  timedatectl | grep 'Time zone'
+  echo "NTP статус:"
+  chronyc tracking | grep -E 'Stratum|System time'
+  chronyc sources | grep '^\^\*'
 
-echo "✅ Времевата зона и синхронизация са успешно настроени."
-RESULT_TIMEZONE_NTP="✅"
+  echo "✅ Времевата зона и синхронизация са успешно настроени."
+  RESULT_TIMEZONE_NTP="✅"
 
-# Записване на резултата
-echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" >> .setup.env
+  # 📝 Записване на резултата в .setup.env за обобщението
+  echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" >> .setup.env
 
-# Премахване от списъка
-sed -i "/^$MODULE_NAME$/d" todo.modules
+  # Премахване от списъка
+  sed -i "/^$MODULE_NAME$/d" todo.modules
+  echo ""
+  echo ""
 
-# Запитване дали да се продължи
-echo ""
-read -p "➡️ Продължаване към следващия модул? [Enter за ДА, 'q' за прекратяване]: " next
-if [[ "$next" == "q" || "$next" == "Q" ]]; then
-  echo "⛔ Скриптът беше прекратен от потребителя след модул 6."
-  exit 0
+else
+  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
+  echo ""
 fi
 echo ""
 echo ""
 
+
+
+exit 0
 
 # === [7] ПРОМЯНА НА SSH ПОРТА ========================================
 MODULE_NAME="mod_07_ssh_port"
