@@ -816,46 +816,72 @@ echo "[13] Инсталиране на PHP ${SUMMARY_PHP_VERSION} (ако е н�
 echo "-------------------------------------------------------------------------"
 echo ""
 
-# Проверка дали избраната PHP версия е налична
-if ! dpkg -s "php${SUMMARY_PHP_VERSION}" >/dev/null 2>&1; then
-  echo "⏳ Избраната PHP версия не е инсталирана. Проверка за необходимите хранилища..."
+case "$SUMMARY_PHP_INSTALL_REQUIRED" in
+  no)
+    echo "ℹ️ PHP ${SUMMARY_PHP_VERSION} вече е инсталиран. Пропускане на тази стъпка."
+    RESULT_PHP_INSTALL="✅ (вече инсталиран)"
+    ;;
 
-  # Проверка дали PPA-то е добавено
-  if ! grep -r "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/ >/dev/null 2>&1; then
-    echo "➕ Добавяне на хранилище ppa:ondrej/php..."
-    sudo apt install -y software-properties-common lsb-release ca-certificates apt-transport-https
-    if [[ $? -ne 0 ]]; then
-      echo "❌ Неуспешна инсталация на зависимости за PPA."
+  local)
+    echo "⏳ Инсталиране на PHP ${SUMMARY_PHP_VERSION} от локални пакети..."
+    PKG_DIR="/opt/php-packages"
+    PHP_DEBS=(
+      php${SUMMARY_PHP_VERSION}-{cli,common,fpm,mysql,mbstring,xml,curl,zip}
+    )
+    INSTALL_DEBS=()
+    for pkg in "${PHP_DEBS[@]}"; do
+      FILE=$(ls "$PKG_DIR"/${pkg}_*.deb 2>/dev/null | head -n 1)
+      [[ -f "$FILE" ]] && INSTALL_DEBS+=("$FILE")
+    done
+
+    if (( ${#INSTALL_DEBS[@]} )); then
+      sudo dpkg -i "${INSTALL_DEBS[@]}"
+      sudo apt -f install -y
+      sudo systemctl enable php${SUMMARY_PHP_VERSION}-fpm >/dev/null 2>&1
+      sudo systemctl start php${SUMMARY_PHP_VERSION}-fpm >/dev/null 2>&1
+      echo "✅ PHP ${SUMMARY_PHP_VERSION} беше инсталиран от локални пакети."
+      RESULT_PHP_INSTALL="✅ (локално)"
+    else
+      echo "❌ Локалните пакети за PHP ${SUMMARY_PHP_VERSION} не бяха намерени."
       RESULT_PHP_INSTALL="❌"
-      exit 1
+    fi
+    ;;
+
+  yes)
+    echo "⏳ Избраната PHP версия не е инсталирана. Проверка за необходимите хранилища..."
+    if ! grep -r "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/ >/dev/null 2>&1; then
+      echo "➕ Добавяне на хранилище ppa:ondrej/php..."
+      sudo apt install -y software-properties-common lsb-release ca-certificates apt-transport-https
+      if [[ $? -ne 0 ]]; then
+        echo "❌ Неуспешна инсталация на зависимости за PPA."
+        RESULT_PHP_INSTALL="❌"
+        exit 1
+      fi
+      sudo add-apt-repository -y ppa:ondrej/php
+      sudo apt update -qq
+    else
+      echo "ℹ️ Хранилището ppa:ondrej/php вече е налично."
     fi
 
-    sudo add-apt-repository -y ppa:ondrej/php
-    sudo apt update -qq
-  else
-    echo "ℹ️ Хранилището ppa:ondrej/php вече е налично."
-  fi
+    echo "⏳ Инсталиране на PHP ${SUMMARY_PHP_VERSION} и нужните модули..."
+    sudo apt install -y php${SUMMARY_PHP_VERSION} php${SUMMARY_PHP_VERSION}-{cli,common,fpm,mysql,mbstring,xml,curl,zip}
 
-  echo "⏳ Инсталиране на PHP ${SUMMARY_PHP_VERSION} и нужните модули..."
-  sudo apt install -y php${SUMMARY_PHP_VERSION} php${SUMMARY_PHP_VERSION}-{cli,common,fpm,mysql,mbstring,xml,curl,zip}
+    if [[ $? -eq 0 ]]; then
+      echo "✅ PHP ${SUMMARY_PHP_VERSION} беше инсталиран успешно."
+      sudo systemctl enable php${SUMMARY_PHP_VERSION}-fpm >/dev/null 2>&1
+      sudo systemctl start php${SUMMARY_PHP_VERSION}-fpm >/dev/null 2>&1
+      RESULT_PHP_INSTALL="✅"
+    else
+      echo "❌ Възникна грешка при инсталирането на PHP ${SUMMARY_PHP_VERSION}."
+      RESULT_PHP_INSTALL="❌"
+    fi
+    ;;
 
-  if [[ $? -eq 0 ]]; then
-    echo "✅ PHP ${SUMMARY_PHP_VERSION} беше инсталиран успешно."
-
-    # Опит за стартиране и активиране на php-fpm
-    sudo systemctl enable php${SUMMARY_PHP_VERSION}-fpm >/dev/null 2>&1
-    sudo systemctl start php${SUMMARY_PHP_VERSION}-fpm >/dev/null 2>&1
-
-    RESULT_PHP_INSTALL="✅"
-  else
-    echo "❌ Възникна грешка при инсталирането на PHP ${SUMMARY_PHP_VERSION}."
-    RESULT_PHP_INSTALL="❌"
-  fi
-
-else
-  echo "ℹ️ PHP ${SUMMARY_PHP_VERSION} вече е инсталиран. Пропускане на тази стъпка."
-  RESULT_PHP_INSTALL="✅ (вече инсталиран)"
-fi
+  *)
+    echo "⚠️ Невалиден статус на PHP инсталация: $SUMMARY_PHP_INSTALL_REQUIRED"
+    RESULT_PHP_INSTALL="❔"
+    ;;
+esac
 
 # === [14] СЪЗДАВАНЕ НА КОНФИГУРАЦИЯ ЗА APACHE =============================
 echo ""
