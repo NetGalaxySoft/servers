@@ -1118,7 +1118,7 @@ printf "🔐 SSL тип:                       %s\n" "$(
 )"
 
 [[ "$RESULT_DB_CREATE" == "✅" ]] && {
-  printf "🛢️ База данни:                   %s\n" "$SUMMARY_DB_NAME"
+  printf "🛢️  База данни:                   %s\n" "$SUMMARY_DB_NAME"
   printf "👤 Потребител на БД:             %s\n" "$SUMMARY_DB_USER"
 }
 
@@ -1135,7 +1135,7 @@ printf "📦 Квота за потребителя:          %s\n" "${RESULT_US
 printf "🐘 PHP инсталация:                %s\n" "${RESULT_PHP_INSTALL:-❔}"
 printf "🌐 Apache конфигурация:           %s\n" "${RESULT_APACHE_VHOST:-❔}"
 printf "📄 Начална страница:              %s\n" "${RESULT_CREATE_INDEX:-❔}"
-printf "🛢️  База данни:                   %s\n" "${RESULT_DB_CREATE:-❔}"
+printf "🛢️  База данни:                    %s\n" "${RESULT_DB_CREATE:-❔}"
 printf "📡 FTP акаунт:                    %s\n" "${RESULT_FTP_CREATE:-❔}"
 printf "🔐 SSL конфигурация:              %s\n" "${RESULT_SSL_CONFIG:-❔}"
 
