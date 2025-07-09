@@ -451,10 +451,12 @@ elif command -v iptables >/dev/null 2>&1; then
 fi
 
 # --- Инсталиране на UFW, ако липсва ---
-if ! command -v ufw >/dev/null 2>&1; then
-  echo "📦 Инсталиране на UFW..."
+if ! dpkg -s ufw >/dev/null 2>&1; then
+  echo "📦 UFW не е инсталиран. Инсталираме..."
   sudo apt-get update
   sudo apt-get install -y ufw
+else
+  echo "✅ UFW вече е инсталиран."
 fi
 
 FIREWALL_SYSTEM="ufw"
@@ -634,7 +636,7 @@ printf "🌐 IP адрес на сървъра:           %s\n" "$(curl -s ifcon
 printf "🌍 FQDN (hostname):               %s\n" "$(hostname)"
 printf "🔐 SSH порт:                      %s\n" "${SSH_PORT:-❔ не е зададен}"
 printf "👤 Администраторски потребител:   %s\n" "${ADMIN_USER:-❔ не е зададен}"
-printf "🛡️  Защитна стена (FIREWALL):     %s\n" "${FIREWALL_SYSTEM:-❔ не е зададена}"
+printf "🛡️  Защитна стена (FIREWALL):      %s\n" "${FIREWALL_SYSTEM:-❔ не е зададена}"
 printf "🚪 Отворени портове:              %s\n" "${PORT_LIST:-❔ няма въведени}"
 printf "🌐 Доверени мрежи (VPN/LAN):      %s\n" "${TRUSTED_NETS:-❔ няма въведени}"
 echo ""
