@@ -762,45 +762,33 @@ if ! [[ "$SUMMARY_DISK_LIMIT_GB" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-# Проверка дали root файловата система поддържа квоти
-if ! mount | grep 'on / ' | grep -q 'usrquota'; then
-  echo "❌ Root дялът не е монтиран с опция usrquota. Скриптът не може да зададе квоти."
-  RESULT_USER_QUOTA="❌ (fstab липсва usrquota)"
-  exit 1
-fi
+# Проверка дали квотите са активни
+if quotaon -p / >/dev/null 2>&1 && mount | grep 'on / type' | grep -q 'usrquota'; then
 
-# Проверка и създаване на /aquota.user, ако липсва
-if [ ! -f /aquota.user ]; then
-  echo "⏳ Файлът /aquota.user липсва. Създаване и стартиране на квоти..."
-  sudo touch /aquota.user
-  sudo chmod 600 /aquota.user
-  sudo quotacheck -cum /
-  sudo quotaon /
-fi
-
-# Финална проверка дали квотите са активни
-if quotaon -p / >/dev/null 2>&1; then
+  # Преобразуване от GB към KB за setquota
   block_limit_kb=$((SUMMARY_DISK_LIMIT_GB * 1024 * 1024))
 
   sudo setquota -u "$SUMMARY_NOMINAL_USER" "$block_limit_kb" "$block_limit_kb" 0 0 /
 
   if [[ $? -eq 0 ]]; then
-    # Потвърждение с команда quota
+    # Потвърждение чрез команда quota
     quota_output=$(quota -u "$SUMMARY_NOMINAL_USER" | awk 'NR>2 {print $2}')
     if [[ "$quota_output" -gt 0 ]]; then
       echo "✅ Квота от ${SUMMARY_DISK_LIMIT_GB} GB беше зададена успешно на $SUMMARY_NOMINAL_USER."
       RESULT_USER_QUOTA="✅"
     else
-      echo "⚠️ Командата setquota беше изпълнена, но не е потвърдена от quota -u."
+      echo "⚠️ setquota бе изпълнена, но quota -u не потвърди лимит."
       RESULT_USER_QUOTA="⚠️ (непотвърдено)"
     fi
   else
     echo "❌ Възникна грешка при задаване на квотата за $SUMMARY_NOMINAL_USER."
     RESULT_USER_QUOTA="❌"
   fi
+
 else
-  echo "❌ Квотите не са активни. Прекратяване на опита."
-  RESULT_USER_QUOTA="❌ (неактивна квота)"
+  echo "⚠️ Квотите не са активни или root файловата система не ги поддържа."
+  echo "ℹ️ Уверете се, че сървърът е рестартиран след първоначалната конфигурация."
+  RESULT_USER_QUOTA="⚠️ (неактивни)"
 fi
 
 # === [13] ИНСТАЛИРАНЕ НА ИЗБРАНАТА PHP ВЕРСИЯ =============================
