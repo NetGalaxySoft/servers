@@ -399,7 +399,7 @@ echo "-------------------------------------------------------------------------"
 echo ""
 
 domain_clean="${SUMMARY_ROOT_DOMAIN//./_}"
-NOMINAL_USER="nomhost__${domain_clean}"
+NOMINAL_USER="nomhost_${domain_clean}"
 NOMINAL_GROUP="host0_${domain_clean}"
 SUMMARY_NOMINAL_USER="$NOMINAL_USER"
 SUMMARY_NOMINAL_GROUP="$NOMINAL_GROUP"
