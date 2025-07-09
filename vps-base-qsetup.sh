@@ -485,11 +485,13 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
     elif [[ -z "$SSH_PORT_INPUT" ]]; then
       SSH_PORT="$CURRENT_SSH_PORT"
       echo "✅ SSH портът ще остане: $SSH_PORT"
+      echo "SSH_PORT=\"$SSH_PORT\"" >> .setup.env
       break
 
     elif [[ "$SSH_PORT_INPUT" =~ ^[0-9]+$ ]] && (( SSH_PORT_INPUT >= 1024 && SSH_PORT_INPUT <= 65535 )); then
       SSH_PORT="$SSH_PORT_INPUT"
       echo "✅ Нов SSH порт ще бъде: $SSH_PORT"
+      echo "SSH_PORT=\"$SSH_PORT\"" >> .setup.env
       break
 
     else
@@ -513,8 +515,6 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
       RESULT_SSH_PORT="✅"
     else
       echo "❌ Грешка при рестартиране на SSH! Провери конфигурацията ръчно!"
-
-      # 📝 Записване на резултата в .setup.env за обобщението
       RESULT_SSH_PORT="❌"
       echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" >> .setup.env
       return 1 2>/dev/null || exit 1
@@ -524,7 +524,7 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
     RESULT_SSH_PORT="✅"
   fi
 
-  # 📝 Записване на резултата в .setup.env за обобщението
+  # 📝 Записване на резултатите в .setup.env
   echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" >> .setup.env
 
   # 🔚 Премахване от списъка:
