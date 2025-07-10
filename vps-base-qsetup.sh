@@ -968,11 +968,9 @@ while true; do
       echo "🔐 Активиране на UFW..."
       if sudo ufw --force enable; then
         echo "✅ UFW беше активиран успешно."
-        echo "📝 Записване на резултатите..."
-        sudo sed -i '/^SETUP_VPS_BASE_DONE=/d' "$SETUP_ENV_FILE"
-        sudo sed -i '/^SETUP_VPS_BASE_STATUS=/d' "$SETUP_ENV_FILE"
-        echo "SETUP_VPS_BASE_DONE=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-        echo "SETUP_VPS_BASE_STATUS=\"Потвърдено от оператор\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+        echo "📝 Записване на резултатите..."        
+        sudo sed -i '/^SETUP_VPS_BASE_STATUS=/d' "$SETUP_ENV_FILE"        
+        echo "SETUP_VPS_BASE_STATUS=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
         echo ""
         echo "♻️ Подготовка за рестарт..."
@@ -991,9 +989,8 @@ while true; do
         exit 1
       fi
       ;;
-    [Nn])
-      echo "SETUP_VPS_BASE_DONE=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-      echo "SETUP_VPS_BASE_STATUS=\"Недовършен – нужда от преглед\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    [Nn])      
+      echo "SETUP_VPS_BASE_STATUS=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
       echo "⛔ Скриптът завърши без промени. Моля, активирайте UFW и рестартирайте ръчно."
       exit 1
       ;;
