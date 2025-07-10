@@ -63,7 +63,7 @@ MODULES_FILE="$NETGALAXY_DIR/todo.modules"
 SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 
 # 🔒 Проверка дали конфигурацията вече е била завършена
-if [[ -f "$SETUP_ENV_FILE" ]] && sudo grep -q '^SETUP_VPS_BASE_DONE=✅' "$SETUP_ENV_FILE"; then
+if [[ -f "$SETUP_ENV_FILE" ]] && sudo grep -q '^SETUP_VPS_BASE_STATUS=✅' "$SETUP_ENV_FILE"; then
   echo "🛑 Този скрипт вече е бил изпълнен на този сървър."
   echo "   Повторно изпълнение не се разрешава за предпазване от сбой на системата."
 
