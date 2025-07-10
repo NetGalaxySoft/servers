@@ -855,23 +855,20 @@ while true; do
     RESULT_SSH_PORT="❌"
     echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
     exit 0
-
   elif [[ -z "$SSH_PORT_INPUT" ]]; then
     SSH_PORT="$CURRENT_SSH_PORT"
     echo "✅ SSH портът ще остане: $SSH_PORT"
     break
-
   elif [[ "$SSH_PORT_INPUT" =~ ^[0-9]+$ ]] && (( SSH_PORT_INPUT >= 1024 && SSH_PORT_INPUT <= 65535 )); then
     SSH_PORT="$SSH_PORT_INPUT"
     echo "✅ Нов SSH порт ще бъде: $SSH_PORT"
     break
-
   else
     echo "❌ Невалиден номер на порт. Допустими стойности: 1024–65535. Опитайте отново."
   fi
 done
 
-# Промяна в sshd_config, ако портът е различен от текущия
+# Промяна в sshd_config, ако портът е различен
 if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
   echo "🔧 Актуализиране на /etc/ssh/sshd_config..."
 
@@ -885,13 +882,6 @@ if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
   if sudo systemctl restart ssh; then
     echo "✅ SSH портът е променен успешно на $SSH_PORT и услугата е рестартирана."
     RESULT_SSH_PORT="✅"
-
-    # 🔓 Добавяне на новия порт във UFW (ако е активен)
-    if sudo ufw status | grep -qw active; then
-      echo "🛡️ Добавяне на новия SSH порт ($SSH_PORT) към UFW..."
-      sudo ufw allow "$SSH_PORT"/tcp comment 'Allow SSH custom port'
-    fi
-
   else
     echo "❌ Грешка при рестартиране на SSH! Провери конфигурацията ръчно!"
     RESULT_SSH_PORT="❌"
@@ -901,6 +891,12 @@ if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
 else
   echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
   RESULT_SSH_PORT="✅"
+fi
+
+# 🔓 Добавяне на SSH порта към UFW (винаги)
+if sudo ufw status | grep -qw active; then
+  echo "🛡️ Уверяване, че SSH портът ($SSH_PORT) е отворен във UFW..."
+  sudo ufw allow "$SSH_PORT"/tcp comment 'Allow SSH port'
 fi
 
 # 📝 Записване на резултатите
