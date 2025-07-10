@@ -548,14 +548,14 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
   echo "[8] СЪЗДАВАНЕ НА НОВ АДМИНИСТРАТОРСКИ ПРОФИЛ"
   echo "-------------------------------------------------------------------------"
   echo "🔐 По съображения за сигурност, root достъпът чрез SSH ще бъде забранен."
-  echo "✅ Ще създадем нов потребител с root права за административна работа."
+  echo "✅ Ще използваме или създадем потребител с root права за администрация."
   echo ""
 
   RESULT_ADMIN_USER="❔"
 
   # Въвеждане на име
   while true; do
-    printf "👉 Въведете потребителско име за новия администратор (мин. 3 символа или q за изход): "
+    printf "👉 Въведете потребителско име за администратор (мин. 5 символа или 'q' за изход): "
     read ADMIN_USER
 
     if [[ "$ADMIN_USER" == "q" || "$ADMIN_USER" == "Q" ]]; then
@@ -568,8 +568,8 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
       continue
     fi
 
-    if [[ ${#ADMIN_USER} -lt 3 ]]; then
-      echo "❌ Потребителското име трябва да бъде поне 3 символа."
+    if [[ ${#ADMIN_USER} -lt 5 ]]; then
+      echo "❌ Потребителското име трябва да бъде поне 5 символа."
       continue
     fi
 
@@ -579,14 +579,34 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
     fi
 
     if id "$ADMIN_USER" &>/dev/null; then
-      echo "⚠️ Потребителят '$ADMIN_USER' вече съществува. Изберете друго име."
-      continue
+      echo "⚠️ Потребителят '$ADMIN_USER' вече съществува."
+      echo ""
+      while true; do
+        read -p "❓ Искате ли да използвате съществуващия '$ADMIN_USER' като администратор? (y/n): " use_existing
+        if [[ "$use_existing" =~ ^[Yy]$ ]]; then
+          sudo usermod -aG sudo "$ADMIN_USER"
+          echo "🔑 Копиране на SSH ключовете от root в ~/.ssh на $ADMIN_USER..."
+          sudo mkdir -p /home/"$ADMIN_USER"/.ssh
+          sudo cp -r /root/.ssh/* /home/"$ADMIN_USER"/.ssh/ 2>/dev/null
+          sudo chown -R "$ADMIN_USER":"$ADMIN_USER" /home/"$ADMIN_USER"/.ssh
+          sudo chmod 700 /home/"$ADMIN_USER"/.ssh
+          sudo chmod 600 /home/"$ADMIN_USER"/.ssh/*
+          echo "✅ Съществуващият потребител '$ADMIN_USER' получи root права и SSH ключовете са копирани."
+          RESULT_ADMIN_USER="✅"
+          break 2
+        elif [[ "$use_existing" =~ ^[Nn]$ ]]; then
+          echo "🔁 Моля, въведете ново потребителско име."
+          break
+        else
+          echo "❌ Моля, отговорете с 'y' или 'n'."
+        fi
+      done
+    else
+      break
     fi
-
-    break
   done
 
-  # Инструкции за парола
+  # --- Нова парола ---
   echo "🛡️ Паролата трябва да отговаря на следните условия:"
   echo "   - Минимум 8 символа"
   echo "   - Поне една латинска малка буква (a-z)"
@@ -595,7 +615,6 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
   echo "❗ Внимание: Проверете на какъв език въвеждате, ако използвате специфични букви (напр. кирилица)"
   echo ""
 
-  # Въвеждане и потвърждение на парола
   while true; do
     printf "🔑 Въведете парола за %s: " "$ADMIN_USER"
     read -s PASSWORD_1
@@ -617,8 +636,7 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
     if LC_ALL=C grep -q '[^ -~]' <<< "$PASSWORD_1"; then
       echo "⚠️ Внимание: В паролата са открити символи извън латиницата."
       while true; do
-        printf "❓ Искате ли да продължите с тази парола? (y / n): "
-        read -r confirm_charset
+        read -p "❓ Искате ли да продължите с тази парола? (y/n): " confirm_charset
         if [[ "$confirm_charset" =~ ^[Yy]$ ]]; then
           break
         elif [[ "$confirm_charset" =~ ^[Nn]$ || -z "$confirm_charset" ]]; then
@@ -640,21 +658,44 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
     fi
   done
 
-  # Създаване на потребител
-  echo "👤 Създаване на потребител '$ADMIN_USER'..."
+  # --- Създаване на нов потребител ---
+  echo "👤 Създаване на нов потребител '$ADMIN_USER'..."
   if sudo useradd -m -s /bin/bash "$ADMIN_USER" && \
      echo "$ADMIN_USER:$PASSWORD_1" | sudo chpasswd && \
      sudo usermod -aG sudo "$ADMIN_USER"; then
     echo "✅ Потребителят '$ADMIN_USER' беше създаден с root права."
+    echo "🔑 Копиране на SSH ключовете от root в ~/.ssh на $ADMIN_USER..."
+    sudo mkdir -p /home/"$ADMIN_USER"/.ssh
+    sudo cp -r /root/.ssh/* /home/"$ADMIN_USER"/.ssh/ 2>/dev/null
+    sudo chown -R "$ADMIN_USER":"$ADMIN_USER" /home/"$ADMIN_USER"/.ssh
+    sudo chmod 700 /home/"$ADMIN_USER"/.ssh
+    sudo chmod 600 /home/"$ADMIN_USER"/.ssh/*
     RESULT_ADMIN_USER="✅"
   else
     echo "❌ Грешка при създаване на потребител."
-
-    # 📝 Записване на резултата в .setup.env за обобщението
     RESULT_ADMIN_USER="❌"
     echo "RESULT_ADMIN_USER=\"$RESULT_ADMIN_USER\"" >> .setup.env
     return 1 2>/dev/null || exit 1
   fi
+
+  # Записване в .setup.env
+  echo "ADMIN_USER=\"$ADMIN_USER\"" >> .setup.env
+  echo "RESULT_ADMIN_USER=\"$RESULT_ADMIN_USER\"" >> .setup.env
+
+  # Премахване от списъка
+  sed -i "/^$MODULE_NAME$/d" todo.modules
+  echo ""
+  echo ""
+
+else
+  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
+  echo ""
+fi
+echo ""
+echo ""
+
+exit 0
+
 
   # Забрана за root вход чрез SSH
   if sudo grep -q "^PermitRootLogin" /etc/ssh/sshd_config; then
@@ -807,7 +848,7 @@ echo ""
 echo ""
 
 
-exit 0
+
 
 # === [МОДУЛ 10] TRUSTED МРЕЖИ И АКТИВИРАНЕ НА UFW ============================
 MODULE_NAME="mod_10_firewall_trusted"
