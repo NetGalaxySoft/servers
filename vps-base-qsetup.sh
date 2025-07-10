@@ -889,17 +889,26 @@ else
   RESULT_SSH_PORT="✅"
 fi
 
-# 🔓 Добавяне на SSH порта към UFW (винаги)
-if sudo ufw status | grep -qw active; then
-  echo "🛡️ Уверяване, че SSH портът ($SSH_PORT) е отворен във UFW..."
-  sudo ufw allow "$SSH_PORT"/tcp comment 'Allow SSH port'
+# 🔓 Конфигурация на UFW за новия SSH порт (в неактивен режим)
+echo "🛡️ Настройка на UFW (в неактивен режим)..."
 
-  # 🚫 Затваряне на порт 22, ако новият порт е различен
-  if [[ "$SSH_PORT" != "22" ]]; then
-    if sudo ufw status numbered | grep -q "22/tcp"; then
-      echo "🚫 Затваряне на порт 22 (стандартен SSH порт)..."
-      sudo ufw delete allow 22/tcp
-    fi
+# Отваряне на новия SSH порт (ако още не е добавен)
+if ! sudo ufw status | grep -q "$SSH_PORT/tcp"; then
+  echo "➕ Добавяне на правило за SSH порт $SSH_PORT..."
+  sudo ufw allow "$SSH_PORT"/tcp comment 'Allow SSH port'
+else
+  echo "ℹ️ Порт $SSH_PORT вече присъства в UFW."
+fi
+
+# Затваряне на порт 22, ако е различен от новия порт
+if [[ "$SSH_PORT" != "22" ]]; then
+  echo "🔍 Проверка за правило за порт 22..."
+  UFW_RULE_NUM=$(sudo ufw status numbered | grep '22/tcp' | awk -F'[][]' '{print $2}' | head -n 1)
+  if [[ -n "$UFW_RULE_NUM" ]]; then
+    echo "🚫 Премахване на правило за порт 22..."
+    sudo ufw delete "$UFW_RULE_NUM"
+  else
+    echo "ℹ️ Няма правило за порт 22, което да се премахне."
   fi
 fi
 
@@ -909,7 +918,6 @@ echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /d
 
 # ✅ Отбелязване като изпълнен
 echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
-fi
 echo ""
 echo ""
 
