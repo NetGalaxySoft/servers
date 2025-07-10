@@ -918,6 +918,7 @@ echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /d
 
 # ✅ Отбелязване като изпълнен
 echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
+fi
 echo ""
 echo ""
 
