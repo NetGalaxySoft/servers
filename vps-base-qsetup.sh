@@ -897,6 +897,14 @@ fi
 if sudo ufw status | grep -qw active; then
   echo "🛡️ Уверяване, че SSH портът ($SSH_PORT) е отворен във UFW..."
   sudo ufw allow "$SSH_PORT"/tcp comment 'Allow SSH port'
+
+  # 🚫 Затваряне на порт 22, ако новият порт е различен
+  if [[ "$SSH_PORT" != "22" ]]; then
+    if sudo ufw status numbered | grep -q "22/tcp"; then
+      echo "🚫 Затваряне на порт 22 (стандартен SSH порт)..."
+      sudo ufw delete allow 22/tcp
+    fi
+  fi
 fi
 
 # 📝 Записване на резултатите
