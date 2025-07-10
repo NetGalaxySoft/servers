@@ -645,14 +645,14 @@ elif command -v iptables >/dev/null 2>&1; then
   sudo apt-get remove -y iptables
 fi
 
-# --- Инсталиране на UFW, ако липсва ---
-if ! dpkg -s ufw >/dev/null 2>&1; then
-  echo "📦 UFW не е инсталиран. Инсталираме..."
+# --- Инсталиране на UFW, ако липсва или не е достъпен ---
+if ! command -v ufw >/dev/null 2>&1 || [[ ! -f "$(command -v ufw)" ]]; then
+  echo "📦 UFW не е инсталиран или не е достъпен. Инсталираме..."
   sudo apt-get update
   sudo apt-get install -y ufw
   INSTALL_SUCCESS=$?
 else
-  echo "✅ UFW вече е инсталиран."
+  echo "✅ UFW е инсталиран и достъпен."
   INSTALL_SUCCESS=0
 fi
 
