@@ -885,26 +885,34 @@ if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
   if sudo systemctl restart ssh; then
     echo "✅ SSH портът е променен успешно на $SSH_PORT и услугата е рестартирана."
     RESULT_SSH_PORT="✅"
+
+    # 🔓 Добавяне на новия порт във UFW (ако е активен)
+    if sudo ufw status | grep -qw active; then
+      echo "🛡️ Добавяне на новия SSH порт ($SSH_PORT) към UFW..."
+      sudo ufw allow "$SSH_PORT"/tcp comment 'Allow SSH custom port'
+    fi
+
   else
     echo "❌ Грешка при рестартиране на SSH! Провери конфигурацията ръчно!"
     RESULT_SSH_PORT="❌"
     echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
     return 1 2>/dev/null || exit 1
   fi
-  else
-    echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
-    RESULT_SSH_PORT="✅"
-  fi
+else
+  echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
+  RESULT_SSH_PORT="✅"
+fi
 
-  # 📝 Записване на резултатите
-  echo "SSH_PORT=\"$SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+# 📝 Записване на резултатите
+echo "SSH_PORT=\"$SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-  # ✅ Отбелязване като изпълнен
-  echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
+# ✅ Отбелязване като изпълнен
+echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
 fi
 echo ""
 echo ""
+
 
 # === [МОДУЛ 11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА И РЕСТАРТ ========================
 echo "[11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА И РЕСТАРТ..."
