@@ -81,7 +81,6 @@ else
       if [[ -f "$0" ]]; then
         sudo rm -- "$0"
       fi
-
       exit 0
     fi
   fi
