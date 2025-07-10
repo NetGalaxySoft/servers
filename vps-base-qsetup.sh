@@ -454,7 +454,6 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
-  return 0 2>/dev/null || exit 0
 else
 
 echo "🔐 По съображения за сигурност, root достъпът чрез SSH ще бъде забранен."
@@ -628,7 +627,6 @@ RESULT_FIREWALL_SETUP="❔"
 if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
-  return 0 2>/dev/null || exit 0
 else
 
 FIREWALL_SYSTEM="none"
@@ -730,7 +728,6 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е изпълнен)..."
   echo ""
-  return 0 2>/dev/null || exit 0
 else
 
 RESULT_TRUSTED_NETS="❔"
@@ -824,7 +821,6 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е изпълнен)..."
   echo ""
-  return 0 2>/dev/null || exit 0
 else
 
 RESULT_SSH_PORT="❔"
