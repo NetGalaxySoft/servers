@@ -56,103 +56,104 @@ echo -e " НАЧАЛНА КОНФИГУРАЦИЯ НА ОТДАЛЕЧЕН СЪР
 echo -e "==========================================\e[0m"
 echo ""
 
-# === ИНИЦИАЛИЗАЦИЯ НА СПИСЪК С МОДУЛИ ======================================
-MODULES_FILE="todo.modules"
+# === [0] ИНИЦИАЛИЗАЦИЯ НА МАРКЕРНИТЕ ФАЙЛОВЕ НА ПЛАТФОРМАТА ================
 
-# mod_01_ip_check             # Въвеждане и проверка на IP адрес
-# mod_02_fqdn_config          # Конфигурация на FQDN (hostname)
-# mod_03_system_update        # Обновяване на системата
-# mod_04_base_tools           # Инсталиране на основни инструменти
-# mod_05_locales              # Настройка на локализации
-# mod_06_timezone_ntp         # Времева зона и времева синхронизация
-# mod_07_ssh_port             # Промяна на SSH порта
-# mod_08_admin_user           # Създаване на администраторски потребител
-# mod_09_firewall_setup       # Инсталиране и настройка на защитна стена (UFW)
-# mod_10_firewall_trusted     # Добавяне на доверени мрежи (VPN/LAN)
-# mod_11_summary_reboot       # Обобщение, активиране на UFW и рестарт
+NETGALAXY_DIR="/etc/netgalaxy"
+MODULES_FILE="$NETGALAXY_DIR/todo.modules"
+SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 
-if [[ ! -f "$MODULES_FILE" ]]; then
-  echo "⏳ Създаване на файл със списък на модулите ($MODULES_FILE)..."
-
-  cat > "$MODULES_FILE" <<EOF
-mod_01_ip_check
-mod_02_fqdn_config
-mod_03_system_update
-mod_04_base_tools
-mod_05_locales
-mod_06_timezone_ntp
-mod_07_ssh_port
-mod_08_admin_user
-mod_09_firewall_setup
-mod_10_firewall_trusted
-mod_11_summary_reboot
-EOF
-
-  echo "✅ Списъкът с модули беше създаден успешно."
+# Създаване на директорията, ако не съществува
+if [[ ! -d "$NETGALAXY_DIR" ]]; then
+  echo "📁 Създаване на директория за NetGalaxy: $NETGALAXY_DIR"
+  sudo mkdir -p "$NETGALAXY_DIR"
+  sudo chmod 755 "$NETGALAXY_DIR"
+  echo "✅ Директорията беше създадена успешно."
 else
-  echo "ℹ️ Открит съществуващ файл със списък на модулите: $MODULES_FILE"
-  echo "   Скриптът ще използва текущото съдържание и ще изпълнява само наличните модули."
+  echo "ℹ️ Открита съществуваща директория: $NETGALAXY_DIR"
+fi
+
+# Създаване на файла todo.modules, ако не съществува
+if [[ ! -f "$MODULES_FILE" ]]; then
+  echo "📝 Създаване на лог файл за изпълнени модули ($MODULES_FILE)..."
+  sudo touch "$MODULES_FILE"
+  sudo chmod 644 "$MODULES_FILE"
+  echo "✅ Файлът todo.modules беше създаден успешно (празен)."
+else
+  echo "ℹ️ Открит съществуващ файл todo.modules – ще се добавят нови редове при изпълнение на модулите."
+fi
+
+# Създаване на setup.env, ако не съществува
+if [[ ! -f "$SETUP_ENV_FILE" ]]; then
+  echo "⚙️ Създаване на конфигурационен файл setup.env..."
+  sudo touch "$SETUP_ENV_FILE"
+  sudo chmod 600 "$SETUP_ENV_FILE"
+  echo "# NetGalaxy Server Setup Metadata" | sudo tee "$SETUP_ENV_FILE" > /dev/null
+  echo "✅ setup.env беше създаден успешно."
+else
+  echo "ℹ️ Открит съществуващ файл setup.env – ще бъде допълван при нужда."
 fi
 echo ""
 echo ""
 
 
 # === [МОДУЛ 1] ВЪВЕЖДАНЕ И ПРОВЕРКА НА IP АДРЕС НА СЪРВЪРА ====================
+
 MODULE_NAME="mod_01_ip_check"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
-if grep -q "^$MODULE_NAME\b" todo.modules; then
-
-  echo "[1] ВЪВЕЖДАНЕ И ПРОВЕРКА НА IP АДРЕС НА СЪРВЪРА..."
-  echo "-------------------------------------------------------------------------"
+# Проверка дали модулът вече е изпълнен
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
+  exit 0
+fi
 
-  while true; do
-    printf "🌐 Въведете публичния IP адрес на сървъра (или 'q' за изход): "
-    read SERVER_IP
+echo "[1] ВЪВЕЖДАНЕ И ПРОВЕРКА НА IP АДРЕС НА СЪРВЪРА..."
+echo "-------------------------------------------------------------------------"
+echo ""
 
-    if [[ "$SERVER_IP" == "q" || "$SERVER_IP" == "Q" ]]; then
-      echo "❎ Скриптът беше прекратен от потребителя."
+while true; do
+  printf "🌐 Въведете публичния IP адрес на сървъра (или 'q' за изход): "
+  read SERVER_IP
+
+  if [[ "$SERVER_IP" == "q" || "$SERVER_IP" == "Q" ]]; then
+    echo "❎ Скриптът беше прекратен от потребителя."
+    exit 0
+  fi
+
+  if ! [[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "❌ Невалиден IP адрес. Моля, въведете валиден IPv4 адрес (напр. 192.168.1.100)."
+    continue
+  fi
+
+  ACTUAL_IP=$(curl -s ifconfig.me)
+
+  if [[ "$ACTUAL_IP" != "$SERVER_IP" ]]; then
+    echo ""
+    echo "🚫 Скриптът не е стартиран на сървъра с въведения IP адрес."
+    echo "⚠️ Несъответствие! Въведеният IP не отговаря на реалния IP адрес на машината."
+    echo ""
+    read -p "🔁 Искате ли да опитате отново? [Enter за ДА, 'q' за изход]: " retry
+    if [[ "$retry" == "q" || "$retry" == "Q" ]]; then
+      echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
       exit 0
     fi
+    echo ""
+  else
+    echo "✅ Потвърдено: скриптът е стартиран на сървъра с IP $SERVER_IP."
+    break
+  fi
+done
 
-    if ! [[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      echo "❌ Невалиден IP адрес. Моля, въведете валиден IPv4 адрес (напр. 192.168.1.100)."
-      continue
-    fi
+# ✅ Записване на IP адреса в setup.env
+echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-    ACTUAL_IP=$(curl -s ifconfig.me)
-
-    if [[ "$ACTUAL_IP" != "$SERVER_IP" ]]; then
-      echo ""
-      echo "🚫 Скриптът не е стартиран на сървъра с въведения IP адрес."
-      echo "⚠️ Несъответствие! Въведеният IP не отговаря на реалния IP адрес на машината."
-      echo ""
-      read -p "🔁 Искате ли да опитате отново? [Enter за ДА, 'q' за изход]: " retry
-      if [[ "$retry" == "q" || "$retry" == "Q" ]]; then
-        echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
-        exit 0
-      fi
-      echo ""
-    else
-      echo "✅ Потвърдено: скриптът е стартиран на сървъра с IP $SERVER_IP."
-      break
-    fi
-  done
-
-  # Запис в .setup.env
-  echo "SERVER_IP=\"$SERVER_IP\"" >> .setup.env
-
-  # 🔚 Премахване от списъка:
-  sed -i "/^$MODULE_NAME$/d" todo.modules
-  echo ""
-  echo ""
-
-else
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  echo ""
-fi
+# ✅ Отбелязване на изпълнен модул
+echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
 echo ""
 echo ""
+
 
 # === [МОДУЛ 2] КОНФИГУРАЦИЯ НА СЪРВЪРНИЯ ДОМЕЙН (FQDN) ========================
 MODULE_NAME="mod_02_fqdn_config"
@@ -230,57 +231,54 @@ echo ""
 
 # === [МОДУЛ 3] ОБНОВЯВАНЕ НА СИСТЕМАТА ========================================
 MODULE_NAME="mod_03_system_update"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
-if grep -q "^$MODULE_NAME\b" todo.modules; then
-
-  echo "[3] ОБНОВЯВАНЕ НА СИСТЕМАТА..."
-  echo "-------------------------------------------------------------------------"
+# Проверка дали модулът вече е изпълнен
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
+  exit 0
+fi
 
-  # Изчакване, ако системата е заключена от друг apt процес
-  MAX_WAIT=60
-  COUNTER=0
-  echo "⏳ Проверка за заетост на пакетната система..."
-  while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-    sleep 1
-    ((COUNTER++))
-    if ((COUNTER >= MAX_WAIT)); then
-      echo "❌ Пакетната система е заключена от друг процес повече от ${MAX_WAIT} секунди."
-      echo "   Моля, опитайте отново по-късно."
+echo "[3] ОБНОВЯВАНЕ НА СИСТЕМАТА..."
+echo "-------------------------------------------------------------------------"
+echo ""
 
-      # 📝 Записване на резултата в .setup.env за обобщението
-      RESULT_SYSTEM_UPDATE="❌"
-      echo "RESULT_SYSTEM_UPDATE=❌" >> .setup.env
+# Изчакване, ако системата е заключена от друг apt процес
+MAX_WAIT=60
+COUNTER=0
+echo "⏳ Проверка за заетост на пакетната система..."
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+  sleep 1
+  ((COUNTER++))
+  if ((COUNTER >= MAX_WAIT)); then
+    echo "❌ Пакетната система е заключена от друг процес повече от ${MAX_WAIT} секунди."
+    echo "   Моля, опитайте отново по-късно."
 
-      return 1 2>/dev/null || exit 1
-    fi
-  done
-
-  # Изпълнение на обновяването
-  if sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get autoremove -y; then
-    echo "✅ Системата е успешно обновена."
-
-    # 📝 Записване на резултата в .setup.env за обобщението
-    RESULT_SYSTEM_UPDATE="✅"
-    echo "RESULT_SYSTEM_UPDATE=✅" >> .setup.env
-  else
-    echo "❌ Възникна грешка при обновяване на системата. Проверете горните съобщения."
-
-    # 📝 Записване на резултата в .setup.env за обобщението
     RESULT_SYSTEM_UPDATE="❌"
-    echo "RESULT_SYSTEM_UPDATE=❌" >> .setup.env
+    echo "RESULT_SYSTEM_UPDATE=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
     return 1 2>/dev/null || exit 1
   fi
+done
 
-  # Премахване от списъка
-  sed -i "/^$MODULE_NAME$/d" todo.modules
-  echo ""
-  echo ""
+# Изпълнение на обновяването
+if sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get autoremove -y; then
+  echo "✅ Системата е успешно обновена."
 
+  RESULT_SYSTEM_UPDATE="✅"
+  echo "RESULT_SYSTEM_UPDATE=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+
+  # ✅ Отбелязване на изпълнен модул
+  echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
 else
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  echo ""
+  echo "❌ Възникна грешка при обновяване на системата. Проверете горните съобщения."
+
+  RESULT_SYSTEM_UPDATE="❌"
+  echo "RESULT_SYSTEM_UPDATE=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+
+  return 1 2>/dev/null || exit 1
 fi
 echo ""
 echo ""
@@ -288,39 +286,37 @@ echo ""
 
 # === [МОДУЛ 4] ИНСТАЛИРАНЕ НА ОСНОВНИ ИНСТРУМЕНТИ =============================
 MODULE_NAME="mod_04_base_tools"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
-if grep -q "^$MODULE_NAME\b" todo.modules; then
-
-  echo "[4] ИНСТАЛИРАНЕ НА ОСНОВНИ ИНСТРУМЕНТИ..."
-  echo "-------------------------------------------------------------------------"
+# Проверка дали модулът вече е изпълнен
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
+  exit 0
+fi
 
-  REQUIRED_PACKAGES=(nano unzip git curl wget net-tools htop)
+echo "[4] ИНСТАЛИРАНЕ НА ОСНОВНИ ИНСТРУМЕНТИ..."
+echo "-------------------------------------------------------------------------"
+echo ""
 
-  if sudo apt-get install -y "${REQUIRED_PACKAGES[@]}"; then
-    echo "✅ Основните инструменти бяха инсталирани успешно."
+REQUIRED_PACKAGES=(nano unzip git curl wget net-tools htop)
 
-    # 📝 Записване на резултата в .setup.env за обобщението
-    RESULT_BASE_TOOLS="✅"
-    echo "RESULT_BASE_TOOLS=✅" >> .setup.env
-  else
-    echo "❌ Възникна грешка при инсталирането на основните инструменти."
+if sudo apt-get install -y "${REQUIRED_PACKAGES[@]}"; then
+  echo "✅ Основните инструменти бяха инсталирани успешно."
 
-    # 📝 Записване на резултата в .setup.env за обобщението
-    RESULT_BASE_TOOLS="❌"
-    echo "RESULT_BASE_TOOLS=❌" >> .setup.env
+  RESULT_BASE_TOOLS="✅"
+  echo "RESULT_BASE_TOOLS=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-    return 1 2>/dev/null || exit 1
-  fi
-
-  # Премахване от списъка
-  sed -i "/^$MODULE_NAME$/d" todo.modules
-  echo ""
-  echo ""
-
+  # ✅ Отбелязване на изпълнен модул
+  echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
 else
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  echo ""
+  echo "❌ Възникна грешка при инсталирането на основните инструменти."
+
+  RESULT_BASE_TOOLS="❌"
+  echo "RESULT_BASE_TOOLS=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+
+  return 1 2>/dev/null || exit 1
 fi
 echo ""
 echo ""
@@ -328,52 +324,54 @@ echo ""
 
 # === [МОДУЛ 5] НАСТРОЙКА НА ЛОКАЛИЗАЦИИ =======================================
 MODULE_NAME="mod_05_locales"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
-if grep -q "^$MODULE_NAME\b" todo.modules; then
-
-  echo "[5] НАСТРОЙКА НА ЛОКАЛИЗАЦИИ..."
-  echo "-------------------------------------------------------------------------"
+# Проверка дали модулът вече е изпълнен
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
+  exit 0
+fi
 
-  RESULT_LOCALES="❔"
+echo "[5] НАСТРОЙКА НА ЛОКАЛИЗАЦИИ..."
+echo "-------------------------------------------------------------------------"
+echo ""
 
-  echo "🌐 Инсталиране на езикови пакети (BG, RU)..."
-  if sudo apt-get install -y language-pack-bg language-pack-ru; then
-    echo "✅ Езиковите пакети са инсталирани."
-  else
-    echo "⚠️ Неуспешна инсталация на езикови пакети. Продължаваме."
-    RESULT_LOCALES="⚠️"
-  fi
+RESULT_LOCALES="❔"
 
-  echo "🔧 Активиране на UTF-8 локали в /etc/locale.gen..."
-  sudo sed -i '/^# *bg_BG.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
-  sudo sed -i '/^# *ru_RU.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
-  sudo sed -i '/^# *en_US.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
-
-  grep -qxF 'bg_BG.UTF-8 UTF-8' /etc/locale.gen || echo 'bg_BG.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
-  grep -qxF 'ru_RU.UTF-8 UTF-8' /etc/locale.gen || echo 'ru_RU.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
-  grep -qxF 'en_US.UTF-8 UTF-8' /etc/locale.gen || echo 'en_US.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
-
-  echo "⚙️ Генериране на UTF-8 локали (задължително за съвместимост с NetGalaxy)..."
-  if sudo locale-gen && sudo update-locale; then
-    echo "✅ Локалите са успешно конфигурирани."
-    [[ "$RESULT_LOCALES" == "❔" ]] && RESULT_LOCALES="✅"
-  else
-    echo "❌ Грешка при генериране на локали."
-    RESULT_LOCALES="❌"
-  fi
-
-  # 📝 Записване на резултата в .setup.env за обобщението
-  echo "RESULT_LOCALES=\"$RESULT_LOCALES\"" >> .setup.env
-
-  # Премахване от списъка
-  sed -i "/^$MODULE_NAME$/d" todo.modules
-  echo ""
-  echo ""
-
+echo "🌐 Инсталиране на езикови пакети (BG, RU)..."
+if sudo apt-get install -y language-pack-bg language-pack-ru; then
+  echo "✅ Езиковите пакети са инсталирани."
 else
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  echo ""
+  echo "⚠️ Неуспешна инсталация на езикови пакети. Продължаваме."
+  RESULT_LOCALES="⚠️"
+fi
+
+echo "🔧 Активиране на UTF-8 локали в /etc/locale.gen..."
+sudo sed -i '/^# *bg_BG.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
+sudo sed -i '/^# *ru_RU.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
+sudo sed -i '/^# *en_US.UTF-8 UTF-8/s/^# *//g' /etc/locale.gen
+
+grep -qxF 'bg_BG.UTF-8 UTF-8' /etc/locale.gen || echo 'bg_BG.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen > /dev/null
+grep -qxF 'ru_RU.UTF-8 UTF-8' /etc/locale.gen || echo 'ru_RU.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen > /dev/null
+grep -qxF 'en_US.UTF-8 UTF-8' /etc/locale.gen || echo 'en_US.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen > /dev/null
+
+echo "⚙️ Генериране на UTF-8 локали (задължително за съвместимост с NetGalaxy)..."
+if sudo locale-gen && sudo update-locale; then
+  echo "✅ Локалите са успешно конфигурирани."
+  [[ "$RESULT_LOCALES" == "❔" ]] && RESULT_LOCALES="✅"
+else
+  echo "❌ Грешка при генериране на локали."
+  RESULT_LOCALES="❌"
+fi
+
+# 📝 Записване на резултата в setup.env
+echo "RESULT_LOCALES=\"$RESULT_LOCALES\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+
+# ✅ Отбелязване на изпълнен модул (ако поне езиците са инсталирани)
+if [[ "$RESULT_LOCALES" == "✅" || "$RESULT_LOCALES" == "⚠️" ]]; then
+  echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
 fi
 echo ""
 echo ""
@@ -381,44 +379,47 @@ echo ""
 
 # === [МОДУЛ 6] ВРЕМЕВА ЗОНА И NTP СИНХРОНИЗАЦИЯ ================================
 MODULE_NAME="mod_06_timezone_ntp"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
-if grep -q "^$MODULE_NAME\b" todo.modules; then
-
-  echo "[6] НАСТРОЙКА НА ВРЕМЕВА ЗОНА И NTP СИНХРОНИЗАЦИЯ..."
-  echo "-------------------------------------------------------------------------"
+# Проверка дали модулът вече е изпълнен
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
+  exit 0
+fi
 
-  RESULT_TIMEZONE_NTP="❔"
+echo "[6] НАСТРОЙКА НА ВРЕМЕВА ЗОНА И NTP СИНХРОНИЗАЦИЯ..."
+echo "-------------------------------------------------------------------------"
+echo ""
 
-  echo "🌍 Задаване на времева зона на UTC (унифициран стандарт в мрежата NetGalaxy)..."
-  if sudo timedatectl set-timezone UTC; then
-    echo "✅ Времевата зона е зададена на UTC."
-  else
-    echo "❌ Неуспешна смяна на времевата зона."
+RESULT_TIMEZONE_NTP="❔"
 
-    # 📝 Записване на резултата в .setup.env за обобщението
-    RESULT_TIMEZONE_NTP="❌"
-    echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" >> .setup.env
-    return 1 2>/dev/null || exit 1
-  fi
+echo "🌍 Задаване на времева зона на UTC (унифициран стандарт в мрежата NetGalaxy)..."
+if sudo timedatectl set-timezone UTC; then
+  echo "✅ Времевата зона е зададена на UTC."
+else
+  echo "❌ Неуспешна смяна на времевата зона."
+  RESULT_TIMEZONE_NTP="❌"
+  echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  return 1 2>/dev/null || exit 1
+fi
 
-  echo "🔧 Изключване на други NTP услуги..."
-  sudo systemctl stop ntpd 2>/dev/null && sudo systemctl disable ntpd 2>/dev/null
-  sudo systemctl stop systemd-timesyncd 2>/dev/null && sudo systemctl disable systemd-timesyncd 2>/dev/null
+echo "🔧 Изключване на други NTP услуги..."
+sudo systemctl stop ntpd 2>/dev/null && sudo systemctl disable ntpd 2>/dev/null
+sudo systemctl stop systemd-timesyncd 2>/dev/null && sudo systemctl disable systemd-timesyncd 2>/dev/null
 
-  echo "📦 Инсталиране и конфигуриране на chrony..."
-  if ! sudo apt-get install -y chrony; then
-    echo "❌ Неуспешна инсталация на chrony."
+echo "📦 Инсталиране и конфигуриране на chrony..."
+if ! sudo apt-get install -y chrony; then
+  echo "❌ Неуспешна инсталация на chrony."
+  RESULT_TIMEZONE_NTP="❌"
+  echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  return 1 2>/dev/null || exit 1
+fi
 
-    # 📝 Записване на резултата в .setup.env за обобщението
-    RESULT_TIMEZONE_NTP="❌"
-    echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" >> .setup.env
-    return 1 2>/dev/null || exit 1
-  fi
-
-  NTP_SERVERS=(0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org)
-  echo "⚙️ Конфигуриране на /etc/chrony/chrony.conf..."
-  echo -e "server ${NTP_SERVERS[0]} iburst
+NTP_SERVERS=(0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org)
+echo "⚙️ Конфигуриране на /etc/chrony/chrony.conf..."
+echo -e "server ${NTP_SERVERS[0]} iburst
 server ${NTP_SERVERS[1]} iburst
 server ${NTP_SERVERS[2]} iburst
 server ${NTP_SERVERS[3]} iburst
@@ -428,237 +429,154 @@ makestep 1.0 3
 driftfile /var/lib/chrony/drift
 logdir /var/log/chrony" | sudo tee /etc/chrony/chrony.conf > /dev/null
 
-  echo "🔄 Рестартиране на услугата..."
-  sudo systemctl restart chrony
-  sudo systemctl enable chrony
+echo "🔄 Рестартиране на услугата..."
+sudo systemctl restart chrony
+sudo systemctl enable chrony
 
-  echo "🔎 Проверка на синхронизацията..."
-  timedatectl | grep 'Time zone'
-  echo "NTP статус:"
-  chronyc tracking | grep -E 'Stratum|System time'
-  chronyc sources | grep '^\^\*'
+echo "🔎 Проверка на синхронизацията..."
+timedatectl | grep 'Time zone'
+echo "NTP статус:"
+chronyc tracking | grep -E 'Stratum|System time'
+chronyc sources | grep '^\^\*'
 
-  echo "✅ Времевата зона и синхронизация са успешно настроени."
-  RESULT_TIMEZONE_NTP="✅"
+echo "✅ Времевата зона и синхронизация са успешно настроени."
+RESULT_TIMEZONE_NTP="✅"
 
-  # 📝 Записване на резултата в .setup.env за обобщението
-  echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" >> .setup.env
+# 📝 Записване на резултата в setup.env
+echo "RESULT_TIMEZONE_NTP=\"$RESULT_TIMEZONE_NTP\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-  # Премахване от списъка
-  sed -i "/^$MODULE_NAME$/d" todo.modules
+# ✅ Отбелязване на изпълнен модул
+echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
+echo ""
+echo ""
+
+
+# === [МОДУЛ 7] СЪЗДАВАНЕ НА НОВ АДМИНИСТРАТОРСКИ ПРОФИЛ ========================
+MODULE_NAME="mod_07_admin_user"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+
+# Проверка дали модулът вече е изпълнен
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
-  echo ""
-
-else
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  echo ""
+  exit 0
 fi
+
+echo "[7] СЪЗДАВАНЕ НА НОВ АДМИНИСТРАТОРСКИ ПРОФИЛ"
+echo "-------------------------------------------------------------------------"
+echo "🔐 По съображения за сигурност, root достъпът чрез SSH ще бъде забранен."
+echo "✅ Ще използваме или създадем потребител с root права за администрация."
 echo ""
-echo ""
 
+RESULT_ADMIN_USER="❔"
 
-# === [МОДУЛ 7] ПРОМЯНА НА SSH ПОРТА ============================================
-MODULE_NAME="mod_07_ssh_port"
+# Въвеждане на име
+while true; do
+  printf "👉 Въведете потребителско име за администратор (мин. 5 символа или 'q' за изход): "
+  read ADMIN_USER
 
-if grep -q "^$MODULE_NAME\b" todo.modules; then
-
-  echo "[7] ПРОМЯНА НА SSH ПОРТА..."
-  echo "-------------------------------------------------------------------------"
-  echo ""
-
-  RESULT_SSH_PORT="❔"
-
-  CURRENT_SSH_PORT=$(ss -tlpn 2>/dev/null | grep sshd | awk -F: '/LISTEN/ {print $2}' | awk '{print $1}' | head -n 1)
-  CURRENT_SSH_PORT="${CURRENT_SSH_PORT:-22}"
-
-  while true; do
-    printf "👉 В момента използвате SSH порт %s.\n" "$CURRENT_SSH_PORT"
-    echo "   Въведете нов порт, ако желаете да го промените,"
-    echo "   или натиснете Enter без въвеждане за запазване на съществуващия (или 'q' за прекратяване):"
-    printf "➤ SSH порт: "
-    read -r SSH_PORT_INPUT
-
-    if [[ "$SSH_PORT_INPUT" == "q" || "$SSH_PORT_INPUT" == "Q" ]]; then
-      echo "❎ Скриптът беше прекратен от потребителя."
-      exit 0
-
-    elif [[ -z "$SSH_PORT_INPUT" ]]; then
-      SSH_PORT="$CURRENT_SSH_PORT"
-      echo "✅ SSH портът ще остане: $SSH_PORT"
-      echo "SSH_PORT=\"$SSH_PORT\"" >> .setup.env
-      break
-
-    elif [[ "$SSH_PORT_INPUT" =~ ^[0-9]+$ ]] && (( SSH_PORT_INPUT >= 1024 && SSH_PORT_INPUT <= 65535 )); then
-      SSH_PORT="$SSH_PORT_INPUT"
-      echo "✅ Нов SSH порт ще бъде: $SSH_PORT"
-      echo "SSH_PORT=\"$SSH_PORT\"" >> .setup.env
-      break
-
-    else
-      echo "❌ Невалиден номер на порт. Допустими стойности: 1024–65535. Опитайте отново."
-    fi
-  done
-
-  # Промяна в sshd_config, ако портът е различен от текущия
-  if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
-    echo "🔧 Актуализиране на /etc/ssh/sshd_config..."
-
-    if grep -q "^#*Port " /etc/ssh/sshd_config; then
-      sudo sed -i "s/^#*Port .*/Port $SSH_PORT/" /etc/ssh/sshd_config
-    else
-      echo "Port $SSH_PORT" | sudo tee -a /etc/ssh/sshd_config > /dev/null
-    fi
-
-    echo "🔄 Рестартиране на SSH услугата..."
-    if sudo systemctl restart ssh; then
-      echo "✅ SSH портът е променен успешно на $SSH_PORT и услугата е рестартирана."
-      RESULT_SSH_PORT="✅"
-    else
-      echo "❌ Грешка при рестартиране на SSH! Провери конфигурацията ръчно!"
-      RESULT_SSH_PORT="❌"
-      echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" >> .setup.env
-      return 1 2>/dev/null || exit 1
-    fi
-  else
-    echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
-    RESULT_SSH_PORT="✅"
+  if [[ "$ADMIN_USER" == "q" || "$ADMIN_USER" == "Q" ]]; then
+    echo "❎ Скриптът беше прекратен от потребителя."
+    exit 0
   fi
 
-  # 📝 Записване на резултатите в .setup.env
-  echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" >> .setup.env
+  if [[ -z "$ADMIN_USER" ]]; then
+    echo "❌ Полето за потребителското име не може да бъде празно."
+    continue
+  fi
 
-  # 🔚 Премахване от списъка:
-  sed -i "/^$MODULE_NAME$/d" todo.modules
-  echo ""
-  echo ""
+  if [[ ${#ADMIN_USER} -lt 5 ]]; then
+    echo "❌ Потребителското име трябва да бъде поне 5 символа."
+    continue
+  fi
 
-else
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  echo ""
-fi
+  if [[ ! "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+    echo "❌ Невалидно потребителско име. Разрешени са само малки букви, цифри, '-', '_' и да не започва с цифра."
+    continue
+  fi
+
+  if id "$ADMIN_USER" &>/dev/null; then
+    echo "⚠️ Потребителят '$ADMIN_USER' вече съществува."
+    echo ""
+    while true; do
+      read -p "❓ Искате ли да използвате съществуващия '$ADMIN_USER' като администратор? (y/n): " use_existing
+      if [[ "$use_existing" =~ ^[Yy]$ ]]; then
+        sudo usermod -aG sudo "$ADMIN_USER"
+        echo "🔑 Копиране на SSH ключовете от root в ~/.ssh на $ADMIN_USER..."
+        sudo mkdir -p /home/"$ADMIN_USER"/.ssh
+        sudo cp -r /root/.ssh/* /home/"$ADMIN_USER"/.ssh/ 2>/dev/null
+        sudo chown -R "$ADMIN_USER":"$ADMIN_USER" /home/"$ADMIN_USER"/.ssh
+        sudo chmod 700 /home/"$ADMIN_USER"/.ssh
+        sudo chmod 600 /home/"$ADMIN_USER"/.ssh/*
+        RESULT_ADMIN_USER="✅"
+        break 2
+      elif [[ "$use_existing" =~ ^[Nn]$ ]]; then
+        echo "🔁 Моля, въведете ново потребителско име."
+        break
+      else
+        echo "❌ Моля, отговорете с 'y' или 'n'."
+      fi
+    done
+  else
+    break
+  fi
+done
+
+# --- Нова парола ---
+echo "🛡️ Паролата трябва да отговаря на следните условия:"
+echo "   - Минимум 8 символа"
+echo "   - Поне една латинска малка буква (a-z)"
+echo "   - Поне една латинска главна буква (A-Z)"
+echo "   - Поне една цифра (0-9)"
+echo "❗ Внимание: Проверете на какъв език въвеждате, ако използвате специфични букви (напр. кирилица)"
 echo ""
-echo ""
 
+while true; do
+  printf "🔑 Въведете парола за %s: " "$ADMIN_USER"
+  read -s PASSWORD_1
+  echo
 
-# === [МОДУЛ 8] СЪЗДАВАНЕ НА НОВ АДМИНИСТРАТОРСКИ ПРОФИЛ ========================
-MODULE_NAME="mod_08_admin_user"
+  if [[ -z "$PASSWORD_1" ]]; then
+    echo "❌ Паролата не може да е празна."
+    continue
+  fi
 
-if grep -q "^$MODULE_NAME\b" todo.modules; then
+  if (( ${#PASSWORD_1} < 8 )) || \
+     ! [[ "$PASSWORD_1" =~ [a-z] ]] || \
+     ! [[ "$PASSWORD_1" =~ [A-Z] ]] || \
+     ! [[ "$PASSWORD_1" =~ [0-9] ]]; then
+    echo "❌ Паролата трябва да съдържа поне 8 символа, включително малка и главна латинска буква, и цифра."
+    continue
+  fi
 
-  echo "[8] СЪЗДАВАНЕ НА НОВ АДМИНИСТРАТОРСКИ ПРОФИЛ"
-  echo "-------------------------------------------------------------------------"
-  echo "🔐 По съображения за сигурност, root достъпът чрез SSH ще бъде забранен."
-  echo "✅ Ще използваме или създадем потребител с root права за администрация."
-  echo ""
+  if LC_ALL=C grep -q '[^ -~]' <<< "$PASSWORD_1"; then
+    echo "⚠️ Внимание: В паролата са открити символи извън латиницата."
+    while true; do
+      read -p "❓ Искате ли да продължите с тази парола? (y/n): " confirm_charset
+      if [[ "$confirm_charset" =~ ^[Yy]$ ]]; then
+        break
+      elif [[ "$confirm_charset" =~ ^[Nn]$ || -z "$confirm_charset" ]]; then
+        continue 2
+      else
+        echo "❌ Моля, отговорете с 'y' или 'n'."
+      fi
+    done
+  fi
 
-  RESULT_ADMIN_USER="❔"
+  printf "🔑 Повторете паролата: "
+  read -s PASSWORD_2
+  echo
 
-  # Въвеждане на име
-  while true; do
-    printf "👉 Въведете потребителско име за администратор (мин. 5 символа или 'q' за изход): "
-    read ADMIN_USER
+  if [[ "$PASSWORD_1" != "$PASSWORD_2" ]]; then
+    echo "❌ Паролите не съвпадат. Опитайте отново."
+  else
+    break
+  fi
+done
 
-    if [[ "$ADMIN_USER" == "q" || "$ADMIN_USER" == "Q" ]]; then
-      echo "❎ Скриптът беше прекратен от потребителя."
-      exit 0
-    fi
-
-    if [[ -z "$ADMIN_USER" ]]; then
-      echo "❌ Полето за потребителското име не може да бъде празно."
-      continue
-    fi
-
-    if [[ ${#ADMIN_USER} -lt 5 ]]; then
-      echo "❌ Потребителското име трябва да бъде поне 5 символа."
-      continue
-    fi
-
-    if [[ ! "$ADMIN_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
-      echo "❌ Невалидно потребителско име. Разрешени са само малки букви, цифри, '-', '_' и да не започва с цифра."
-      continue
-    fi
-
-    if id "$ADMIN_USER" &>/dev/null; then
-      echo "⚠️ Потребителят '$ADMIN_USER' вече съществува."
-      echo ""
-      while true; do
-        read -p "❓ Искате ли да използвате съществуващия '$ADMIN_USER' като администратор? (y/n): " use_existing
-        if [[ "$use_existing" =~ ^[Yy]$ ]]; then
-          sudo usermod -aG sudo "$ADMIN_USER"
-          echo "🔑 Копиране на SSH ключовете от root в ~/.ssh на $ADMIN_USER..."
-          sudo mkdir -p /home/"$ADMIN_USER"/.ssh
-          sudo cp -r /root/.ssh/* /home/"$ADMIN_USER"/.ssh/ 2>/dev/null
-          sudo chown -R "$ADMIN_USER":"$ADMIN_USER" /home/"$ADMIN_USER"/.ssh
-          sudo chmod 700 /home/"$ADMIN_USER"/.ssh
-          sudo chmod 600 /home/"$ADMIN_USER"/.ssh/*
-          echo "✅ Съществуващият потребител '$ADMIN_USER' получи root права и SSH ключовете са копирани."
-          RESULT_ADMIN_USER="✅"
-          break 2
-        elif [[ "$use_existing" =~ ^[Nn]$ ]]; then
-          echo "🔁 Моля, въведете ново потребителско име."
-          break
-        else
-          echo "❌ Моля, отговорете с 'y' или 'n'."
-        fi
-      done
-    else
-      break
-    fi
-  done
-
-  # --- Нова парола ---
-  echo "🛡️ Паролата трябва да отговаря на следните условия:"
-  echo "   - Минимум 8 символа"
-  echo "   - Поне една латинска малка буква (a-z)"
-  echo "   - Поне една латинска главна буква (A-Z)"
-  echo "   - Поне една цифра (0-9)"
-  echo "❗ Внимание: Проверете на какъв език въвеждате, ако използвате специфични букви (напр. кирилица)"
-  echo ""
-
-  while true; do
-    printf "🔑 Въведете парола за %s: " "$ADMIN_USER"
-    read -s PASSWORD_1
-    echo
-
-    if [[ -z "$PASSWORD_1" ]]; then
-      echo "❌ Паролата не може да е празна."
-      continue
-    fi
-
-    if (( ${#PASSWORD_1} < 8 )) || \
-       ! [[ "$PASSWORD_1" =~ [a-z] ]] || \
-       ! [[ "$PASSWORD_1" =~ [A-Z] ]] || \
-       ! [[ "$PASSWORD_1" =~ [0-9] ]]; then
-      echo "❌ Паролата трябва да съдържа поне 8 символа, включително малка и главна латинска буква, и цифра."
-      continue
-    fi
-
-    if LC_ALL=C grep -q '[^ -~]' <<< "$PASSWORD_1"; then
-      echo "⚠️ Внимание: В паролата са открити символи извън латиницата."
-      while true; do
-        read -p "❓ Искате ли да продължите с тази парола? (y/n): " confirm_charset
-        if [[ "$confirm_charset" =~ ^[Yy]$ ]]; then
-          break
-        elif [[ "$confirm_charset" =~ ^[Nn]$ || -z "$confirm_charset" ]]; then
-          continue 2
-        else
-          echo "❌ Моля, отговорете с 'y' или 'n'."
-        fi
-      done
-    fi
-
-    printf "🔑 Повторете паролата: "
-    read -s PASSWORD_2
-    echo
-
-    if [[ "$PASSWORD_1" != "$PASSWORD_2" ]]; then
-      echo "❌ Паролите не съвпадат. Опитайте отново."
-    else
-      break
-    fi
-  done
-
-  # --- Създаване на нов потребител ---
+# --- Създаване на нов потребител ---
+if ! id "$ADMIN_USER" &>/dev/null; then
   echo "👤 Създаване на нов потребител '$ADMIN_USER'..."
   if sudo useradd -m -s /bin/bash "$ADMIN_USER" && \
      echo "$ADMIN_USER:$PASSWORD_1" | sudo chpasswd && \
@@ -674,67 +592,51 @@ if grep -q "^$MODULE_NAME\b" todo.modules; then
   else
     echo "❌ Грешка при създаване на потребител."
     RESULT_ADMIN_USER="❌"
-    echo "RESULT_ADMIN_USER=\"$RESULT_ADMIN_USER\"" >> .setup.env
+    echo "RESULT_ADMIN_USER=\"$RESULT_ADMIN_USER\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
     return 1 2>/dev/null || exit 1
   fi
-
-  # Записване в .setup.env
-  echo "ADMIN_USER=\"$ADMIN_USER\"" >> .setup.env
-  echo "RESULT_ADMIN_USER=\"$RESULT_ADMIN_USER\"" >> .setup.env
-
-  # Премахване от списъка
-  sed -i "/^$MODULE_NAME$/d" todo.modules
-  echo ""
-  echo ""
-
-else
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  echo ""
 fi
-echo ""
-echo ""
 
-exit 0
-
-
-  # Забрана за root вход чрез SSH
+# Забрана за root вход чрез SSH
+if [[ "$RESULT_ADMIN_USER" == "✅" ]]; then
+  echo "🔒 Root достъпът чрез SSH ще бъде забранен..."
   if sudo grep -q "^PermitRootLogin" /etc/ssh/sshd_config; then
     sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
   else
     echo "PermitRootLogin no" | sudo tee -a /etc/ssh/sshd_config > /dev/null
   fi
   sudo systemctl restart ssh
-  echo "🔒 Root достъпът чрез SSH е забранен."
+  echo "✅ Root достъпът чрез SSH е забранен."
 
-  # 📝 Записване на резултата и потребителя в .setup.env за обобщението
-  echo "RESULT_ADMIN_USER=\"$RESULT_ADMIN_USER\"" >> .setup.env
-  echo "ADMIN_USER=\"$ADMIN_USER\"" >> .setup.env
+  # ✅ Запис в setup.env
+  echo "RESULT_ADMIN_USER=\"$RESULT_ADMIN_USER\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo "ADMIN_USER=\"$ADMIN_USER\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-  # 🔚 Премахване от списъка:
-  sed -i "/^$MODULE_NAME$/d" todo.modules
-  echo ""
-  echo ""
-
+  # ✅ Отбелязване на изпълнен модул
+  echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
 else
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  echo ""
+  echo "❌ Администраторският профил не е създаден успешно."
 fi
 echo ""
 echo ""
 
 
-# === [МОДУЛ 9] КОНФИГУРИРАНЕ НА UFW И ДЕАКТИВАЦИЯ НА ДРУГИ FIREWALL ПОРТОВЕ ==============
-MODULE_NAME="mod_09_firewall_setup"
-echo "[9] КОНФИГУРИРАНЕ НА UFW И ДЕАКТИВАЦИЯ НА ДРУГИ FIREWALL..."
+# === [МОДУЛ 8] КОНФИГУРИРАНЕ НА UFW И ДЕАКТИВАЦИЯ НА ДРУГИ FIREWALL ПОРТОВЕ ============
+MODULE_NAME="mod_08_firewall_setup"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+
+echo "[8] КОНФИГУРИРАНЕ НА UFW И ДЕАКТИВАЦИЯ НА ДРУГИ FIREWALL..."
 echo "-------------------------------------------------------------------------"
 echo ""
 
 RESULT_FIREWALL_SETUP="❔"
 
 # Проверка дали модулът вече е изпълнен
-if ! grep -q "^$MODULE_NAME\b" todo.modules; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
-  return 0 2>/dev/null || exit 0
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
+  echo ""
+  exit 0
 fi
 
 FIREWALL_SYSTEM="none"
@@ -765,38 +667,20 @@ fi
 if [[ "$INSTALL_SUCCESS" -ne 0 ]]; then
   echo "❌ Възникна грешка при инсталацията на UFW!"
   RESULT_FIREWALL_SETUP="❌"
-  echo "RESULT_FIREWALL_SETUP=\"$RESULT_FIREWALL_SETUP\"" >> .setup.env
+  echo "RESULT_FIREWALL_SETUP=\"$RESULT_FIREWALL_SETUP\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
   exit 1
 fi
 
-FIREWALL_SYSTEM="ufw"
-echo "FIREWALL_SYSTEM=ufw" >> .setup.env
-
-# --- Зареждане на SSH_PORT от .setup.env ---
-if [[ -f .setup.env ]]; then
-  source .setup.env
-fi
-
-if [[ -z "$SSH_PORT" ]]; then
-  echo "⛔ Грешка: Не е открит SSH_PORT в .setup.env! Проверете дали модул 7 е изпълнен коректно."
-  RESULT_FIREWALL_SETUP="❌"
-  echo "RESULT_FIREWALL_SETUP=\"$RESULT_FIREWALL_SETUP\"" >> .setup.env
-  exit 1
-fi
+echo "FIREWALL_SYSTEM=ufw" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
 # --- Засичане на текущ SSH порт ---
 CURRENT_SSH_PORT=$(ss -tlpn 2>/dev/null | grep sshd | awk -F: '/LISTEN/ {print $2}' | awk '{print $1}' | head -n 1)
 CURRENT_SSH_PORT="${CURRENT_SSH_PORT:-22}"
+echo "🔍 Открит активен SSH порт: $CURRENT_SSH_PORT"
 
-# --- Затваряне на стария порт, ако се различава ---
-if [[ "$CURRENT_SSH_PORT" != "$SSH_PORT" ]]; then
-  echo "🔐 Затваряне на стар SSH порт: $CURRENT_SSH_PORT"
-  sudo ufw delete allow "$CURRENT_SSH_PORT"/tcp 2>/dev/null || true
-fi
-
-# --- Разрешаване на зададения SSH порт ---
-echo "🔐 Отваряне на SSH порт: $SSH_PORT"
-sudo ufw allow "$SSH_PORT"/tcp
+# --- Отваряне на SSH порта ---
+echo "🔐 Отваряне на SSH порт: $CURRENT_SSH_PORT"
+sudo ufw allow "$CURRENT_SSH_PORT"/tcp
 
 # --- Въвеждане на допълнителни портове ---
 echo ""
@@ -823,54 +707,51 @@ while true; do
   fi
 done
 
-# --- Запис на портовете във .setup.env ---
-echo "PORT_LIST=\"${PORT_LIST[*]}\"" >> .setup.env
+# --- Запис на портовете във setup.env ---
+echo "PORT_LIST=\"${PORT_LIST[*]}\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
 echo ""
 echo "✅ Правилата за UFW са подготвени, но защитната стена все още НЕ е активирана."
 echo "   Това ще бъде направено в следващия модул."
 
-# Успешен резултат
+# 📝 Запис на резултата
 RESULT_FIREWALL_SETUP="✅"
-echo "RESULT_FIREWALL_SETUP=\"$RESULT_FIREWALL_SETUP\"" >> .setup.env
+echo "RESULT_FIREWALL_SETUP=\"$RESULT_FIREWALL_SETUP\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-# 🔚 Премахване от списъка:
-sed -i "/^$MODULE_NAME$/d" todo.modules
-
-# 🔄 Продължение:
-echo ""
-read -p "➡️ Продължаване към следващия модул? [Enter за ДА, 'q' за прекратяване]: " next
-if [[ "$next" == "q" || "$next" == "Q" ]]; then
-  echo "⛔ Скриптът беше прекратен от потребителя след модул 9."
-  exit 0
-fi
+# ✅ Отбелязване на изпълнен модул
+echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
 echo ""
 echo ""
 
 
+# === [МОДУЛ 9] ДОБАВЯНЕ НА TRUSTED МРЕЖИ ============================
+MODULE_NAME="mod_09_firewall_trusted"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
-
-# === [МОДУЛ 10] TRUSTED МРЕЖИ И АКТИВИРАНЕ НА UFW ============================
-MODULE_NAME="mod_10_firewall_trusted"
-if ! grep -q "^$MODULE_NAME\b" todo.modules; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
+# Проверка дали модулът вече е изпълнен
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е изпълнен)..."
+  echo ""
   return 0 2>/dev/null || exit 0
 fi
 
-echo "[10] ДОБАВЯНЕ НА TRUSTED МРЕЖИ И АКТИВИРАНЕ НА UFW..."
+echo "[9] ДОБАВЯНЕ НА TRUSTED МРЕЖИ..."
 echo "-------------------------------------------------------------------------"
 echo ""
 
+RESULT_TRUSTED_NETS="❔"
+
 # Зареждане на вече подготвени променливи
-if [[ -f .setup.env ]]; then
-  source .setup.env
+if [[ -f "$SETUP_ENV_FILE" ]]; then
+  source "$SETUP_ENV_FILE"
 fi
 
 # Проверка за наличен UFW
 if ! command -v ufw >/dev/null 2>&1; then
   echo "❌ Грешка: UFW не е инсталиран. Скриптът не може да продължи."
   RESULT_TRUSTED_NETS="❌"
-  echo "RESULT_TRUSTED_NETS=\"$RESULT_TRUSTED_NETS\"" >> .setup.env
+  echo "RESULT_TRUSTED_NETS=\"$RESULT_TRUSTED_NETS\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
   exit 1
 fi
 
@@ -883,7 +764,7 @@ while true; do
   case "$use_trust" in
     [Qq]*) echo "❎ Скриптът беше прекратен от потребителя."
            RESULT_TRUSTED_NETS="❌"
-           echo "RESULT_TRUSTED_NETS=\"$RESULT_TRUSTED_NETS\"" >> .setup.env
+           echo "RESULT_TRUSTED_NETS=\"$RESULT_TRUSTED_NETS\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
            exit 0 ;;
     [Nn]*) echo "🔒 Няма да се добавят доверени мрежи."
            break ;;
@@ -899,7 +780,7 @@ while true; do
         if [[ "$net" == "q" || "$net" == "Q" ]]; then
           echo "❎ Скриптът беше прекратен от потребителя."
           RESULT_TRUSTED_NETS="❌"
-          echo "RESULT_TRUSTED_NETS=\"$RESULT_TRUSTED_NETS\"" >> .setup.env
+          echo "RESULT_TRUSTED_NETS=\"$RESULT_TRUSTED_NETS\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
           exit 0
         elif [[ -z "$net" ]]; then
           break
@@ -922,42 +803,110 @@ for net in "${TRUSTED_NETS[@]}"; do
   echo "✅ Разрешен достъп от доверена мрежа: $net"
 done
 
-# Запис в .setup.env (по избор)
-echo "TRUSTED_NETS=\"${TRUSTED_NETS[*]}\"" >> .setup.env
+# Запис в setup.env
+echo "TRUSTED_NETS=\"${TRUSTED_NETS[*]}\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-# 🔐 Финално активиране на UFW
+# Резултат
+RESULT_TRUSTED_NETS="✅"
+echo "RESULT_TRUSTED_NETS=\"$RESULT_TRUSTED_NETS\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+
+# Отбелязване като изпълнен
+echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
 echo ""
-echo "🟢 Активиране на защитната стена UFW..."
-if sudo ufw --force enable; then
-  echo "✅ Защитната стена беше активирана успешно."
-  RESULT_TRUSTED_NETS="✅"
+echo ""
+
+
+# === [МОДУЛ 10] ПРОМЯНА НА SSH ПОРТА ============================================
+MODULE_NAME="mod_10_ssh_port"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+
+# Проверка дали модулът вече е изпълнен
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е изпълнен)..."
+  echo ""
+  return 0 2>/dev/null || exit 0
+fi
+
+echo "[10] ПРОМЯНА НА SSH ПОРТА..."
+echo "-------------------------------------------------------------------------"
+echo ""
+
+RESULT_SSH_PORT="❔"
+
+CURRENT_SSH_PORT=$(ss -tlpn 2>/dev/null | grep sshd | awk -F: '/LISTEN/ {print $2}' | awk '{print $1}' | head -n 1)
+CURRENT_SSH_PORT="${CURRENT_SSH_PORT:-22}"
+
+while true; do
+  printf "👉 В момента използвате SSH порт %s.\n" "$CURRENT_SSH_PORT"
+  echo "   Въведете нов порт, ако желаете да го промените,"
+  echo "   или натиснете Enter без въвеждане за запазване на съществуващия (или 'q' за прекратяване):"
+  printf "➤ SSH порт: "
+  read -r SSH_PORT_INPUT
+
+  if [[ "$SSH_PORT_INPUT" == "q" || "$SSH_PORT_INPUT" == "Q" ]]; then
+    echo "❎ Скриптът беше прекратен от потребителя."
+    exit 0
+
+  elif [[ -z "$SSH_PORT_INPUT" ]]; then
+    SSH_PORT="$CURRENT_SSH_PORT"
+    echo "✅ SSH портът ще остане: $SSH_PORT"
+    break
+
+  elif [[ "$SSH_PORT_INPUT" =~ ^[0-9]+$ ]] && (( SSH_PORT_INPUT >= 1024 && SSH_PORT_INPUT <= 65535 )); then
+    SSH_PORT="$SSH_PORT_INPUT"
+    echo "✅ Нов SSH порт ще бъде: $SSH_PORT"
+    break
+
+  else
+    echo "❌ Невалиден номер на порт. Допустими стойности: 1024–65535. Опитайте отново."
+  fi
+done
+
+# Промяна в sshd_config, ако портът е различен от текущия
+if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
+  echo "🔧 Актуализиране на /etc/ssh/sshd_config..."
+
+  if grep -q "^#*Port " /etc/ssh/sshd_config; then
+    sudo sed -i "s/^#*Port .*/Port $SSH_PORT/" /etc/ssh/sshd_config
+  else
+    echo "Port $SSH_PORT" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+  fi
+
+  echo "🔄 Рестартиране на SSH услугата..."
+  if sudo systemctl restart ssh; then
+    echo "✅ SSH портът е променен успешно на $SSH_PORT и услугата е рестартирана."
+    RESULT_SSH_PORT="✅"
+  else
+    echo "❌ Грешка при рестартиране на SSH! Провери конфигурацията ръчно!"
+    RESULT_SSH_PORT="❌"
+    echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    return 1 2>/dev/null || exit 1
+  fi
 else
-  echo "❌ Грешка при активиране на UFW!"
-  RESULT_TRUSTED_NETS="❌"
-  echo "RESULT_TRUSTED_NETS=\"$RESULT_TRUSTED_NETS\"" >> .setup.env
-  exit 1
+  echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
+  RESULT_SSH_PORT="✅"
 fi
 
-# Записване на резултата
-echo "RESULT_TRUSTED_NETS=\"$RESULT_TRUSTED_NETS\"" >> .setup.env
+# 📝 Записване на резултатите
+echo "SSH_PORT=\"$SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-# 🔚 Премахване от списъка:
-sed -i "/^$MODULE_NAME$/d" todo.modules
+# ✅ Отбелязване като изпълнен
+echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
+echo ""
+echo ""
 
-# 🔄 Продължение:
-echo ""
-read -p "➡️ Продължаване към следващия модул? [Enter за ДА, 'q' за прекратяване]: " next
-if [[ "$next" == "q" || "$next" == "Q" ]]; then
-  echo "⛔ Скриптът беше прекратен от потребителя след модул 6."
-  exit 0
-fi
-echo ""
-echo ""
 
 # === [МОДУЛ 11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА И РЕСТАРТ ========================
 MODULE_NAME="mod_11_summary_reboot"
-if ! grep -q "^$MODULE_NAME\b" todo.modules; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече изпълнен или не е в списъка)..."
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+
+# Проверка дали модулът вече е изпълнен
+if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е изпълнен)..."
+  echo ""
   return 0 2>/dev/null || exit 0
 fi
 
@@ -965,11 +914,11 @@ echo "[11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА И РЕСТАР�
 echo "-------------------------------------------------------------------------"
 echo ""
 
-# Зареждане на информация от .setup.env
-if [[ -f .setup.env ]]; then
-  source .setup.env
+# Зареждане на информация от setup.env
+if [[ -f "$SETUP_ENV_FILE" ]]; then
+  source "$SETUP_ENV_FILE"
 else
-  echo "⚠️ Липсва файл .setup.env – няма налична информация за конфигурацията."
+  echo "⚠️ Липсва файл setup.env – няма налична информация за конфигурацията."
 fi
 
 # Извеждане на резултатите
@@ -983,8 +932,7 @@ printf "🛡️  Защитна стена (FIREWALL):      %s\n" "${FIREWALL_SY
 printf "🚪 Отворени портове:              %s\n" "${PORT_LIST:-❔ няма въведени}"
 printf "🌐 Доверени мрежи (VPN/LAN):      %s\n" "${TRUSTED_NETS:-❔ няма въведени}"
 printf "🌐 Локализации:                   %s\n" "${RESULT_LOCALES:-❔}"
-printf "🕒 Времева зона:                  %s\n" "${RESULT_TIMEZONE:-❔}"
-printf "⏱️ Времева синхронизация:         %s\n" "${RESULT_NTP_SYNC:-❔}"
+printf "🕒 Времева зона и синхронизация:  %s\n" "${RESULT_TIMEZONE_NTP:-❔}"
 echo ""
 
 # Проверка дали UFW е активен
@@ -1002,7 +950,18 @@ else
   echo "✅ UFW е активен."
 fi
 
-# 🔁 Питане за рестарт с изтриване на временните файлове
+# Потвърждение дали скриптът се счита за успешно завършен
+echo ""
+read -p "📋 Приемате ли скрипта като напълно изпълнен и успешен? (y / n): " final_confirm
+if [[ "$final_confirm" =~ ^[Yy]$ ]]; then
+  echo "SETUP_VPS_BASE_DONE=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo "SETUP_VPS_BASE_STATUS=\"Потвърдено от оператор\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+else
+  echo "SETUP_VPS_BASE_DONE=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo "SETUP_VPS_BASE_STATUS=\"Недовършен – нужда от преглед\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+fi
+
+# 🔁 Питане за рестарт
 echo ""
 while true; do
   echo "♻️ Желаете ли да рестартирате системата сега?"
@@ -1010,7 +969,7 @@ while true; do
   case "$restart_choice" in
     [Rr]*)
       echo "🧹 Изчистване на временните файлове..."
-      rm -f .setup.env todo.modules
+      sudo rm -f "$SETUP_ENV_FILE" "$MODULES_FILE"
       echo "🔄 Рестартиране на системата..."
       sleep 2
       sudo reboot
@@ -1020,7 +979,7 @@ while true; do
       break
       ;;
     "")
-      echo "✅ Скриптът завърши успешно. UFW е активен. Няма рестарт."
+      echo "✅ Скриптът завърши успешно. Няма рестарт."
       break
       ;;
     *)
@@ -1029,8 +988,8 @@ while true; do
   esac
 done
 
-# 🔚 Премахване от списъка:
-sed -i "/^$MODULE_NAME$/d" todo.modules
+# ✅ Отбелязване на изпълнен модул
+echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
 
 # --------- Край на скрипта ---------
 
