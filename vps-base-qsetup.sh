@@ -899,22 +899,12 @@ else
     echo "ℹ️ Порт $SSH_PORT вече присъства в UFW."
   fi
 
-  # 🔐 Затваряне на стария SSH порт (ако е сменен)
+  # 🔐 Задължителна забрана на стария SSH порт (ако е сменен)
 if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
-  echo "🔍 Търсене на всички правила за стария SSH порт $CURRENT_SSH_PORT..."
-
-  # Извличане на всички номера на правила за стария порт (IPv4 и IPv6)
-  mapfile -t RULES_TO_DELETE < <(sudo ufw status numbered | grep -E "[[:space:]]${CURRENT_SSH_PORT}/tcp" | awk -F'[][]' '{print $2}')
-
-  if [[ ${#RULES_TO_DELETE[@]} -eq 0 ]]; then
-    echo "ℹ️ Няма правила за порт $CURRENT_SSH_PORT, които да се премахнат."
-  else
-    echo "🚫 Премахване на правила за порт $CURRENT_SSH_PORT..."
-    for (( idx=${#RULES_TO_DELETE[@]}-1 ; idx>=0 ; idx-- )); do
-      sudo ufw delete "${RULES_TO_DELETE[idx]}"
-    done
-    echo "✅ Всички правила за порт $CURRENT_SSH_PORT бяха премахнати."
-  fi
+  echo "🛡️ Забрана на стария SSH порт $CURRENT_SSH_PORT в UFW (ако е различен)..."
+  sudo ufw deny "$CURRENT_SSH_PORT"/tcp comment 'Block old SSH port'
+  sudo ufw deny "$CURRENT_SSH_PORT"/tcp comment 'Block old SSH port (v6)'
+  echo "✅ Портът $CURRENT_SSH_PORT вече е забранен."
 fi
 
   # 📝 Записване на резултатите
