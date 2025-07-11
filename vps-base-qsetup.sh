@@ -900,15 +900,21 @@ else
   echo "ℹ️ Порт $SSH_PORT вече присъства в UFW."
 fi
 
-# Затваряне на порт 22, ако е различен от новия порт
-if [[ "$SSH_PORT" != "22" ]]; then
-  echo "🔍 Проверка за правило за порт 22..."
-  UFW_RULE_NUM=$(sudo ufw status numbered | grep '22/tcp' | awk -F'[][]' '{print $2}' | head -n 1)
-  if [[ -n "$UFW_RULE_NUM" ]]; then
-    echo "🚫 Премахване на правило за порт 22..."
-    sudo ufw delete "$UFW_RULE_NUM"
+# 🔐 Затваряне на стария SSH порт (ако е сменен)
+if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
+  echo "🔍 Търсене на всички правила за стария SSH порт $CURRENT_SSH_PORT..."
+
+  # Извличане на всички номера на правила за стария порт (IPv4 и IPv6)
+  mapfile -t RULES_TO_DELETE < <(sudo ufw status numbered | grep "${CURRENT_SSH_PORT}/tcp" | awk -F'[][]' '{print $2}')
+
+  if [[ ${#RULES_TO_DELETE[@]} -eq 0 ]]; then
+    echo "ℹ️ Няма правила за порт $CURRENT_SSH_PORT, които да се премахнат."
   else
-    echo "ℹ️ Няма правило за порт 22, което да се премахне."
+    echo "🚫 Премахване на правила за порт $CURRENT_SSH_PORT..."
+    for (( idx=${#RULES_TO_DELETE[@]}-1 ; idx>=0 ; idx-- )) ; do
+      sudo ufw delete "${RULES_TO_DELETE[idx]}"
+    done
+    echo "✅ Всички правила за порт $CURRENT_SSH_PORT бяха премахнати."
   fi
 fi
 
@@ -918,7 +924,6 @@ echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /d
 
 # ✅ Отбелязване като изпълнен
 echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
-fi
 echo ""
 echo ""
 
