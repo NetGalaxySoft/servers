@@ -905,13 +905,16 @@ if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
 
   # Извличане на всички номера на правила за стария порт (IPv4 и IPv6)
   mapfile -t RULES_TO_DELETE < <(sudo ufw status numbered | grep -E "${CURRENT_SSH_PORT}/tcp(\s|\s\()" | awk -F'[][]' '{print $2}')
+  mapfile -t RULES_V6_TO_DELETE < <(sudo ufw status numbered | grep -E "${CURRENT_SSH_PORT}/tcp \(v6\)" | awk -F'[][]' '{print $2}')
 
-  if [[ ${#RULES_TO_DELETE[@]} -eq 0 ]]; then
+  ALL_RULES=("${RULES_TO_DELETE[@]}" "${RULES_V6_TO_DELETE[@]}")
+
+  if [[ ${#ALL_RULES[@]} -eq 0 ]]; then
     echo "ℹ️ Няма правила за порт $CURRENT_SSH_PORT, които да се премахнат."
   else
     echo "🚫 Премахване на правила за порт $CURRENT_SSH_PORT..."
-    for (( idx=${#RULES_TO_DELETE[@]}-1 ; idx>=0 ; idx-- )) ; do
-      sudo ufw delete "${RULES_TO_DELETE[idx]}"
+    for (( idx=${#ALL_RULES[@]}-1 ; idx>=0 ; idx-- )); do
+      sudo ufw delete "${ALL_RULES[idx]}"
     done
     echo "✅ Всички правила за порт $CURRENT_SSH_PORT бяха премахнати."
   fi
