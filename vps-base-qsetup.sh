@@ -900,21 +900,22 @@ else
   fi
 
   # 🔐 Затваряне на стария SSH порт (ако е сменен)
-  if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
-    echo "🔍 Търсене на всички правила за стария SSH порт $CURRENT_SSH_PORT..."
+if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
+  echo "🔍 Търсене на всички правила за стария SSH порт $CURRENT_SSH_PORT..."
 
-    mapfile -t RULES_TO_DELETE < <(sudo ufw status numbered | grep "${CURRENT_SSH_PORT}/tcp" | awk -F'[][]' '{print $2}')
+  # Извличане на всички номера на правила за стария порт (IPv4 и IPv6)
+  mapfile -t RULES_TO_DELETE < <(sudo ufw status numbered | grep -E "${CURRENT_SSH_PORT}/tcp(\s|\s\()" | awk -F'[][]' '{print $2}')
 
-    if [[ ${#RULES_TO_DELETE[@]} -eq 0 ]]; then
-      echo "ℹ️ Няма правила за порт $CURRENT_SSH_PORT, които да се премахнат."
-    else
-      echo "🚫 Премахване на правила за порт $CURRENT_SSH_PORT..."
-      for (( idx=${#RULES_TO_DELETE[@]}-1 ; idx>=0 ; idx-- )) ; do
-        sudo ufw delete "${RULES_TO_DELETE[idx]}"
-      done
-      echo "✅ Всички правила за порт $CURRENT_SSH_PORT бяха премахнати."
-    fi
+  if [[ ${#RULES_TO_DELETE[@]} -eq 0 ]]; then
+    echo "ℹ️ Няма правила за порт $CURRENT_SSH_PORT, които да се премахнат."
+  else
+    echo "🚫 Премахване на правила за порт $CURRENT_SSH_PORT..."
+    for (( idx=${#RULES_TO_DELETE[@]}-1 ; idx>=0 ; idx-- )) ; do
+      sudo ufw delete "${RULES_TO_DELETE[idx]}"
+    done
+    echo "✅ Всички правила за порт $CURRENT_SSH_PORT бяха премахнати."
   fi
+fi
 
   # 📝 Записване на резултатите
   echo "SSH_PORT=\"$SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
