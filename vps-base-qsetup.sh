@@ -833,100 +833,99 @@ if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
   echo ""
 else
 
-RESULT_SSH_PORT="❔"
+  RESULT_SSH_PORT="❔"
 
-# Засичане на текущия порт
-CURRENT_SSH_PORT=$(ss -tlpn 2>/dev/null | grep sshd | awk -F: '/LISTEN/ {print $2}' | awk '{print $1}' | head -n 1)
-CURRENT_SSH_PORT="${CURRENT_SSH_PORT:-22}"
+  # Засичане на текущия порт
+  CURRENT_SSH_PORT=$(ss -tlpn 2>/dev/null | grep sshd | awk -F: '/LISTEN/ {print $2}' | awk '{print $1}' | head -n 1)
+  CURRENT_SSH_PORT="${CURRENT_SSH_PORT:-22}"
 
-while true; do
-  printf "👉 В момента използвате SSH порт %s.\n" "$CURRENT_SSH_PORT"
-  echo "   Въведете нов порт, ако желаете да го промените,"
-  echo "   или натиснете Enter без въвеждане за запазване на съществуващия (или 'q' за прекратяване):"
-  printf "➤ SSH порт: "
-  read -r SSH_PORT_INPUT
+  while true; do
+    printf "👉 В момента използвате SSH порт %s.\n" "$CURRENT_SSH_PORT"
+    echo "   Въведете нов порт, ако желаете да го промените,"
+    echo "   или натиснете Enter без въвеждане за запазване на съществуващия (или 'q' за прекратяване):"
+    printf "➤ SSH порт: "
+    read -r SSH_PORT_INPUT
 
-  if [[ "$SSH_PORT_INPUT" == "q" || "$SSH_PORT_INPUT" == "Q" ]]; then
-    echo "❎ Скриптът беше прекратен от потребителя."
-    RESULT_SSH_PORT="❌"
-    echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-    exit 0
-  elif [[ -z "$SSH_PORT_INPUT" ]]; then
-    SSH_PORT="$CURRENT_SSH_PORT"
-    echo "✅ SSH портът ще остане: $SSH_PORT"
-    break
-  elif [[ "$SSH_PORT_INPUT" =~ ^[0-9]+$ ]] && (( SSH_PORT_INPUT >= 1024 && SSH_PORT_INPUT <= 65535 )); then
-    SSH_PORT="$SSH_PORT_INPUT"
-    echo "✅ Нов SSH порт ще бъде: $SSH_PORT"
-    break
+    if [[ "$SSH_PORT_INPUT" == "q" || "$SSH_PORT_INPUT" == "Q" ]]; then
+      echo "❎ Скриптът беше прекратен от потребителя."
+      RESULT_SSH_PORT="❌"
+      echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+      exit 0
+    elif [[ -z "$SSH_PORT_INPUT" ]]; then
+      SSH_PORT="$CURRENT_SSH_PORT"
+      echo "✅ SSH портът ще остане: $SSH_PORT"
+      break
+    elif [[ "$SSH_PORT_INPUT" =~ ^[0-9]+$ ]] && (( SSH_PORT_INPUT >= 1024 && SSH_PORT_INPUT <= 65535 )); then
+      SSH_PORT="$SSH_PORT_INPUT"
+      echo "✅ Нов SSH порт ще бъде: $SSH_PORT"
+      break
+    else
+      echo "❌ Невалиден номер на порт. Допустими стойности: 1024–65535. Опитайте отново."
+    fi
+  done
+
+  # Промяна в sshd_config, ако портът е различен
+  if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
+    echo "🔧 Актуализиране на /etc/ssh/sshd_config..."
+
+    if grep -q "^#*Port " /etc/ssh/sshd_config; then
+      sudo sed -i "s/^#*Port .*/Port $SSH_PORT/" /etc/ssh/sshd_config
+    else
+      echo "Port $SSH_PORT" | sudo tee -a /etc/ssh/sshd_config > /dev/null
+    fi
+
+    echo "🔄 Рестартиране на SSH услугата..."
+    if sudo systemctl restart ssh; then
+      echo "✅ SSH портът е променен успешно на $SSH_PORT и услугата е рестартирана."
+      RESULT_SSH_PORT="✅"
+    else
+      echo "❌ Грешка при рестартиране на SSH! Провери конфигурацията ръчно!"
+      RESULT_SSH_PORT="❌"
+      echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+      return 1 2>/dev/null || exit 1
+    fi
   else
-    echo "❌ Невалиден номер на порт. Допустими стойности: 1024–65535. Опитайте отново."
-  fi
-done
-
-# Промяна в sshd_config, ако портът е различен
-if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
-  echo "🔧 Актуализиране на /etc/ssh/sshd_config..."
-
-  if grep -q "^#*Port " /etc/ssh/sshd_config; then
-    sudo sed -i "s/^#*Port .*/Port $SSH_PORT/" /etc/ssh/sshd_config
-  else
-    echo "Port $SSH_PORT" | sudo tee -a /etc/ssh/sshd_config > /dev/null
-  fi
-
-  echo "🔄 Рестартиране на SSH услугата..."
-  if sudo systemctl restart ssh; then
-    echo "✅ SSH портът е променен успешно на $SSH_PORT и услугата е рестартирана."
+    echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
     RESULT_SSH_PORT="✅"
-  else
-    echo "❌ Грешка при рестартиране на SSH! Провери конфигурацията ръчно!"
-    RESULT_SSH_PORT="❌"
-    echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-    return 1 2>/dev/null || exit 1
   fi
-else
-  echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
-  RESULT_SSH_PORT="✅"
-fi
 
-# 🔓 Конфигурация на UFW за новия SSH порт (в неактивен режим)
-echo "🛡️ Настройка на UFW (в неактивен режим)..."
+  # 🔓 Конфигурация на UFW за новия SSH порт (в неактивен режим)
+  echo "🛡️ Настройка на UFW (в неактивен режим)..."
 
-# Отваряне на новия SSH порт (ако още не е добавен)
-if ! sudo ufw status | grep -q "$SSH_PORT/tcp"; then
-  echo "➕ Добавяне на правило за SSH порт $SSH_PORT..."
-  sudo ufw allow "$SSH_PORT"/tcp comment 'Allow SSH port'
-else
-  echo "ℹ️ Порт $SSH_PORT вече присъства в UFW."
-fi
-
-# 🔐 Затваряне на стария SSH порт (ако е сменен)
-if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
-  echo "🔍 Търсене на всички правила за стария SSH порт $CURRENT_SSH_PORT..."
-
-  # Извличане на всички номера на правила за стария порт (IPv4 и IPv6)
-  mapfile -t RULES_TO_DELETE < <(sudo ufw status numbered | grep "${CURRENT_SSH_PORT}/tcp" | awk -F'[][]' '{print $2}')
-
-  if [[ ${#RULES_TO_DELETE[@]} -eq 0 ]]; then
-    echo "ℹ️ Няма правила за порт $CURRENT_SSH_PORT, които да се премахнат."
+  if ! sudo ufw status | grep -q "$SSH_PORT/tcp"; then
+    echo "➕ Добавяне на правило за SSH порт $SSH_PORT..."
+    sudo ufw allow "$SSH_PORT"/tcp comment 'Allow SSH port'
   else
-    echo "🚫 Премахване на правила за порт $CURRENT_SSH_PORT..."
-    for (( idx=${#RULES_TO_DELETE[@]}-1 ; idx>=0 ; idx-- )) ; do
-      sudo ufw delete "${RULES_TO_DELETE[idx]}"
-    done
-    echo "✅ Всички правила за порт $CURRENT_SSH_PORT бяха премахнати."
+    echo "ℹ️ Порт $SSH_PORT вече присъства в UFW."
   fi
+
+  # 🔐 Затваряне на стария SSH порт (ако е сменен)
+  if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
+    echo "🔍 Търсене на всички правила за стария SSH порт $CURRENT_SSH_PORT..."
+
+    mapfile -t RULES_TO_DELETE < <(sudo ufw status numbered | grep "${CURRENT_SSH_PORT}/tcp" | awk -F'[][]' '{print $2}')
+
+    if [[ ${#RULES_TO_DELETE[@]} -eq 0 ]]; then
+      echo "ℹ️ Няма правила за порт $CURRENT_SSH_PORT, които да се премахнат."
+    else
+      echo "🚫 Премахване на правила за порт $CURRENT_SSH_PORT..."
+      for (( idx=${#RULES_TO_DELETE[@]}-1 ; idx>=0 ; idx-- )) ; do
+        sudo ufw delete "${RULES_TO_DELETE[idx]}"
+      done
+      echo "✅ Всички правила за порт $CURRENT_SSH_PORT бяха премахнати."
+    fi
+  fi
+
+  # 📝 Записване на резултатите
+  echo "SSH_PORT=\"$SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+
+  # ✅ Отбелязване като изпълнен
+  echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
+  echo ""
+  echo ""
 fi
 
-# 📝 Записване на резултатите
-echo "SSH_PORT=\"$SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-echo "RESULT_SSH_PORT=\"$RESULT_SSH_PORT\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-
-# ✅ Отбелязване като изпълнен
-echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
-fi
-echo ""
-echo ""
 
 
 # === [МОДУЛ 11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА И РЕСТАРТ ========================
