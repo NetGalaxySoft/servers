@@ -293,17 +293,17 @@ echo ""
 echo ""
 
 
-# === [МОДУЛ 4] ИНСТАЛИРАНЕ НА PHP ================================
+# === [МОДУЛ 4] ИНСТАЛИРАНЕ НА PHP ============================================
 echo "[4] ИНСТАЛИРАНЕ НА PHP..."
 echo "----------------------------------------------------------------------"
 echo ""
 
 MODULE_NAME="host_04_php_install"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
-RESULT_HOST_PHP_INSTALL="❌"
+RESULT_PHP_INSTALL="❌"
 
 # 🔁 Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_HOST_PHP_INSTALL=✅" "$SETUP_ENV_FILE"; then
+if grep -q "^RESULT_PHP_INSTALL=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като успешно изпълнен)..."
   echo ""
 else
@@ -315,21 +315,39 @@ else
   echo "  [3] PHP 8.1"
   echo "  [q] Прекратяване"
   read -p "Вашият избор [1]: " PHP_CHOICE
+  PHP_CHOICE=${PHP_CHOICE:-1}
 
-  case "$PHP_CHOICE" in
+  case $PHP_CHOICE in
+    1) PHP_VERSION="8.3" ;;
     2) PHP_VERSION="8.2" ;;
     3) PHP_VERSION="8.1" ;;
     q|Q)
-      echo "⛔ Прекратено от потребителя след $MODULE_NAME."
-      sudo rm -f /etc/netgalaxy/todo.modules
+      echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
       [[ -f "$0" ]] && rm -- "$0"
-      echo "RESULT_HOST_PHP_INSTALL=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
       exit 0
       ;;
-    *) PHP_VERSION="8.3" ;;
+    *)
+      echo "❌ Невалиден избор. Моля, стартирайте отново модула."
+      [[ -f "$0" ]] && rm -- "$0"
+      exit 1
+      ;;
   esac
 
-  echo "⏳ Инсталиране на PHP $PHP_VERSION и свързани пакети..."
+  # 💾 Записване във временното todo.modules
+  echo "PHP_VERSION=$PHP_VERSION" | sudo tee -a /etc/netgalaxy/todo.modules > /dev/null
+
+  # 📦 Проверка и добавяне на външното PHP хранилище (ако е нужно)
+  if ! grep -Rq "^deb .*ondrej/php" /etc/apt/; then
+    echo "➕ Добавяне на външното хранилище ppa:ondrej/php..."
+    sudo apt-get install -y software-properties-common lsb-release ca-certificates apt-transport-https
+    sudo add-apt-repository -y ppa:ondrej/php
+    sudo apt-get update
+  else
+    echo "ℹ️ Хранилището ppa:ondrej/php вече е добавено. Пропускане..."
+  fi
+
+  # ⚙️ Инсталиране на PHP и основни модули
+  echo "⏳ Инсталиране на PHP $PHP_VERSION и основни разширения..."
   if sudo apt-get install -y \
     php$PHP_VERSION \
     libapache2-mod-php$PHP_VERSION \
@@ -341,20 +359,18 @@ else
     php$PHP_VERSION-mbstring \
     php$PHP_VERSION-zip \
     php$PHP_VERSION-bcmath \
-    php$PHP_VERSION-gd > /dev/null; then
-
+    php$PHP_VERSION-gd; then
     echo "✅ PHP $PHP_VERSION беше инсталиран успешно."
-    RESULT_HOST_PHP_INSTALL="✅"
+    RESULT_PHP_INSTALL="✅"
   else
     echo "❌ Грешка при инсталиране на PHP $PHP_VERSION."
     echo "Моля, отстранете проблема ръчно и стартирайте отново този скрипт."
-    echo "RESULT_HOST_PHP_INSTALL=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "RESULT_PHP_INSTALL=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
     exit 1
   fi
 
-  # 💾 Записване на резултата в setup.env
-  echo "RESULT_HOST_PHP_INSTALL=$RESULT_HOST_PHP_INSTALL" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  echo ""
+  # 💾 Записване на резултата
+  echo "RESULT_PHP_INSTALL=$RESULT_PHP_INSTALL" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 fi
 echo ""
 echo ""
