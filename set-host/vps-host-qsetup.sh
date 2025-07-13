@@ -260,6 +260,41 @@ else {
 }; fi
 
 
+# === [МОДУЛ 3] ИНСТАЛИРАНЕ НА ОСНОВНИТЕ МОДУЛИ ЗА APACHE ==================
+echo "[3] ИНСТАЛИРАНЕ НА ОСНОВНИТЕ МОДУЛИ ЗА APACHE..."
+echo "----------------------------------------------------------------------"
+echo ""
+
+MODULE_NAME="host_03_apache_modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+RESULT_APACHE_MODULES="❌"
+
+# 🔁 Проверка дали модулът вече е изпълнен успешно
+if grep -q "^RESULT_APACHE_MODULES=✅" "$SETUP_ENV_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като успешно изпълнен)..."
+  echo ""
+else
+  # 🔌 Активиране на основни модули
+  echo "🔌 Активиране на основни модули: rewrite, headers, alias, env, dir, mime, setenvif..."
+  if sudo a2enmod rewrite headers alias env dir mime setenvif; then
+    echo "✅ Основните модули за Apache бяха активирани успешно."
+    RESULT_APACHE_MODULES="✅"
+  else
+    echo "❌ Грешка при активиране на Apache модулите."
+    echo "Изпълнението на скрипта не може да продължи."
+    echo "Моля, отстранете проблема ръчно и стартирайте отново този скрипт."
+    echo "RESULT_APACHE_MODULES=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    exit 1
+  fi
+
+  # 💾 Записване на резултата
+  echo "RESULT_APACHE_MODULES=$RESULT_APACHE_MODULES" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo ""
+fi
+
+
+
+
 
 
 exit 0
