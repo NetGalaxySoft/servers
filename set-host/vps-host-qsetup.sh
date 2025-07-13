@@ -296,9 +296,8 @@ echo ""
 # === [МОДУЛ 4] ИНСТАЛИРАНЕ НА PHP ============================================
 echo "[4] ИНСТАЛИРАНЕ НА PHP..."
 echo "-------------------------------------------------------------------------"
-echo ""
 
-MODULE_NAME="host_04_php"
+MODULE_NAME="host_04_php_install"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # 🔁 Проверка дали модулът вече е изпълнен
@@ -307,51 +306,54 @@ if grep -q "^RESULT_HOST_PHP_INSTALL=✅" "$SETUP_ENV_FILE"; then
   echo ""
 else
 
-  # 🧪 Опит за автоматично откриване на последната стабилна PHP версия от Ubuntu
-  PHP_VERSION=$(apt-cache policy php | grep Candidate | awk '{print $2}' | cut -d'-' -f1)
+  # ⏳ Извличане на последната достъпна версия от Ubuntu
+  PHP_VERSION_DEFAULT=$(apt-cache search ^php[0-9.]+$ | awk '{print $1}' | sed -E 's/^php([0-9.]+)$/\1/' | head -1)
 
-  if [[ -z "$PHP_VERSION" ]]; then
-    echo "❌ Неуспешно откриване на последна PHP версия. Моля, въведете ръчно (напр. 8.3): "
-    read -p "PHP версия: " PHP_VERSION
+  # 🧩 Проверка дали извличането е успешно
+  if [[ -z "$PHP_VERSION_DEFAULT" ]]; then
+    echo "❌ Неуспешно извличане на последната достъпна PHP версия от системата."
+    echo "Моля, проверете ръчно наличните пакети с: apt-cache search ^php"
+    echo "Скриптът ще бъде прекратен."
+    sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
+    exit 1
   fi
 
-  echo "🌐 Инсталиране на последната стабилна PHP версия от Ubuntu: PHP $PHP_VERSION"
+  # 🌐 Информация към оператора
+  echo "🌐 Инсталиране на последната стабилна PHP версия от Ubuntu: PHP $PHP_VERSION_DEFAULT"
   echo ""
   echo "ℹ️ Тази версия ще се използва по подразбиране за всички бъдещи виртуални хостове."
   echo "💡 Ако някои сайтове изискват други версии на PHP (напр. 7.4, 8.0),"
   echo "    те ще станат достъпни след изпълнение на следващия модул – инсталиране на стари версии."
   echo ""
+  read -p "➡️ Натиснете [Enter] за да продължите с инсталацията или 'q' за прекратяване: " choice
 
-  read -p "➡️ Натиснете [Enter] за да продължите с инсталирането на PHP $PHP_VERSION или 'q' за прекратяване: " choice
   if [[ "$choice" == "q" || "$choice" == "Q" ]]; then
-    echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
-    sudo rm -f /etc/netgalaxy/todo.modules
-    [[ -f "$0" ]] && rm -- "$0" 
+    echo "⛔ Скриптът беше прекратен от потребителя."
+    sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
     exit 0
   fi
 
-  echo "⏳ Инсталиране на PHP $PHP_VERSION и необходимите разширения..."
-  echo ""
-
+  # 📦 Инсталиране на PHP и основни разширения
+  echo "⏳ Инсталиране на PHP $PHP_VERSION_DEFAULT и основни модули..."
   if sudo apt-get install -y \
-    php$PHP_VERSION \
-    libapache2-mod-php$PHP_VERSION \
-    php$PHP_VERSION-common \
-    php$PHP_VERSION-cli \
-    php$PHP_VERSION-mysql \
-    php$PHP_VERSION-curl \
-    php$PHP_VERSION-xml \
-    php$PHP_VERSION-mbstring \
-    php$PHP_VERSION-zip \
-    php$PHP_VERSION-bcmath \
-    php$PHP_VERSION-gd; then
+    php$PHP_VERSION_DEFAULT \
+    libapache2-mod-php$PHP_VERSION_DEFAULT \
+    php$PHP_VERSION_DEFAULT-common \
+    php$PHP_VERSION_DEFAULT-cli \
+    php$PHP_VERSION_DEFAULT-mysql \
+    php$PHP_VERSION_DEFAULT-curl \
+    php$PHP_VERSION_DEFAULT-xml \
+    php$PHP_VERSION_DEFAULT-mbstring \
+    php$PHP_VERSION_DEFAULT-zip \
+    php$PHP_VERSION_DEFAULT-bcmath \
+    php$PHP_VERSION_DEFAULT-gd; then
 
-    echo "✅ PHP $PHP_VERSION беше инсталиран успешно."
+    echo "✅ PHP $PHP_VERSION_DEFAULT беше инсталиран успешно."
     echo "RESULT_HOST_PHP_INSTALL=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+
   else
-    echo "❌ Грешка при инсталиране на PHP $PHP_VERSION."
+    echo "❌ Грешка при инсталиране на PHP $PHP_VERSION_DEFAULT."
     echo "Моля, отстранете проблема ръчно и стартирайте отново този скрипт."
-    echo "RESULT_HOST_PHP_INSTALL=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
     exit 1
   fi
 fi
