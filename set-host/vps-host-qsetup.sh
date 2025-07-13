@@ -94,7 +94,7 @@ fi
 if grep -q '^SETUP_VPS_HOST_STATUS=✅' "$SETUP_ENV_FILE"; then
   echo "🛑 Този скрипт вече е бил изпълнен на този сървър."
   echo "   Повторно изпълнение не се разрешава за предпазване от сбой на системата."
-
+  echo ""
   [[ -f "$0" ]] && rm -- "$0"
   exit 0
 fi
@@ -295,59 +295,44 @@ echo ""
 
 # === [МОДУЛ 4] ИНСТАЛИРАНЕ НА PHP ============================================
 echo "[4] ИНСТАЛИРАНЕ НА PHP..."
-echo "----------------------------------------------------------------------"
+echo "-------------------------------------------------------------------------"
 echo ""
 
-MODULE_NAME="host_04_php_install"
+MODULE_NAME="host_04_php"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
-RESULT_PHP_INSTALL="❌"
 
 # 🔁 Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_PHP_INSTALL=✅" "$SETUP_ENV_FILE"; then
+if grep -q "^RESULT_HOST_PHP_INSTALL=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като успешно изпълнен)..."
   echo ""
 else
 
-  # 🌐 Избор на основна PHP версия
-  echo "🌐 Изберете основна версия на PHP, която ще се използва по подразбиране:"
-  echo "  [1] PHP 8.3 (по подразбиране)"
-  echo "  [2] PHP 8.2"
-  echo "  [3] PHP 8.1"
-  echo "  [q] Прекратяване"
-  read -p "Вашият избор [1]: " PHP_CHOICE
-  PHP_CHOICE=${PHP_CHOICE:-1}
+  # 🧪 Опит за автоматично откриване на последната стабилна PHP версия от Ubuntu
+  PHP_VERSION=$(apt-cache policy php | grep Candidate | awk '{print $2}' | cut -d'-' -f1)
 
-  case $PHP_CHOICE in
-    1) PHP_VERSION="8.3" ;;
-    2) PHP_VERSION="8.2" ;;
-    3) PHP_VERSION="8.1" ;;
-    q|Q)
-      echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
-      [[ -f "$0" ]] && rm -- "$0"
-      exit 0
-      ;;
-    *)
-      echo "❌ Невалиден избор. Моля, стартирайте отново модула."
-      [[ -f "$0" ]] && rm -- "$0"
-      exit 1
-      ;;
-  esac
-
-  # 💾 Записване във временното todo.modules
-  echo "PHP_VERSION=$PHP_VERSION" | sudo tee -a /etc/netgalaxy/todo.modules > /dev/null
-
-  # 📦 Проверка и добавяне на външното PHP хранилище (ако е нужно)
-  if ! grep -Rq "^deb .*ondrej/php" /etc/apt/; then
-    echo "➕ Добавяне на външното хранилище ppa:ondrej/php..."
-    sudo apt-get install -y software-properties-common lsb-release ca-certificates apt-transport-https
-    sudo add-apt-repository -y ppa:ondrej/php
-    sudo apt-get update
-  else
-    echo "ℹ️ Хранилището ppa:ondrej/php вече е добавено. Пропускане..."
+  if [[ -z "$PHP_VERSION" ]]; then
+    echo "❌ Неуспешно откриване на последна PHP версия. Моля, въведете ръчно (напр. 8.3): "
+    read -p "PHP версия: " PHP_VERSION
   fi
 
-  # ⚙️ Инсталиране на PHP и основни модули
-  echo "⏳ Инсталиране на PHP $PHP_VERSION и основни разширения..."
+  echo "🌐 Инсталиране на последната стабилна PHP версия от Ubuntu: PHP $PHP_VERSION"
+  echo ""
+  echo "ℹ️ Тази версия ще се използва по подразбиране за всички бъдещи виртуални хостове."
+  echo "💡 Ако някои сайтове изискват други версии на PHP (напр. 7.4, 8.0),"
+  echo "    те ще станат достъпни след изпълнение на следващия модул – инсталиране на стари версии."
+  echo ""
+
+  read -p "➡️ Натиснете [Enter] за да продължите с инсталирането на PHP $PHP_VERSION или 'q' за прекратяване: " choice
+  if [[ "$choice" == "q" || "$choice" == "Q" ]]; then
+    echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
+    sudo rm -f /etc/netgalaxy/todo.modules
+    [[ -f "$0" ]] && rm -- "$0" 
+    exit 0
+  fi
+
+  echo "⏳ Инсталиране на PHP $PHP_VERSION и необходимите разширения..."
+  echo ""
+
   if sudo apt-get install -y \
     php$PHP_VERSION \
     libapache2-mod-php$PHP_VERSION \
@@ -360,17 +345,15 @@ else
     php$PHP_VERSION-zip \
     php$PHP_VERSION-bcmath \
     php$PHP_VERSION-gd; then
+
     echo "✅ PHP $PHP_VERSION беше инсталиран успешно."
-    RESULT_PHP_INSTALL="✅"
+    echo "RESULT_HOST_PHP_INSTALL=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
   else
     echo "❌ Грешка при инсталиране на PHP $PHP_VERSION."
     echo "Моля, отстранете проблема ръчно и стартирайте отново този скрипт."
-    echo "RESULT_PHP_INSTALL=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "RESULT_HOST_PHP_INSTALL=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
     exit 1
   fi
-
-  # 💾 Записване на резултата
-  echo "RESULT_PHP_INSTALL=$RESULT_PHP_INSTALL" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 fi
 echo ""
 echo ""
