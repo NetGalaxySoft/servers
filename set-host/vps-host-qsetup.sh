@@ -254,10 +254,9 @@ else {
 
   # 💾 Записване на резултата в setup.env
   echo "RESULT_HOST_APACHE_CHECK=$RESULT_HOST_APACHE_CHECK" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  echo ""
-  echo ""
-
 }; fi
+echo ""
+echo ""
 
 
 # === [МОДУЛ 3] ИНСТАЛИРАНЕ НА ОСНОВНИТЕ МОДУЛИ ЗА APACHE ==================
@@ -289,8 +288,78 @@ else
 
   # 💾 Записване на резултата
   echo "RESULT_APACHE_MODULES=$RESULT_APACHE_MODULES" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+fi
+echo ""
+echo ""
+
+
+# === [МОДУЛ 4] ИНСТАЛИРАНЕ НА PHP ================================
+echo "[4] ИНСТАЛИРАНЕ НА PHP..."
+echo "----------------------------------------------------------------------"
+echo ""
+
+MODULE_NAME="host_04_php_install"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+RESULT_HOST_PHP_INSTALL="❌"
+
+# 🔁 Проверка дали модулът вече е изпълнен
+if grep -q "^RESULT_HOST_PHP_INSTALL=✅" "$SETUP_ENV_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като успешно изпълнен)..."
+  echo ""
+else
+
+  # 🌐 Избор на основна PHP версия
+  echo "🌐 Изберете основна версия на PHP, която ще се използва по подразбиране:"
+  echo "  [1] PHP 8.3 (по подразбиране)"
+  echo "  [2] PHP 8.2"
+  echo "  [3] PHP 8.1"
+  echo "  [q] Прекратяване"
+  read -p "Вашият избор [1]: " PHP_CHOICE
+
+  case "$PHP_CHOICE" in
+    2) PHP_VERSION="8.2" ;;
+    3) PHP_VERSION="8.1" ;;
+    q|Q)
+      echo "⛔ Прекратено от потребителя след $MODULE_NAME."
+      sudo rm -f /etc/netgalaxy/todo.modules
+      [[ -f "$0" ]] && rm -- "$0"
+      echo "RESULT_HOST_PHP_INSTALL=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+      exit 0
+      ;;
+    *) PHP_VERSION="8.3" ;;
+  esac
+
+  echo "⏳ Инсталиране на PHP $PHP_VERSION и свързани пакети..."
+  if sudo apt-get install -y \
+    php$PHP_VERSION \
+    libapache2-mod-php$PHP_VERSION \
+    php$PHP_VERSION-common \
+    php$PHP_VERSION-cli \
+    php$PHP_VERSION-mysql \
+    php$PHP_VERSION-curl \
+    php$PHP_VERSION-xml \
+    php$PHP_VERSION-mbstring \
+    php$PHP_VERSION-zip \
+    php$PHP_VERSION-bcmath \
+    php$PHP_VERSION-gd > /dev/null; then
+
+    echo "✅ PHP $PHP_VERSION беше инсталиран успешно."
+    RESULT_HOST_PHP_INSTALL="✅"
+  else
+    echo "❌ Грешка при инсталиране на PHP $PHP_VERSION."
+    echo "Моля, отстранете проблема ръчно и стартирайте отново този скрипт."
+    echo "RESULT_HOST_PHP_INSTALL=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    exit 1
+  fi
+
+  # 💾 Записване на резултата в setup.env
+  echo "RESULT_HOST_PHP_INSTALL=$RESULT_HOST_PHP_INSTALL" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
   echo ""
 fi
+echo ""
+echo ""
+
+
 
 
 
