@@ -134,7 +134,6 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 if grep -q "^RESULT_HOST_IP_CHECK=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като успешно изпълнен)..."
   echo ""
-  return 0 2>/dev/null || exit 0
 else {
 
   # 📌 Инициализация на резултата като неуспешен
@@ -237,7 +236,6 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 if grep -q "^RESULT_HOST_APACHE_CHECK=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като успешно изпълнен)..."
   echo ""
-  return 0 2>/dev/null || exit 0
 else {
 
   RESULT_HOST_APACHE_CHECK="❌"
