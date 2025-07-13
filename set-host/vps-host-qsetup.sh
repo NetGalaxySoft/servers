@@ -123,6 +123,9 @@ echo ""
 
 
 # === [МОДУЛ 1] ПРОВЕРКА НА IP И FQDN НА СЪРВЪРА =============================
+echo "[1] ПРОВЕРКА НА IP И FQDN НА СЪРВЪРА..."
+echo "-------------------------------------------------------------------------"
+echo ""
 
 MODULE_NAME="host_01_ip_check"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
@@ -202,6 +205,8 @@ while true; do
     echo ""
   else
     echo "✅ Потвърдено: домейнът $SERVER_DOMAIN сочи към този сървър ($ACTUAL_IP)."
+    echo "FQDN=$SERVER_DOMAIN" | sudo tee -a /etc/netgalaxy/todo.modules > /dev/null
+    echo "SERVER_IP=$SERVER_IP" | sudo tee -a /etc/netgalaxy/todo.modules > /dev/null
     RESULT_HOST_IP_CHECK="✅"
     break
   fi
