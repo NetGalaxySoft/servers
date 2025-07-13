@@ -130,90 +130,98 @@ echo ""
 MODULE_NAME="host_01_ip_check"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
-# 📌 Инициализация на резултата като неуспешен
-RESULT_HOST_IP_CHECK="❌"
+# 🔁 Проверка дали модулът вече е изпълнен
+if grep -q "^RESULT_HOST_IP_CHECK=✅" "$SETUP_ENV_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като успешно изпълнен)..."
+  echo ""
+  return 0 2>/dev/null || exit 0
+else {
 
-# 🌐 Проверка на публичния IP адрес
-while true; do
-  printf "🌐 Въведете публичния IP адрес на сървъра (или 'q' за изход): "
-  read SERVER_IP
+  # 📌 Инициализация на резултата като неуспешен
+  RESULT_HOST_IP_CHECK="❌"
 
-  if [[ "$SERVER_IP" == "q" || "$SERVER_IP" == "Q" ]]; then
-    echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
-    sudo rm -f /etc/netgalaxy/todo.modules
-    [[ -f "$0" ]] && rm -- "$0"
-    echo "RESULT_HOST_IP_CHECK=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-    exit 0
-  fi
+  # 🌐 Проверка на публичния IP адрес
+  while true; do
+    printf "🌐 Въведете публичния IP адрес на сървъра (или 'q' за изход): "
+    read SERVER_IP
 
-  if ! [[ "$SERVER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-    echo "❌ Невалиден IP адрес. Моля, въведете валиден IPv4 адрес (напр. 192.168.1.100)."
-    continue
-  fi
-
-  ACTUAL_IP="$(curl -s ifconfig.me)"
-
-  if [[ "$ACTUAL_IP" != "$SERVER_IP" ]]; then
-    echo ""
-    echo "🚫 Скриптът не е стартиран на сървъра с въведения IP адрес."
-        read -p "🔁 Искате ли да опитате отново? [Enter за ДА, 'q' за изход]: " retry
-    if [[ "$retry" == "q" || "$retry" == "Q" ]]; then
+    if [[ "$SERVER_IP" == "q" || "$SERVER_IP" == "Q" ]]; then
       echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
       sudo rm -f /etc/netgalaxy/todo.modules
       [[ -f "$0" ]] && rm -- "$0"
       echo "RESULT_HOST_IP_CHECK=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
       exit 0
     fi
-    echo ""
-  else
-    echo "✅ Потвърдено: скриптът е стартиран на сървъра с IP $SERVER_IP."
-    break
-  fi
-done
 
-# 🌍 Проверка на домейн името (FQDN)
-while true; do
-  printf "🌍 Въведете FQDN (пълното домейн име) на сървъра (или 'q' за изход): "
-  read SERVER_DOMAIN
+    if ! [[ "$SERVER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+      echo "❌ Невалиден IP адрес. Моля, въведете валиден IPv4 адрес (напр. 192.168.1.100)."
+      continue
+    fi
 
-  if [[ "$SERVER_DOMAIN" == "q" || "$SERVER_DOMAIN" == "Q" ]]; then
-    echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
-    sudo rm -f /etc/netgalaxy/todo.modules
-    [[ -f "$0" ]] && rm -- "$0"
-    echo "RESULT_HOST_IP_CHECK=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-    exit 0
-  fi
+    ACTUAL_IP="$(curl -s ifconfig.me)"
 
-  if ! [[ "$SERVER_DOMAIN" =~ ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)+([A-Za-z]{2,})$ ]]; then
-    echo "❌ Невалиден FQDN. Моля, въведете валидно пълно домейн име (напр. host.example.com)."
-    continue
-  fi
+    if [[ "$ACTUAL_IP" != "$SERVER_IP" ]]; then
+      echo ""
+      echo "🚫 Скриптът не е стартиран на сървъра с въведения IP адрес."
+      read -p "🔁 Искате ли да опитате отново? [Enter за ДА, 'q' за изход]: " retry
+      if [[ "$retry" == "q" || "$retry" == "Q" ]]; then
+        echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
+        sudo rm -f /etc/netgalaxy/todo.modules
+        [[ -f "$0" ]] && rm -- "$0"
+        echo "RESULT_HOST_IP_CHECK=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+        exit 0
+      fi
+      echo ""
+    else
+      echo "✅ Потвърдено: скриптът е стартиран на сървъра с IP $SERVER_IP."
+      break
+    fi
+  done
 
-  resolved_ip=$(dig +short "$SERVER_DOMAIN" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+  # 🌍 Проверка на домейн името (FQDN)
+  while true; do
+    printf "🌍 Въведете FQDN (пълното домейн име) на сървъра (или 'q' за изход): "
+    read SERVER_DOMAIN
 
-  if [[ "$resolved_ip" != "$ACTUAL_IP" ]]; then
-    echo ""
-    echo "🚫 Домейнът $SERVER_DOMAIN не сочи към този сървър."
-    read -p "🔁 Искате ли да опитате отново? [Enter за ДА, 'q' за изход]: " retry
-    if [[ "$retry" == "q" || "$retry" == "Q" ]]; then
+    if [[ "$SERVER_DOMAIN" == "q" || "$SERVER_DOMAIN" == "Q" ]]; then
       echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
       sudo rm -f /etc/netgalaxy/todo.modules
       [[ -f "$0" ]] && rm -- "$0"
       echo "RESULT_HOST_IP_CHECK=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
       exit 0
     fi
-    echo ""
-  else
-    echo "✅ Потвърдено: домейнът $SERVER_DOMAIN сочи към този сървър ($ACTUAL_IP)."
-    echo "FQDN=$SERVER_DOMAIN" | sudo tee -a /etc/netgalaxy/todo.modules > /dev/null
-    echo "SERVER_IP=$SERVER_IP" | sudo tee -a /etc/netgalaxy/todo.modules > /dev/null
-    RESULT_HOST_IP_CHECK="✅"
-    break
-  fi
-done
 
-# 💾 Записване на резултата в setup.env
-echo "RESULT_HOST_IP_CHECK=$RESULT_HOST_IP_CHECK" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    if ! [[ "$SERVER_DOMAIN" =~ ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)+([A-Za-z]{2,})$ ]]; then
+      echo "❌ Невалиден FQDN. Моля, въведете валидно пълно домейн име (напр. host.example.com)."
+      continue
+    fi
+
+    resolved_ip=$(dig +short "$SERVER_DOMAIN" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+
+    if [[ "$resolved_ip" != "$ACTUAL_IP" ]]; then
+      echo ""
+      echo "🚫 Домейнът $SERVER_DOMAIN не сочи към този сървър."
+      read -p "🔁 Искате ли да опитате отново? [Enter за ДА, 'q' за изход]: " retry
+      if [[ "$retry" == "q" || "$retry" == "Q" ]]; then
+        echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
+        sudo rm -f /etc/netgalaxy/todo.modules
+        [[ -f "$0" ]] && rm -- "$0"
+        echo "RESULT_HOST_IP_CHECK=❌" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+        exit 0
+      fi
+      echo ""
+    else
+      echo "✅ Потвърдено: домейнът $SERVER_DOMAIN сочи към този сървър ($ACTUAL_IP)."
+      echo "FQDN=$SERVER_DOMAIN" | sudo tee -a /etc/netgalaxy/todo.modules > /dev/null
+      echo "SERVER_IP=$SERVER_IP" | sudo tee -a /etc/netgalaxy/todo.modules > /dev/null
+      RESULT_HOST_IP_CHECK="✅"
+      break
+    fi
+  done
+
+  # 💾 Записване на резултата в setup.env
+  echo "RESULT_HOST_IP_CHECK=$RESULT_HOST_IP_CHECK" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null  
+}; fi
 echo ""
 echo ""
 
