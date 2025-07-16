@@ -293,72 +293,82 @@ echo ""
 echo ""
 
 
-# === [МОДУЛ 4] ИНСТАЛИРАНЕ НА PHP ============================================
-echo "[4] ИНСТАЛИРАНЕ НА PHP..."
+# === [МОДУЛ 4] ИНСТАЛИРАНЕ НА PHP ПО ПОДРАЗБИРАНЕ ============================================
+echo "[4] ИНСТАЛИРАНЕ НА PHP ПО ПОДРАЗБИРАНЕ..."
 echo "-------------------------------------------------------------------------"
 
-MODULE_NAME="host_04_php_install"
-SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+MODULE_NAME="host_04_php_default"
+RESULT_HOST_PHP_DEFAULT="❌"
 
-# 🔁 Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_HOST_PHP_INSTALL=✅" "$SETUP_ENV_FILE"; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като успешно изпълнен)..."
+# Проверка дали вече е изпълнен
+if grep -q "^RESULT_HOST_PHP_DEFAULT=✅" "$SETUP_ENV_FILE"; then
+  echo "🔁 Пропускане на $MODULE_NAME (вече е изпълнен)..."
   echo ""
 else
+  # === 1. Въпроси с отговор по подразбиране ===
+  DEFAULT_ROUTER_IP="100.98.194.6"
+  DEFAULT_TOKEN="b84f93b1e7c2d948c1f6b53a2d9e85fa"
 
-  # ⏳ Извличане на последната достъпна версия от Ubuntu
-  PHP_VERSION_DEFAULT=$(apt-cache search ^php[0-9.]+$ | awk '{print $1}' | sed -E 's/^php([0-9.]+)$/\1/' | head -1)
+  read -p "🌐 Въведете IP на рутера [по подразбиране: $DEFAULT_ROUTER_IP]: " ROUTER_IP
+  ROUTER_IP=${ROUTER_IP:-$DEFAULT_ROUTER_IP}
 
-  # 🧩 Проверка дали извличането е успешно
-  if [[ -z "$PHP_VERSION_DEFAULT" ]]; then
-    echo "❌ Неуспешно извличане на последната достъпна PHP версия от системата."
-    echo "Моля, проверете ръчно наличните пакети с: apt-cache search ^php"
-    echo "Скриптът ще бъде прекратен."
+  read -p "🔑 Въведете токен за достъп [по подразбиране: $DEFAULT_TOKEN]: " ROUTER_TOKEN
+  ROUTER_TOKEN=${ROUTER_TOKEN:-$DEFAULT_TOKEN}
+
+  read -p "➡️ Въведете желаната PHP версия (пример: php8.3): " PHP_VERSION
+  if [[ -z "$PHP_VERSION" ]]; then
+    echo "❌ Не е въведена PHP версия. Скриптът ще бъде прекратен."
     sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
     exit 1
   fi
 
-  # 🌐 Информация към оператора
-  echo "🌐 Инсталиране на последната стабилна PHP версия от Ubuntu: PHP $PHP_VERSION_DEFAULT"
-  echo ""
-  echo "ℹ️ Тази версия ще се използва по подразбиране за всички бъдещи виртуални хостове."
-  echo "💡 Ако някои сайтове изискват други версии на PHP (напр. 7.4, 8.0),"
-  echo "    те ще станат достъпни след изпълнение на следващия модул – инсталиране на стари версии."
-  echo ""
-  read -p "➡️ Натиснете [Enter] за да продължите с инсталацията или 'q' за прекратяване: " choice
+  LOCAL_DIR="/tmp/php-install"
+  sudo mkdir -p "$LOCAL_DIR"
+  sudo rm -rf "$LOCAL_DIR/*"
 
-  if [[ "$choice" == "q" || "$choice" == "Q" ]]; then
-    echo "⛔ Скриптът беше прекратен от потребителя."
+  # === 2. Сваляне на пакетите чрез HTTP ===
+  DOWNLOAD_URL="http://$ROUTER_IP/cgi-bin/php-download.sh?token=$ROUTER_TOKEN&version=$PHP_VERSION"
+  echo "📥 Изтегляне на пакети от: $DOWNLOAD_URL"
+
+  if ! curl -fSL "$DOWNLOAD_URL" -o "$LOCAL_DIR/php-packages.tar.gz"; then
+    echo "❌ Грешка при изтегляне на пакети от рутера."
     sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
-    exit 0
+    exit 1
   fi
 
-  # 📦 Инсталиране на PHP и основни разширения
-  echo "⏳ Инсталиране на PHP $PHP_VERSION_DEFAULT и основни модули..."
-  if sudo apt-get install -y \
-    php$PHP_VERSION_DEFAULT \
-    libapache2-mod-php$PHP_VERSION_DEFAULT \
-    php$PHP_VERSION_DEFAULT-common \
-    php$PHP_VERSION_DEFAULT-cli \
-    php$PHP_VERSION_DEFAULT-mysql \
-    php$PHP_VERSION_DEFAULT-curl \
-    php$PHP_VERSION_DEFAULT-xml \
-    php$PHP_VERSION_DEFAULT-mbstring \
-    php$PHP_VERSION_DEFAULT-zip \
-    php$PHP_VERSION_DEFAULT-bcmath \
-    php$PHP_VERSION_DEFAULT-gd; then
+  echo "✅ Пакетите са изтеглени успешно."
 
-    echo "✅ PHP $PHP_VERSION_DEFAULT беше инсталиран успешно."
-    echo "RESULT_HOST_PHP_INSTALL=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  # === 3. Разархивиране ===
+  echo "📂 Разархивиране на пакетите..."
+  if ! tar -xzf "$LOCAL_DIR/php-packages.tar.gz" -C "$LOCAL_DIR"; then
+    echo "❌ Грешка при разархивиране."
+    exit 1
+  fi
 
+  # === 4. Инсталиране на избраната версия ===
+  echo "⏳ Инсталиране на PHP $PHP_VERSION..."
+  cd "$LOCAL_DIR" || exit 1
+  if sudo dpkg -i *.deb; then
+    echo "✅ PHP $PHP_VERSION е инсталиран."
   else
-    echo "❌ Грешка при инсталиране на PHP $PHP_VERSION_DEFAULT."
-    echo "Моля, отстранете проблема ръчно и стартирайте отново този скрипт."
-    exit 1
+    echo "⚠️ Има липсващи зависимости – опит за поправка..."
+    sudo apt-get install -f -y
   fi
+
+  # === 5. Активиране в Apache ===
+  echo "🔧 Активиране на PHP $PHP_VERSION в Apache..."
+  sudo a2dismod php* >/dev/null 2>&1
+  sudo a2enmod "$PHP_VERSION"
+  sudo systemctl restart apache2
+
+  # === 6. Запис на резултат ===
+  RESULT_HOST_PHP_DEFAULT="✅"
+  echo "RESULT_HOST_PHP_DEFAULT=$RESULT_HOST_PHP_DEFAULT" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo "✅ PHP $PHP_VERSION е конфигуриран като версия по подразбиране."
 fi
 echo ""
 echo ""
+
 
 
 
