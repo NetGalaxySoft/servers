@@ -300,33 +300,100 @@ echo "-------------------------------------------------------------------------"
 MODULE_NAME="host_04_php_default"
 RESULT_HOST_PHP_DEFAULT="❌"
 
-# Проверка дали вече е изпълнен
 if grep -q "^RESULT_HOST_PHP_DEFAULT=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е изпълнен)..."
   echo ""
 else
-  # === 1. Въпроси с отговор по подразбиране ===
   DEFAULT_ROUTER_IP="100.98.194.6"
   DEFAULT_TOKEN="b84f93b1e7c2d948c1f6b53a2d9e85fa"
 
-  read -p "🌐 Въведете IP на рутера [по подразбиране: $DEFAULT_ROUTER_IP]: " ROUTER_IP
-  ROUTER_IP=${ROUTER_IP:-$DEFAULT_ROUTER_IP}
+  # === Въвеждане на IP с проверка ===
+  while true; do
+    read -p "🌐 Въведете IP на рутера [по подразбиране: $DEFAULT_ROUTER_IP]: " ROUTER_IP
+    ROUTER_IP=${ROUTER_IP:-$DEFAULT_ROUTER_IP}
 
-  read -p "🔑 Въведете токен за достъп [по подразбиране: $DEFAULT_TOKEN]: " ROUTER_TOKEN
-  ROUTER_TOKEN=${ROUTER_TOKEN:-$DEFAULT_TOKEN}
+    if [[ "$ROUTER_IP" == "q" || "$ROUTER_IP" == "Q" ]]; then
+      echo "⛔ Скриптът беше прекратен от потребителя."
+      sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
+      exit 0
+    fi
 
-  read -p "➡️ Въведете желаната PHP версия (пример: php8.3): " PHP_VERSION
-  if [[ -z "$PHP_VERSION" ]]; then
-    echo "❌ Не е въведена PHP версия. Скриптът ще бъде прекратен."
+    if [[ "$ROUTER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+      break
+    else
+      echo "❌ Невалиден IP адрес. Опитайте отново или въведете 'q' за изход."
+    fi
+  done
+
+  # === Въвеждане на токен с проверка ===
+  while true; do
+    read -p "🔑 Въведете токен за достъп [по подразбиране: $DEFAULT_TOKEN]: " ROUTER_TOKEN
+    ROUTER_TOKEN=${ROUTER_TOKEN:-$DEFAULT_TOKEN}
+
+    if [[ "$ROUTER_TOKEN" == "q" || "$ROUTER_TOKEN" == "Q" ]]; then
+      echo "⛔ Скриптът беше прекратен от потребителя."
+      sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
+      exit 0
+    fi
+
+    if [[ -n "$ROUTER_TOKEN" ]]; then
+      break
+    else
+      echo "❌ Токенът не може да бъде празен. Опитайте отново или въведете 'q' за изход."
+    fi
+  done
+
+  # === Извличане на списък с наличните версии ===
+  echo "📡 Извличане на наличните PHP версии от рутера..."
+  AVAILABLE_VERSIONS=$(curl -s "http://$ROUTER_IP/cgi-bin/php-list.sh?token=$ROUTER_TOKEN")
+  if [[ -z "$AVAILABLE_VERSIONS" ]]; then
+    echo "❌ Грешка: Не бяха получени версии от рутера."
     sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
     exit 1
   fi
+
+  SORTED_VERSIONS=$(echo "$AVAILABLE_VERSIONS" | sort -Vr)
+  TOP3=$(echo "$SORTED_VERSIONS" | head -3)
+
+  OPTION_1=$(echo "$TOP3" | sed -n '1p')
+  OPTION_2=$(echo "$TOP3" | sed -n '2p')
+  OPTION_3=$(echo "$TOP3" | sed -n '3p')
+
+  echo ""
+  echo "Налични версии за избор:"
+  echo "[1] $OPTION_1 (по подразбиране)"
+  echo "[2] $OPTION_2"
+  echo "[3] $OPTION_3"
+  echo "[q] Прекратяване"
+  echo ""
+
+  while true; do
+    read -p "➡️ Вашият избор [1]: " CHOICE
+    CHOICE=${CHOICE:-1}
+
+    case "$CHOICE" in
+      1) PHP_VERSION="$OPTION_1"; break ;;
+      2) PHP_VERSION="$OPTION_2"; break ;;
+      3) PHP_VERSION="$OPTION_3"; break ;;
+      q|Q)
+        echo "⛔ Скриптът беше прекратен от потребителя."
+        sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
+        exit 0
+        ;;
+      *)
+        echo "❌ Невалиден избор. Опитайте отново."
+        ;;
+    esac
+  done
+
+  echo "✅ Избрана версия: $PHP_VERSION"
+  echo ""
 
   LOCAL_DIR="/tmp/php-install"
   sudo mkdir -p "$LOCAL_DIR"
   sudo rm -rf "$LOCAL_DIR/*"
 
-  # === 2. Сваляне на пакетите чрез HTTP ===
+  # === Сваляне на пакети ===
   DOWNLOAD_URL="http://$ROUTER_IP/cgi-bin/php-download.sh?token=$ROUTER_TOKEN&version=$PHP_VERSION"
   echo "📥 Изтегляне на пакети от: $DOWNLOAD_URL"
 
@@ -338,14 +405,14 @@ else
 
   echo "✅ Пакетите са изтеглени успешно."
 
-  # === 3. Разархивиране ===
+  # === Разархивиране ===
   echo "📂 Разархивиране на пакетите..."
   if ! tar -xzf "$LOCAL_DIR/php-packages.tar.gz" -C "$LOCAL_DIR"; then
     echo "❌ Грешка при разархивиране."
     exit 1
   fi
 
-  # === 4. Инсталиране на избраната версия ===
+  # === Инсталиране ===
   echo "⏳ Инсталиране на PHP $PHP_VERSION..."
   cd "$LOCAL_DIR" || exit 1
   if sudo dpkg -i *.deb; then
@@ -355,19 +422,19 @@ else
     sudo apt-get install -f -y
   fi
 
-  # === 5. Активиране в Apache ===
+  # === Активиране в Apache ===
   echo "🔧 Активиране на PHP $PHP_VERSION в Apache..."
   sudo a2dismod php* >/dev/null 2>&1
   sudo a2enmod "$PHP_VERSION"
   sudo systemctl restart apache2
 
-  # === 6. Запис на резултат ===
   RESULT_HOST_PHP_DEFAULT="✅"
   echo "RESULT_HOST_PHP_DEFAULT=$RESULT_HOST_PHP_DEFAULT" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
   echo "✅ PHP $PHP_VERSION е конфигуриран като версия по подразбиране."
 fi
 echo ""
 echo ""
+
 
 
 
