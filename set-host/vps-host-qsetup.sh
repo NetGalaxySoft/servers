@@ -346,8 +346,9 @@ else
   done
 
   # === Извличане на списък с наличните версии ===
+  echo ""
   echo "📡 Извличане на наличните PHP версии от рутера..."
-  AVAILABLE_VERSIONS=$(curl -s "http://$ROUTER_IP/cgi-bin/php-list.sh?token=$ROUTER_TOKEN")
+  AVAILABLE_VERSIONS=$(curl -s --max-time 10 "http://$ROUTER_IP/cgi-bin/php-list.sh?token=$ROUTER_TOKEN")
   if [[ -z "$AVAILABLE_VERSIONS" ]]; then
     echo "❌ Критична грешка: Не бяха получени версии от рутера."
     echo "  Конфигурирането на сървъра не може да продължи."
@@ -364,7 +365,7 @@ else
 
   echo ""
   echo "Изберете PHP версия по подразбиране за целия сървър"
-  echo "Налични версии за избор (или 'q' за изход):"
+  echo "Налични версии за избор:"
   echo "[1] $OPTION_1 (по подразбиране)"
   echo "[2] $OPTION_2"
   echo "[3] $OPTION_3"
@@ -400,9 +401,9 @@ else
   DOWNLOAD_URL="http://$ROUTER_IP/cgi-bin/php-download.sh?token=$ROUTER_TOKEN&version=$PHP_VERSION"
   echo "📥 Изтегляне на пакети от: $DOWNLOAD_URL"
 
-  if ! curl -fSL "$DOWNLOAD_URL" -o "$LOCAL_DIR/php-packages.tar.gz"; then
+  if ! curl -fSL --max-time 30 "$DOWNLOAD_URL" -o "$LOCAL_DIR/php-packages.tar.gz"; then
     echo "❌ Грешка при изтегляне на пакети от рутера."
-    exit 1
+    exit 0
   fi
 
   echo "✅ Пакетите са изтеглени успешно."
@@ -411,7 +412,7 @@ else
   echo "📂 Разархивиране на пакетите..."
   if ! tar -xzf "$LOCAL_DIR/php-packages.tar.gz" -C "$LOCAL_DIR"; then
     echo "❌ Грешка при разархивиране."
-    exit 1
+    exit 0
   fi
 
   # === Инсталиране ===
@@ -436,6 +437,7 @@ else
 fi
 echo ""
 echo ""
+
 
 
 
