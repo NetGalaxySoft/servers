@@ -309,12 +309,13 @@ else
 
   # === Въвеждане на IP с проверка ===
   while true; do
-    read -p "🌐 Въведете IP на рутера [по подразбиране: $DEFAULT_ROUTER_IP]: " ROUTER_IP
+    echo ""
+    echo "🌐 Потвърдете с Enter или въведете нов IP на рутера (или 'q' за изход)"
+    read -p "  [IP по подразбиране: $DEFAULT_ROUTER_IP]: " ROUTER_IP
     ROUTER_IP=${ROUTER_IP:-$DEFAULT_ROUTER_IP}
 
     if [[ "$ROUTER_IP" == "q" || "$ROUTER_IP" == "Q" ]]; then
       echo "⛔ Скриптът беше прекратен от потребителя."
-      sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
       exit 0
     fi
 
@@ -327,12 +328,13 @@ else
 
   # === Въвеждане на токен с проверка ===
   while true; do
-    read -p "🔑 Въведете токен за достъп [по подразбиране: $DEFAULT_TOKEN]: " ROUTER_TOKEN
+    echo ""
+    echo "🔑 Потвърдете с Enter или въведете нов токен за достъп (или 'q' за изход)"
+    read -p "  [по подразбиране: $DEFAULT_TOKEN]: " ROUTER_TOKEN
     ROUTER_TOKEN=${ROUTER_TOKEN:-$DEFAULT_TOKEN}
 
     if [[ "$ROUTER_TOKEN" == "q" || "$ROUTER_TOKEN" == "Q" ]]; then
       echo "⛔ Скриптът беше прекратен от потребителя."
-      sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
       exit 0
     fi
 
@@ -347,9 +349,10 @@ else
   echo "📡 Извличане на наличните PHP версии от рутера..."
   AVAILABLE_VERSIONS=$(curl -s "http://$ROUTER_IP/cgi-bin/php-list.sh?token=$ROUTER_TOKEN")
   if [[ -z "$AVAILABLE_VERSIONS" ]]; then
-    echo "❌ Грешка: Не бяха получени версии от рутера."
-    sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
-    exit 1
+    echo "❌ Критична грешка: Не бяха получени версии от рутера."
+    echo "  Конфигурирането на сървъра не може да продължи."
+    echo "  Моля, опитайте по-късно."
+    exit 0
   fi
 
   SORTED_VERSIONS=$(echo "$AVAILABLE_VERSIONS" | sort -Vr)
@@ -360,7 +363,8 @@ else
   OPTION_3=$(echo "$TOP3" | sed -n '3p')
 
   echo ""
-  echo "Налични версии за избор:"
+  echo "Изберете PHP версия по подразбиране за целия сървър"
+  echo "Налични версии за избор (или 'q' за изход):"
   echo "[1] $OPTION_1 (по подразбиране)"
   echo "[2] $OPTION_2"
   echo "[3] $OPTION_3"
@@ -377,7 +381,6 @@ else
       3) PHP_VERSION="$OPTION_3"; break ;;
       q|Q)
         echo "⛔ Скриптът беше прекратен от потребителя."
-        sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
         exit 0
         ;;
       *)
@@ -399,7 +402,6 @@ else
 
   if ! curl -fSL "$DOWNLOAD_URL" -o "$LOCAL_DIR/php-packages.tar.gz"; then
     echo "❌ Грешка при изтегляне на пакети от рутера."
-    sudo rm -f -- "$0" /etc/netgalaxy/todo.modules
     exit 1
   fi
 
