@@ -243,30 +243,37 @@ else {
   sudo hostnamectl set-hostname "$FQDN"
   echo "✅ Hostname е зададен: $FQDN"
 
-  # Добавяне във /etc/hosts
+  # Променливи
   SERVER_IP=$(curl -s -4 ifconfig.me)
   SHORT_HOST=$(echo "$FQDN" | cut -d '.' -f1)
+  WWW_ALIAS="www.$FQDN"
 
-  # Заместване или добавяне на реда 127.0.1.1
+  # ✅ Уверяваме се, че 127.0.0.1 localhost присъства
+  if ! grep -q "^127.0.0.1" /etc/hosts; then
+    echo "127.0.0.1   localhost" | sudo tee -a /etc/hosts > /dev/null
+  fi
+
+  # ✅ Заместване или добавяне на реда 127.0.1.1 с FQDN и short hostname
   if grep -q "^127.0.1.1" /etc/hosts; then
     sudo sed -i "s/^127.0.1.1.*/127.0.1.1   $FQDN $SHORT_HOST/" /etc/hosts
   else
     echo "127.0.1.1   $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
   fi
 
-  # Добавяне на публичния IP, ако липсва
-  if ! grep -qw "$FQDN" /etc/hosts; then
-    echo "$SERVER_IP   $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
-
-    # Проверка дали редът е добавен успешно
-    if grep -qw "$FQDN" /etc/hosts; then
-      echo "✅ Редът е добавен успешно: $SERVER_IP $FQDN $SHORT_HOST"
-    else
-      echo "❌ Грешка: редът не можа да бъде добавен в /etc/hosts."
-      exit 1
-    fi
+  # ✅ Добавяне или актуализиране на реда с публичния IP + алиас
+  if grep -q "$FQDN" /etc/hosts; then
+    # Ако вече има ред с FQDN, обновяваме го
+    sudo sed -i "s/^.*$FQDN.*/$SERVER_IP   $FQDN $WWW_ALIAS/" /etc/hosts
   else
-    echo "ℹ️ Домейнът вече съществува в /etc/hosts"
+    echo "$SERVER_IP   $FQDN $WWW_ALIAS" | sudo tee -a /etc/hosts > /dev/null
+  fi
+
+  # ✅ Проверка за коректност
+  if grep -qw "$FQDN" /etc/hosts && grep -q "$SERVER_IP" /etc/hosts; then
+    echo "✅ /etc/hosts е конфигуриран правилно: $SERVER_IP $FQDN $WWW_ALIAS"
+  else
+    echo "❌ Грешка: редът не можа да бъде добавен в /etc/hosts."
+    exit 1
   fi
 
   # ✅ Запис на FQDN (за следващи модули)
