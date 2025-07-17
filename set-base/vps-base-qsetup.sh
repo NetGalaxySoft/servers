@@ -245,22 +245,22 @@ else {
 
   # Добавяне във /etc/hosts, ако липсва
   SERVER_IP=$(curl -s -4 ifconfig.me)
-  if ! grep -qw "$FQDN" /etc/hosts; then
-    echo "$SERVER_IP    $FQDN" | sudo tee -a /etc/hosts > /dev/null
+  SHORT_HOST=$(echo "$FQDN" | cut -d '.' -f1)
 
-    # Проверка дали редът е добавен
-    if ! grep -qw "$FQDN" /etc/hosts; then
+  if ! grep -qw "$FQDN" /etc/hosts; then
     echo "$SERVER_IP    $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
+
     # Проверка дали редът е добавен успешно
     if grep -qw "$FQDN" /etc/hosts; then
-        echo "✅ Редът е добавен успешно: $SERVER_IP $FQDN $SHORT_HOST"
+      echo "✅ Редът е добавен успешно: $SERVER_IP $FQDN $SHORT_HOST"
     else
-        echo "❌ Грешка: редът не можа да бъде добавен в /etc/hosts."
-        exit 1
+      echo "❌ Грешка: редът не можа да бъде добавен в /etc/hosts."
+      exit 1
     fi
   else
     echo "ℹ️ Домейнът вече съществува в /etc/hosts"
   fi
+
 
   # ✅ Запис на FQDN (за следващи модули)
   echo "FQDN=\"$FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
