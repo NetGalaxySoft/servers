@@ -282,7 +282,7 @@ fi
   # ✅ Записване на резултат от изпълнението
   echo "RESULT_FQDN_CONFIG=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-} fi
+fi
 echo ""
 echo ""
 
