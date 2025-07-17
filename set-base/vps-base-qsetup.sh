@@ -153,11 +153,12 @@ else {
     fi
   done
 
-  # ✅ Записване на IP адреса в setup.env
-  echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  # ✅ Записване на IP адреса (вече в $MODULES_FILE)
+  echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
 
-  # ✅ Отбелязване на изпълнен модул
-  echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
+  # ✅ Отбелязване на изпълнен модул (вече в $SETUP_ENV_FILE)
+  echo "$MODULE_NAME" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+
 }; fi
 echo ""
 echo ""
@@ -226,11 +227,11 @@ else {
     echo "ℹ️ Домейнът вече съществува във /etc/hosts"
   fi
 
-  # Запис в setup.env
-  echo "FQDN=\"$FQDN\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  # Запис на FQDN (вече в $MODULES_FILE)
+  echo "FQDN=\"$FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
 
-  # Отбелязване на изпълнен модул
-  echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
+  # Отбелязване на изпълнен модул (вече в $SETUP_ENV_FILE)
+  echo "$MODULE_NAME" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
   echo ""
   echo ""
@@ -610,8 +611,8 @@ if [[ "$RESULT_ADMIN_USER" == "✅" ]]; then
     echo "✅ Root достъпът чрез SSH е забранен."
 
     # ✅ Запис в setup.env
-    echo "RESULT_ADMIN_USER=\"$RESULT_ADMIN_USER\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-    echo "ADMIN_USER=\"$ADMIN_USER\"" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "RESULT_ADMIN_USER=\"$RESULT_ADMIN_USER\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    echo "ADMIN_USER=\"$ADMIN_USER\"" | sudo tee -a "$MODULES_FILE" > /dev/null
 
     # ✅ Отбелязване на изпълнен модул
     echo "$MODULE_NAME" | sudo tee -a "$MODULES_FILE" > /dev/null
