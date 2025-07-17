@@ -143,7 +143,7 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_IP_CHECK=✅" "$SETUP_ENV_FILE"; then
+if sudo grep -q "^RESULT_IP_CHECK=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане (IP адресът вече е потвърден)..."
   echo ""
 else
@@ -199,7 +199,7 @@ MODULES_FILE="/etc/netgalaxy/todo.modules"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+if sudo grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
 else {
@@ -296,7 +296,7 @@ MODULES_FILE="/etc/netgalaxy/todo.modules"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
+if sudo grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
   echo ""
 else {
@@ -354,7 +354,7 @@ MODULE_NAME="mod_04_base_tools"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен (по RESULT_BASE_TOOLS)
-if grep -q "^RESULT_BASE_TOOLS=✅" "$SETUP_ENV_FILE"; then
+if sudo grep -q "^RESULT_BASE_TOOLS=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е изпълнен)..."
   echo ""
 else {
@@ -383,7 +383,7 @@ echo ""
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_LOCALES=✅" "$SETUP_ENV_FILE"; then
+if sudo grep -q "^RESULT_LOCALES=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане на локализационната настройка (вече е изпълнена)..."
   echo ""
 else {
@@ -423,7 +423,7 @@ echo ""
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_TIMEZONE_NTP=✅" "$SETUP_ENV_FILE"; then
+if sudo grep -q "^RESULT_TIMEZONE_NTP=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане (времевата зона и NTP вече са настроени)..."
   echo ""
 else
@@ -486,7 +486,7 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_ADMIN_USER=✅" "$SETUP_ENV_FILE"; then
+if sudo grep -q "^RESULT_ADMIN_USER=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане (администраторският профил вече е създаден)..."
   echo ""
 else
@@ -627,7 +627,7 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_FIREWALL_SETUP=✅" "$SETUP_ENV_FILE"; then
+if sudo grep -q "^RESULT_FIREWALL_SETUP=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане (защитната стена вече е конфигурирана)..."
   echo ""
 else
@@ -716,7 +716,7 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_TRUSTED_NETS=✅" "$SETUP_ENV_FILE"; then
+if sudo grep -q "^RESULT_TRUSTED_NETS=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане (доверените мрежи вече са добавени)..."
   echo ""
 else
@@ -789,7 +789,7 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^RESULT_SSH_PORT=✅" "$SETUP_ENV_FILE"; then
+if sudo grep -q "^RESULT_SSH_PORT=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане (SSH портът вече е обработен)..."
   echo ""
 else
