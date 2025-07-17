@@ -300,7 +300,7 @@ SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 if sudo grep -q "^RESULT_SYSTEM_UPDATE=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане (системата вече е обновена)..."
   echo ""
-else {
+else
   # Изчакване, ако системата е заключена от друг apt процес
   MAX_WAIT=60
   COUNTER=0
@@ -318,17 +318,15 @@ else {
   # Изпълнение на обновяването
   if sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get autoremove -y; then
     echo "✅ Системата е успешно обновена."
-
-    # ✅ Запис само при успешна задача
     echo "RESULT_SYSTEM_UPDATE=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-
   else
     echo "❌ Възникна грешка при обновяване на системата. Проверете горните съобщения."
     exit 1
   fi
-}; fi
+fi
 echo ""
 echo ""
+
 
 
 
