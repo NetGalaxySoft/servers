@@ -222,7 +222,7 @@ else {
       continue
     fi
 
-    if ! getent hosts "$FQDN" >/dev/null; then
+    if [[ -z "$(dig +short "$FQDN")" ]]; then
       echo "⚠️ Внимание: Домейнът '$FQDN' не резолвира в момента."
       while true; do
         printf "❓ Искате ли да продължите с този домейн? (y / n): "
@@ -244,10 +244,17 @@ else {
   echo "✅ Hostname е зададен: $FQDN"
 
   # Добавяне във /etc/hosts, ако липсва
-  SERVER_IP=$(curl -s ifconfig.me)
-  if ! grep -q "$FQDN" /etc/hosts; then
+  SERVER_IP=$(curl -s -4 ifconfig.me)
+  if ! grep -qw "$FQDN" /etc/hosts; then
     echo "$SERVER_IP    $FQDN" | sudo tee -a /etc/hosts > /dev/null
-    echo "✅ Добавен ред в /etc/hosts: $SERVER_IP $FQDN"
+
+    # Проверка дали редът е добавен
+    if grep -qw "$FQDN" /etc/hosts; then
+      echo "✅ Редът е добавен успешно в /etc/hosts: $SERVER_IP $FQDN"
+    else
+      echo "❌ Грешка: редът не можа да бъде добавен в /etc/hosts."
+      exit 1
+    fi
   else
     echo "ℹ️ Домейнът вече съществува във /etc/hosts"
   fi
@@ -261,6 +268,21 @@ else {
   echo ""
   echo ""
 }; fi
+
+exit 0
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # === [МОДУЛ 3] ОБНОВЯВАНЕ НА СИСТЕМАТА ========================================
@@ -320,7 +342,7 @@ if grep -q "^RESULT_BASE_TOOLS=✅" "$SETUP_ENV_FILE"; then
   echo "🔁 Пропускане на $MODULE_NAME (вече е изпълнен)..."
   echo ""
 else {
-  REQUIRED_PACKAGES=(nano unzip git curl wget net-tools htop)
+  REQUIRED_PACKAGES=(nano unzip git curl wget net-tools htop dnsutils)
 
   echo "⏳ Инсталиране на основни инструменти..."
   if sudo apt-get install -y "${REQUIRED_PACKAGES[@]}"; then
