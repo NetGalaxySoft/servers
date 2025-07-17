@@ -199,10 +199,11 @@ MODULES_FILE="/etc/netgalaxy/todo.modules"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
-if sudo grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
+# Проверка дали модулът вече е изпълнен
+if sudo grep -q "^RESULT_FQDN_CONFIG=✅" "$SETUP_ENV_FILE"; then
+  echo "🔁 Пропускане (FQDN вече е конфигуриран)..."
   echo ""
-else {
+else
   while true; do
     printf "👉 Въведете домейна на сървъра (FQDN) или 'q' за изход: "
     read FQDN
@@ -296,8 +297,8 @@ MODULES_FILE="/etc/netgalaxy/todo.modules"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
-if sudo grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
+if sudo grep -q "^RESULT_SYSTEM_UPDATE=✅" "$SETUP_ENV_FILE"; then
+  echo "🔁 Пропускане (системата вече е обновена)..."
   echo ""
 else {
   # Изчакване, ако системата е заключена от друг apt процес
