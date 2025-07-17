@@ -111,15 +111,14 @@ echo "[1] ПРОВЕРКА IP АДРЕС НА СЪРВЪРА..."
 echo "-----------------------------------------------------------"
 echo ""
 
-MODULE_NAME="mod_01_ip_check"
-MODULES_FILE="/etc/netgalaxy/todo.modules"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
 
 # Проверка дали модулът вече е изпълнен
-if grep -q "^$MODULE_NAME\b" "$MODULES_FILE"; then
-  echo "🔁 Пропускане на $MODULE_NAME (вече е отбелязан като изпълнен)..."
+if grep -q "^RESULT_IP_CHECK=✅" "$SETUP_ENV_FILE"; then
+  echo "🔁 Пропускане (IP адресът вече е потвърден)..."
   echo ""
-else {
+else
   while true; do
     printf "🌐 Въведете публичния IP адрес на сървъра (или 'q' за изход): "
     read SERVER_IP
@@ -134,16 +133,15 @@ else {
       continue
     fi
 
-    ACTUAL_IP=$(curl -s ifconfig.me)
+    ACTUAL_IP=$(curl -s -4 ifconfig.me)
 
     if [[ "$ACTUAL_IP" != "$SERVER_IP" ]]; then
       echo ""
-      echo "🚫 Скриптът не е стартиран на сървъра с въведения IP адрес."
-      echo "⚠️ Несъответствие! Въведеният IP не отговаря на реалния IP адрес на машината."
+      echo "🚫 Несъответствие! Въведеният IP ($SERVER_IP) не съвпада с реалния IP на машината ($ACTUAL_IP)."
       echo ""
       read -p "🔁 Искате ли да опитате отново? [Enter за ДА, 'q' за изход]: " retry
       if [[ "$retry" == "q" || "$retry" == "Q" ]]; then
-        echo "⛔ Скриптът беше прекратен от потребителя след $MODULE_NAME."
+        echo "⛔ Скриптът беше прекратен от потребителя."
         exit 0
       fi
       echo ""
@@ -153,13 +151,12 @@ else {
     fi
   done
 
-# ✅ Записване на IP адреса (за следващи модули)
-echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  # ✅ Записване на IP адреса в todo.modules
+  echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
 
-# ✅ Записване на резултата от изпълнението
-echo "RESULT_IP_CHECK=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-
-}; fi
+  # ✅ Записване на резултата в setup.env
+  echo "RESULT_IP_CHECK=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+fi
 echo ""
 echo ""
 
