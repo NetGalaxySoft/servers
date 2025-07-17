@@ -243,12 +243,20 @@ else {
   sudo hostnamectl set-hostname "$FQDN"
   echo "✅ Hostname е зададен: $FQDN"
 
-  # Добавяне във /etc/hosts, ако липсва
+  # Добавяне във /etc/hosts
   SERVER_IP=$(curl -s -4 ifconfig.me)
   SHORT_HOST=$(echo "$FQDN" | cut -d '.' -f1)
 
+  # Заместване или добавяне на реда 127.0.1.1
+  if grep -q "^127.0.1.1" /etc/hosts; then
+    sudo sed -i "s/^127.0.1.1.*/127.0.1.1   $FQDN $SHORT_HOST/" /etc/hosts
+  else
+    echo "127.0.1.1   $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
+  fi
+
+  # Добавяне на публичния IP, ако липсва
   if ! grep -qw "$FQDN" /etc/hosts; then
-    echo "$SERVER_IP    $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
+    echo "$SERVER_IP   $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
 
     # Проверка дали редът е добавен успешно
     if grep -qw "$FQDN" /etc/hosts; then
@@ -261,17 +269,17 @@ else {
     echo "ℹ️ Домейнът вече съществува в /etc/hosts"
   fi
 
-
   # ✅ Запис на FQDN (за следващи модули)
   echo "FQDN=\"$FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
 
   # ✅ Записване на резултат от изпълнението
   echo "RESULT_FQDN_CONFIG=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
-  echo ""
-  echo ""
 }; fi
+echo ""
+echo ""
 
+  
 exit 0
 
 
