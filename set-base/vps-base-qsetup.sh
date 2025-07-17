@@ -239,42 +239,41 @@ else {
     break
   done
 
-  # Задаване на hostname
-  sudo hostnamectl set-hostname "$FQDN"
-  echo "✅ Hostname е зададен: $FQDN"
+# Задаване на hostname
+sudo hostnamectl set-hostname "$FQDN"
+echo "✅ Hostname е зададен: $FQDN"
 
-  # Променливи
-  SERVER_IP=$(curl -s -4 ifconfig.me)
-  SHORT_HOST=$(echo "$FQDN" | cut -d '.' -f1)
-  WWW_ALIAS="www.$FQDN"
+# Променливи
+SERVER_IP=$(curl -s -4 ifconfig.me)
+SHORT_HOST=$(echo "$FQDN" | cut -d '.' -f1)
+WWW_ALIAS="www.$FQDN"
 
-  # ✅ Уверяваме се, че 127.0.0.1 localhost присъства
-  if ! grep -q "^127.0.0.1" /etc/hosts; then
-    echo "127.0.0.1   localhost" | sudo tee -a /etc/hosts > /dev/null
-  fi
+# ✅ Уверяваме се, че 127.0.0.1 localhost присъства
+if ! grep -q "^127.0.0.1" /etc/hosts; then
+  echo "127.0.0.1   localhost" | sudo tee -a /etc/hosts > /dev/null
+fi
 
-  # ✅ Заместване или добавяне на реда 127.0.1.1 с FQDN и short hostname
-  if grep -q "^127.0.1.1" /etc/hosts; then
-    sudo sed -i "s/^127.0.1.1.*/127.0.1.1   $FQDN $SHORT_HOST/" /etc/hosts
-  else
-    echo "127.0.1.1   $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
-  fi
+# ✅ Проверка за 127.0.1.1 — ако липсва, добавяме го; ако съществува, актуализираме
+if grep -q "^127.0.1.1" /etc/hosts; then
+  sudo sed -i "s/^127.0.1.1.*/127.0.1.1   $FQDN $SHORT_HOST/" /etc/hosts
+else
+  echo "127.0.1.1   $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
+fi
 
-  # ✅ Добавяне или актуализиране на реда с публичния IP + алиас
-  if grep -q "$FQDN" /etc/hosts; then
-    # Ако вече има ред с FQDN, обновяваме го
-    sudo sed -i "s/^.*$FQDN.*/$SERVER_IP   $FQDN $WWW_ALIAS/" /etc/hosts
-  else
-    echo "$SERVER_IP   $FQDN $WWW_ALIAS" | sudo tee -a /etc/hosts > /dev/null
-  fi
+# ✅ Добавяне или актуализиране на реда с публичния IP + алиас
+if grep -q "$FQDN" /etc/hosts && grep -q "$SERVER_IP" /etc/hosts; then
+  sudo sed -i "s/^.*$FQDN.*/$SERVER_IP   $FQDN $WWW_ALIAS/" /etc/hosts
+else
+  echo "$SERVER_IP   $FQDN $WWW_ALIAS" | sudo tee -a /etc/hosts > /dev/null
+fi
 
-  # ✅ Проверка за коректност
-  if grep -qw "$FQDN" /etc/hosts && grep -q "$SERVER_IP" /etc/hosts; then
-    echo "✅ /etc/hosts е конфигуриран правилно: $SERVER_IP $FQDN $WWW_ALIAS"
-  else
-    echo "❌ Грешка: редът не можа да бъде добавен в /etc/hosts."
-    exit 1
-  fi
+# ✅ Проверка за коректност
+if grep -qw "$FQDN" /etc/hosts && grep -q "$SERVER_IP" /etc/hosts && grep -q "^127.0.1.1" /etc/hosts; then
+  echo "✅ /etc/hosts е конфигуриран правилно: $SERVER_IP $FQDN $WWW_ALIAS + 127.0.1.1"
+else
+  echo "❌ Грешка: един или повече редове не са добавени."
+  exit 1
+fi
 
   # ✅ Запис на FQDN (за следващи модули)
   echo "FQDN=\"$FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
