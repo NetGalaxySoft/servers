@@ -490,10 +490,13 @@ EOF
   chronyc tracking | grep -E 'Stratum|System time'
   chronyc sources | grep '^\^\*'
 
-  echo "✅ Времевата зона и NTP синхронизацията са успешно конфигурирани и съвместими с мрежата NetGalaxy.
-."
-  # ✅ Запис в setup.env само при пълен успех
-  echo "RESULT_TIMEZONE_NTP=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+echo "✅ Времевата зона и NTP синхронизацията са успешно конфигурирани и съвместими с мрежата NetGalaxy."
+
+# ✅ Запис в todo.modules (запазваме зададената стойност UTC)
+echo "TIMEZONE_NTP=UTC" | sudo tee -a "$MODULES_FILE" > /dev/null
+
+# ✅ Запис в setup.env
+echo "RESULT_TIMEZONE_NTP=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 fi
 echo ""
 echo ""
