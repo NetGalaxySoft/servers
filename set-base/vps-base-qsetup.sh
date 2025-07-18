@@ -218,7 +218,7 @@ else
     break
   done
 
-# Задаване на hostname
+# === КОНФИГУРИРАНЕ НА HOSTNAME И /etc/hosts =================================
 sudo hostnamectl set-hostname "$FQDN"
 echo "✅ Hostname е зададен: $FQDN"
 
@@ -227,38 +227,36 @@ SERVER_IP=$(curl -s -4 ifconfig.me)
 SHORT_HOST=$(echo "$FQDN" | cut -d '.' -f1)
 WWW_ALIAS="www.$FQDN"
 
-# ✅ Уверяваме се, че 127.0.0.1 localhost присъства
+# ✅ Уверяваме се, че 127.0.0.1 localhost присъства (ако липсва – добавяме)
 if ! grep -q "^127.0.0.1" /etc/hosts; then
   echo "127.0.0.1   localhost" | sudo tee -a /etc/hosts > /dev/null
 fi
 
-# ✅ Проверка за 127.0.1.1 — ако липсва, добавяме го; ако съществува, актуализираме
-if grep -q "^127.0.1.1" /etc/hosts; then
-  sudo sed -i "s/^127.0.1.1.*/127.0.1.1   $FQDN $SHORT_HOST/" /etc/hosts
-else
-  echo "127.0.1.1   $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
-fi
+# ✅ Премахваме всички стари записи за 127.0.1.1 и публичния IP (за чистота)
+sudo sed -i "/^127\.0\.1\.1/d" /etc/hosts
+sudo sed -i "/$SERVER_IP/d" /etc/hosts
 
-# ✅ Добавяне или актуализиране на реда с публичния IP + алиас
-if grep -q "$FQDN" /etc/hosts && grep -q "$SERVER_IP" /etc/hosts; then
-  sudo sed -i "s/^.*$FQDN.*/$SERVER_IP   $FQDN $WWW_ALIAS/" /etc/hosts
-else
-  echo "$SERVER_IP   $FQDN $WWW_ALIAS" | sudo tee -a /etc/hosts > /dev/null
-fi
+# ✅ Добавяме или актуализираме реда за 127.0.1.1 с FQDN и short host
+echo "127.0.1.1   $FQDN $SHORT_HOST" | sudo tee -a /etc/hosts > /dev/null
 
-# ✅ Проверка за коректност
-if grep -qw "$FQDN" /etc/hosts && grep -q "$SERVER_IP" /etc/hosts && grep -q "^127.0.1.1" /etc/hosts; then
-  echo "✅ /etc/hosts е конфигуриран правилно: $SERVER_IP $FQDN $WWW_ALIAS + 127.0.1.1"
+# ✅ Добавяме публичния IP ред с алиас
+echo "$SERVER_IP   $FQDN $WWW_ALIAS" | sudo tee -a /etc/hosts > /dev/null
+
+# ✅ Проверка за коректност (и двата реда трябва да присъстват)
+if grep -q "^127\.0\.1\.1.*$FQDN" /etc/hosts && grep -q "^$SERVER_IP.*$FQDN" /etc/hosts; then
+  echo "✅ /etc/hosts е конфигуриран правилно:"
+  echo "   127.0.1.1   $FQDN $SHORT_HOST"
+  echo "   $SERVER_IP   $FQDN $WWW_ALIAS"
 else
   echo "❌ Грешка: един или повече редове не са добавени."
   exit 1
 fi
 
-  # ✅ Запис на FQDN (за следващи модули)
-  echo "FQDN=\"$FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+# ✅ Запис на FQDN за следващи модули
+echo "FQDN=\"$FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
 
-  # ✅ Записване на резултат от изпълнението
-  echo "RESULT_FQDN_CONFIG=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+# ✅ Записване на резултат от изпълнението
+echo "RESULT_FQDN_CONFIG=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
 fi
 echo ""
