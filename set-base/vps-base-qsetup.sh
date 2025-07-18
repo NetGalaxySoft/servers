@@ -379,7 +379,7 @@ else
               ;;
             [Qq])
               echo "⛔ Скриптът беше прекратен от потребителя."
-              exit 1
+              exit 0
               ;;
             *)
               echo "❌ Невалиден избор. Опитайте отново."
@@ -733,7 +733,7 @@ else
 # Зареждане на UFW
 if ! command -v ufw >/dev/null 2>&1; then
   echo "❌ Грешка: UFW не е инсталиран. Скриптът не може да продължи."
-  exit 1
+  exit о
 fi
 
 # Въвеждане на доверени мрежи
@@ -803,9 +803,15 @@ if sudo grep -q "^RESULT_SSH_PORT=✅" "$SETUP_ENV_FILE"; then
   echo ""
 else
 
-# Засичане на текущия порт
-CURRENT_SSH_PORT=$(ss -tlpn 2>/dev/null | grep sshd | awk -F: '/LISTEN/ {print $2}' | awk '{print $1}' | head -n 1)
-CURRENT_SSH_PORT="${CURRENT_SSH_PORT:-22}"
+# --- Засичане на текущия SSH порт от UFW ---
+CURRENT_SSH_PORT=$(sudo ufw status | grep -i "ALLOW" | awk '{print $1}' | grep -E '^[0-9]+$' | head -n 1)
+
+if [[ -z "$CURRENT_SSH_PORT" ]]; then
+  echo "❌ Не е намерено SSH правило в UFW. Скриптът ще бъде прекратен, за да се избегне загуба на достъп."
+  exit 0
+fi
+
+echo "🔍 Засечен SSH порт от UFW: $CURRENT_SSH_PORT"
 
 while true; do
   printf "👉 В момента използвате SSH порт %s.\n" "$CURRENT_SSH_PORT"
