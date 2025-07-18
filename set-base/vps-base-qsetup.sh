@@ -888,11 +888,11 @@ echo ""
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
 
-# Зареждане на резултати от setup.env
-if [[ -f "$SETUP_ENV_FILE" ]]; then
-  source "$SETUP_ENV_FILE"
-else
-  echo "⚠️ Липсва файл setup.env – няма налична информация за конфигурацията."
+# Проверка за съществуване на setup.env
+if [[ ! -f "$SETUP_ENV_FILE" ]]; then
+  echo "❌ Критична грешка: липсва $SETUP_ENV_FILE."
+  echo "Скриптът не може да продължи."
+  exit 1
 fi
 
 # Зареждане на временни данни от todo.modules
@@ -913,9 +913,9 @@ echo ""
 printf "🌐 IP адрес на сървъра:           %s\n" "$(curl -s ifconfig.me)"
 printf "🌍 FQDN (hostname):               %s\n" "$(hostname)"
 printf "🔐 SSH порт:                      %s\n" "$SSH_PORT"
-printf "👤 Администраторски потребител:   %s\n" "$ADMIN_USER"
+printf "👤 Администраторски профил:       %s\n" "$ADMIN_USER"
 printf "🛡️  Защитна стена (FIREWALL):      %s\n" "$FIREWALL_SYSTEM"
-printf "🚪 Отворени портове:              %s\n" "$PORT_LIST"
+printf "🚪 Допълнителни портове:          %s\n" "$PORT_LIST"
 printf "🌐 Доверени мрежи (VPN/LAN):      %s\n" "$TRUSTED_NETS"
 printf "🌐 Локализации:                   %s\n" "${RESULT_LOCALES:-❔}"
 printf "🕒 Времева зона и синхронизация:  %s\n" "${RESULT_TIMEZONE_NTP:-❔}"
