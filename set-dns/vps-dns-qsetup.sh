@@ -209,3 +209,45 @@ fi
 echo "✅ Сървърът е с валидна начална конфигурация."
 echo ""
 echo ""
+
+# === [МОДУЛ 2] ИНСТАЛИРАНЕ НА BIND9 =========================
+echo "[2] ИНСТАЛИРАНЕ НА BIND9..."
+echo "-----------------------------------------------------------"
+echo ""
+
+# Проверка дали BIND9 вече е инсталиран
+if dpkg -s bind9 >/dev/null 2>&1; then
+  echo "ℹ️ BIND9 вече е инсталиран. Пропускане на този модул."
+  # ✅ Запис на резултата в setup.env (обновяване или добавяне)
+  if sudo grep -q '^RESULT_BIND9_INSTALL=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^RESULT_BIND9_INSTALL=.*|RESULT_BIND9_INSTALL=✅ (вече инсталиран)|' "$SETUP_ENV_FILE"
+  else
+    echo "RESULT_BIND9_INSTALL=✅ (вече инсталиран)" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  fi
+else
+  echo "⏳ Инсталиране на BIND9 (bind9 bind9-utils bind9-dnsutils)..."
+  if sudo apt-get update && sudo apt-get install -y bind9 bind9-utils bind9-dnsutils; then
+    echo "🔍 Проверка на статуса на услугата BIND9..."
+    if systemctl is-active --quiet bind9; then
+      echo "✅ BIND9 е инсталиран и услугата работи."
+      # ✅ Запис на резултата в setup.env
+      if sudo grep -q '^RESULT_BIND9_INSTALL=' "$SETUP_ENV_FILE" 2>/dev/null; then
+        sudo sed -i 's|^RESULT_BIND9_INSTALL=.*|RESULT_BIND9_INSTALL=✅|' "$SETUP_ENV_FILE"
+      else
+        echo "RESULT_BIND9_INSTALL=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+      fi
+    else
+      echo "❌ Инсталацията приключи, но услугата BIND9 не е активна."
+      echo "⛔ Скриптът не може да продължи. Проверете конфигурацията ръчно."
+      [[ -f "$0" ]] && rm -- "$0"
+      exit 1
+    fi
+  else
+    echo "❌ Възникна грешка при инсталирането на BIND9."
+    echo "⛔ Скриптът не може да продължи."
+    [[ -f "$0" ]] && rm -- "$0"
+    exit 1
+  fi
+fi
+echo ""
+echo ""
