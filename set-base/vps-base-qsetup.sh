@@ -685,12 +685,14 @@ if sudo ufw status | grep -q "Status: active"; then
 fi
 
 # --- Засичане на текущия SSH порт ---
-CURRENT_SSH_PORT=$(ss -tlpn 2>/dev/null | grep sshd | awk -F: '/LISTEN/ {print $2}' | awk '{print $1}' | head -n 1)
+CURRENT_SSH_PORT=$(sudo ss -tlpn 2>/dev/null | grep sshd | awk '{print $4}' | awk -F: '{print $NF}' | head -n 1)
+
 if [[ -z "$CURRENT_SSH_PORT" ]]; then
   echo "❌ Не може да се определи текущият SSH порт. Скриптът ще бъде прекратен."
   exit 1
 fi
-echo "🔍 Открит SSH порт: $CURRENT_SSH_PORT"
+
+echo "🔍 Засечен SSH порт: $CURRENT_SSH_PORT"
 
 # --- Проверка дали правилото вече съществува ---
 if sudo ufw status | grep -q "$CURRENT_SSH_PORT/tcp"; then
