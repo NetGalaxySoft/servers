@@ -706,6 +706,9 @@ else
   echo "✅ SSH портът $CURRENT_SSH_PORT е добавен успешно."
 fi
 
+# --- Записване на текущия SSH порт ---
+echo "SSH_PORT=\"$CURRENT_SSH_PORT\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+
 # --- Записване на резултат в setup.env ---
 echo "RESULT_FIREWALL_SETUP=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 
@@ -803,15 +806,13 @@ if sudo grep -q "^RESULT_SSH_PORT=✅" "$SETUP_ENV_FILE"; then
   echo ""
 else
 
-# --- Засичане на текущия SSH порт от UFW ---
-CURRENT_SSH_PORT=$(sudo ufw status | grep -i "ALLOW" | awk '{print $1}' | grep -E '^[0-9]+$' | head -n 1)
-
-if [[ -z "$CURRENT_SSH_PORT" ]]; then
-  echo "❌ Не е намерено SSH правило в UFW. Скриптът ще бъде прекратен, за да се избегне загуба на достъп."
-  exit 0
+# --- Извличане на SSH порта от todo.modules ---
+if sudo grep -q "^SSH_PORT=" "$MODULES_FILE"; then
+  SSH_PORT=$(sudo grep "^SSH_PORT=" "$MODULES_FILE" | cut -d '=' -f2 | tr -d '"')
+else
+  echo "❌ Не е намерен запис за SSH порта в $MODULES_FILE. Скриптът ще бъде прекратен."
+  exit 1
 fi
-
-echo "🔍 Засечен SSH порт от UFW: $CURRENT_SSH_PORT"
 
 while true; do
   printf "👉 В момента използвате SSH порт %s.\n" "$CURRENT_SSH_PORT"
