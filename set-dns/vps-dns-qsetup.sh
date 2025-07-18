@@ -169,6 +169,9 @@ echo ""
 # начална конфигурация и дали този скрипт вече е бил изпълнен на този сървър.
 # -------------------------------------------------------------------------------------
 
+echo "🔍 Проверка на статуса на сървъра в $SETUP_ENV_FILE..."
+echo ""
+
 # 🔒 Проверка дали началната конфигурация е била извършена:
 if [[ ! -f "$SETUP_ENV_FILE" ]] || ! grep -q '^SETUP_VPS_BASE_STATUS=✅' "$SETUP_ENV_FILE"; then
   echo "🛑 Началната конфигурация на този сървър не е в съответствие с изискванията "
@@ -182,7 +185,7 @@ if [[ ! -f "$SETUP_ENV_FILE" ]] || ! grep -q '^SETUP_VPS_BASE_STATUS=✅' "$SETU
 fi
 
 # 🔒 Проверка дали конфигурацията с този скрипт вече е била извършена
-if grep -q '^SETUP_VPS_HOST_STATUS=✅' "$SETUP_ENV_FILE"; then
+if grep -q '^SETUP_VPS_DNS_STATUS=✅' "$SETUP_ENV_FILE"; then
   echo "🛑 Този скрипт вече е бил изпълнен на този сървър."
   echo "   Повторно изпълнение не се разрешава за предпазване от сбой на системата."
   echo ""
@@ -190,4 +193,20 @@ if grep -q '^SETUP_VPS_HOST_STATUS=✅' "$SETUP_ENV_FILE"; then
   exit 0
 fi
 
+# ✅ Запис или обновяване на IP и FQDN в todo.modules
+if grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
+  sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
+else
+  echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+fi
 
+if grep -q '^SERVER_FQDN=' "$MODULES_FILE" 2>/dev/null; then
+  sudo sed -i "s|^SERVER_FQDN=.*|SERVER_FQDN=\"$HOSTNAME_FQDN\"|" "$MODULES_FILE"
+else
+  echo "SERVER_FQDN=\"$HOSTNAME_FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+fi
+
+echo "✅ Сървърът е с валидна начална конфигурация."
+
+echo ""
+echo ""
