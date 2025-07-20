@@ -255,7 +255,7 @@ else
 
   # ✅ Четене на данни от todo.modules
   if [[ -f "$MODULES_FILE" ]]; then
-    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | cut -d '"' -f2)
+    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
   else
     echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
     exit 1
@@ -267,9 +267,8 @@ else
     exit 1
   fi
 
-  # ✅ Проверка за IPv6 поддръжка
-  SERVER_IPV6=""
-  if ip -6 addr show | grep -q 'inet6 [2-9a-f]'; then
+  # ✅ Проверка за IPv6 поддръжка (глобален адрес)
+  if ip -6 addr show scope global | grep -q 'inet6'; then
     SERVER_IPV6="yes"
   else
     SERVER_IPV6="no"
@@ -329,7 +328,6 @@ EOF
   fi
 
   echo "✅ Модул 3 завърши успешно: конфигурацията на named.conf.options е обновена."
-fi
 fi
 echo ""
 echo ""
