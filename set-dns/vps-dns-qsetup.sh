@@ -52,7 +52,7 @@ fi
 
 echo ""
 echo -e "\e[32m=========================================="
-echo -e " НАЧАЛНА КОНФИГУРАЦИЯ НА ОТДАЛЕЧЕН СЪРВЪР"
+echo -e "       КОНФИГУРАЦИЯ НА DNS СЪРВЪР"
 echo -e "==========================================\e[0m"
 echo ""
 
@@ -60,17 +60,21 @@ NETGALAXY_DIR="/etc/netgalaxy"
 MODULES_FILE="$NETGALAXY_DIR/todo.modules"
 SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 
-
-# === [МОДУЛ 1] КОНФИГУРИРАНЕ НА DNS СЪРВЪР =========================
-echo "[1] КОНФИГУРИРАНЕ НА DNS СЪРВЪР..."
+# === [МОДУЛ 1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ =========================
+echo "[1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ..."
 echo "-----------------------------------------------------------"
 echo ""
 
 # -------------------------------------------------------------------------------------
-# СЕКЦИЯ 1: Проверка дали скриптът ще бъде стартиран на правилната операционна система.
+# СЕКЦИЯ 1: Проверка дали този модул е бил изпълнен
 # -------------------------------------------------------------------------------------
+if sudo grep -q '^DNS_RESULT_MODULE1=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 1 вече е изпълнен успешно. Пропускане..."
+else
 
-# --- Проверка на операционната система ---
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 2: Проверка дали скриптът ще бъде стартиран на правилната операционна система
+# -------------------------------------------------------------------------------------
 echo "🔍 Проверка на операционната система..."
 if [[ -f /etc/os-release ]]; then
   source /etc/os-release
@@ -96,11 +100,10 @@ fi
 
 echo "✅ Засечена поддържана ОС: $PRETTY_NAME"
 echo ""
-echo ""
 
-#------------------------------------------------------------------------
-# СЕКЦИЯ 2: Проверка дали скриптът ще бъде стартиран на правилния сървър.
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 3: Проверка дали скриптът ще бъде стартиран на правилния сървър
+# -------------------------------------------------------------------------------------
 while true; do
   printf "🌐 Въведете публичния IP адрес на сървъра (или 'q' за изход): "
   read SERVER_IP
@@ -110,90 +113,58 @@ while true; do
     exit 0
   fi
 
-  # Проверка за валиден IPv4 формат
   if ! [[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "❌ Невалиден IP адрес. Моля, въведете валиден IPv4 адрес (пример: 192.168.1.100)."
+    echo "❌ Невалиден IP адрес. Моля, въведете валиден IPv4 адрес."
     continue
   fi
 
-  # Извличане на реалния публичен IP
   ACTUAL_IP=$(curl -s -4 ifconfig.me)
 
   if [[ "$ACTUAL_IP" != "$SERVER_IP" ]]; then
-    echo ""
-    echo "🚫 Несъответствие! Въведеният IP ($SERVER_IP) не съвпада с реалния IP на машината."
-    echo ""
+    echo "🚫 Несъответствие! Въведеният IP не съвпада с реалния IP."
     read -p "🔁 Искате ли да опитате отново? [Enter за ДА, 'q' за изход]: " retry
-    if [[ "$retry" == "q" || "$retry" == "Q" ]]; then
-      echo "⛔ Скриптът беше прекратен от потребителя."
-      exit 0
-    fi
+    [[ "$retry" == "q" || "$retry" == "Q" ]] && exit 0
     echo ""
   else
-    echo "✅ Потвърдено: скриптът е стартиран на сървъра с IP $SERVER_IP."
+    echo "✅ Потвърдено: IP $SERVER_IP е валидно."
     break
   fi
 done
 echo ""
-echo ""
 
 # -------------------------------------------------------------------------------------
-# СЕКЦИЯ 3: Проверка дали hostname е домейн от трето ниво, започващ с ns1, ns2 или ns3.
+# СЕКЦИЯ 4: Проверка дали hostname е валиден (ns1/ns2/ns3)
 # -------------------------------------------------------------------------------------
-
 echo "🔍 Проверка на hostname..."
 HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo "")
 
 if [[ -z "$HOSTNAME_FQDN" ]]; then
-  echo "❌ Неуспешно извличане на пълния hostname (FQDN)."
-  echo "Скриптът не може да продължи без валиден FQDN."
+  echo "❌ Неуспешно извличане на FQDN. Скриптът спира."
   exit 1
 fi
 
-# Проверка за трето ниво и префикс ns1/ns2/ns3
 if [[ ! "$HOSTNAME_FQDN" =~ ^ns[1-3]\..+\..+$ ]]; then
-  echo ""
   echo "🚫 Несъвместим или недопустим домейн: $HOSTNAME_FQDN"
-  echo ""
-  echo "ℹ️ Този скрипт е предназначен за конфигуриране на DNS сървъри, работещи в мрежата NetGalaxy"
-  echo "или обслужващи платформата NetGalaxy. Въведеният hostname не отговаря на изискванията."
-  echo ""
+  echo "ℹ️ Този скрипт е за DNS сървъри на NetGalaxy."
   exit 1
 fi
 
-echo "✅ Потвърдено: hostname отговаря на изискванията ($HOSTNAME_FQDN)."
+echo "✅ Потвърдено: hostname = $HOSTNAME_FQDN"
 echo ""
 
 # -------------------------------------------------------------------------------------
-# СЕКЦИЯ 4: Проверка във файла файла /etc/netgalaxy/setup.env дали сървърът има успешна 
-# начална конфигурация и дали този скрипт вече е бил изпълнен на този сървър.
+# СЕКЦИЯ 5: Проверка за начална конфигурация и запис на IP/FQDN
 # -------------------------------------------------------------------------------------
-
-echo "🔍 Проверка на статуса на сървъра в $SETUP_ENV_FILE..."
-echo ""
-
-# 🔒 Проверка дали началната конфигурация е била извършена:
 if [[ ! -f "$SETUP_ENV_FILE" ]] || ! sudo grep -q '^SETUP_VPS_BASE_STATUS=✅' "$SETUP_ENV_FILE"; then
-  echo "🛑 Началната конфигурация на този сървър не е в съответствие с изискванията "
-  echo "   за конфигуриране на сървърите от мрежата NetGalaxy. Моля, използвайте скрипта "
-  echo "   vps-base-qsetup.sh за правилното начално конфигуриране на сървъра."
-  echo ""
-  echo "🔧 Изпълнението на скрипта не може да продължи."
-  echo ""
-  [[ -f "$0" ]] && rm -- "$0"
+  echo "🛑 Началната конфигурация липсва. Стартирайте vps-base-qsetup.sh"
   exit 1
 fi
 
-# 🔒 Проверка дали конфигурацията с този скрипт вече е била извършена
 if sudo grep -q '^SETUP_VPS_DNS_STATUS=✅' "$SETUP_ENV_FILE"; then
-  echo "🛑 Този скрипт вече е бил изпълнен на този сървър."
-  echo "   Повторно изпълнение не се разрешава за предпазване от сбой на системата."
-  echo ""
-  [[ -f "$0" ]] && rm -- "$0"
+  echo "🛑 Целият DNS скрипт вече е изпълнен на този сървър."
   exit 0
 fi
 
-# ✅ Запис или обновяване на IP и FQDN в todo.modules
 if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
   sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
 else
@@ -206,16 +177,16 @@ else
   echo "SERVER_FQDN=\"$HOSTNAME_FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
 fi
 
-# ✅ Запис на резултата в setup.env
-if sudo grep -q '^SETUP_VPS_DNS_STATUS=' "$SETUP_ENV_FILE" 2>/dev/null; then
-  sudo sed -i 's|^SETUP_VPS_DNS_STATUS=.*|SETUP_VPS_DNS_STATUS=✅|' "$SETUP_ENV_FILE"
+# ✅ Запис на резултат
+if sudo grep -q '^DNS_RESULT_MODULE1=' "$SETUP_ENV_FILE" 2>/dev/null; then
+  sudo sed -i 's|^DNS_RESULT_MODULE1=.*|DNS_RESULT_MODULE1=✅|' "$SETUP_ENV_FILE"
 else
-  echo "RESULT_DNS_CHECKS=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo "DNS_RESULT_MODULE1=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 fi
 
-echo "✅ Сървърът е с валидна начална конфигурация."
+echo "✅ Модул 1 завърши успешно."
 echo ""
-echo ""
+fi
 
 
 # === [МОДУЛ 2] ИНСТАЛИРАНЕ НА BIND9 =========================
@@ -223,42 +194,144 @@ echo "[2] ИНСТАЛИРАНЕ НА BIND9..."
 echo "-----------------------------------------------------------"
 echo ""
 
-# Проверка дали BIND9 вече е инсталиран
-if dpkg -s bind9 >/dev/null 2>&1; then
-  echo "ℹ️ BIND9 вече е инсталиран. Пропускане на този модул."
-  # ✅ Запис на резултата в setup.env (обновяване или добавяне)
-  if sudo grep -q '^RESULT_BIND9_INSTALL=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^RESULT_BIND9_INSTALL=.*|RESULT_BIND9_INSTALL=✅ (вече инсталиран)|' "$SETUP_ENV_FILE"
-  else
-    echo "RESULT_BIND9_INSTALL=✅ (вече инсталиран)" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  fi
+# СЕКЦИЯ 1: Проверка дали модулът вече е изпълнен
+if sudo grep -q '^DNS_RESULT_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 2 вече е изпълнен успешно. Пропускане..."
 else
-  echo "⏳ Инсталиране на BIND9 (bind9 bind9-utils bind9-dnsutils)..."
-  if sudo apt-get update && sudo apt-get install -y bind9 bind9-utils bind9-dnsutils; then
-    echo "🔍 Проверка на статуса на услугата BIND9..."
-    if systemctl is-active --quiet bind9; then
-      echo "✅ BIND9 е инсталиран и услугата работи."
-      # ✅ Запис на резултата в setup.env
-      if sudo grep -q '^RESULT_BIND9_INSTALL=' "$SETUP_ENV_FILE" 2>/dev/null; then
-        sudo sed -i 's|^RESULT_BIND9_INSTALL=.*|RESULT_BIND9_INSTALL=✅|' "$SETUP_ENV_FILE"
+  # СЕКЦИЯ 2: Проверка дали BIND9 вече е инсталиран
+  if dpkg -s bind9 >/dev/null 2>&1; then
+    echo "ℹ️ BIND9 вече е инсталиран. Пропускане на инсталацията."
+    # ✅ Запис на резултата
+    if sudo grep -q '^DNS_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
+      sudo sed -i 's|^DNS_RESULT_MODULE2=.*|DNS_RESULT_MODULE2=✅|' "$SETUP_ENV_FILE"
+    else
+      echo "DNS_RESULT_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    fi
+  else
+    echo "⏳ Инсталиране на BIND9 (bind9 bind9-utils bind9-dnsutils)..."
+    if sudo apt-get update && sudo apt-get install -y bind9 bind9-utils bind9-dnsutils; then
+      echo "🔍 Проверка на статуса на услугата BIND9..."
+      if systemctl is-active --quiet bind9; then
+        echo "✅ BIND9 е инсталиран и услугата работи."
+        # ✅ Запис на резултата
+        if sudo grep -q '^DNS_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
+          sudo sed -i 's|^DNS_RESULT_MODULE2=.*|DNS_RESULT_MODULE2=✅|' "$SETUP_ENV_FILE"
+        else
+          echo "DNS_RESULT_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+        fi
       else
-        echo "RESULT_BIND9_INSTALL=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+        echo "❌ Инсталацията приключи, но услугата BIND9 не е активна."
+        echo "⛔ Скриптът не може да продължи. Проверете конфигурацията ръчно."
+        [[ -f "$0" ]] && rm -- "$0"
+        exit 1
       fi
     else
-      echo "❌ Инсталацията приключи, но услугата BIND9 не е активна."
-      echo "⛔ Скриптът не може да продължи. Проверете конфигурацията ръчно."
+      echo "❌ Възникна грешка при инсталирането на BIND9."
+      echo "⛔ Скриптът не може да продължи."
       [[ -f "$0" ]] && rm -- "$0"
       exit 1
     fi
-  else
-    echo "❌ Възникна грешка при инсталирането на BIND9."
-    echo "⛔ Скриптът не може да продължи."
-    [[ -f "$0" ]] && rm -- "$0"
-    exit 1
   fi
 fi
 echo ""
 echo ""
+
+
+# === [МОДУЛ 3] КОНФИГУРИРАНЕ НА named.conf.options =========================
+echo "[3] КОНФИГУРИРАНЕ НА named.conf.options..."
+echo "-----------------------------------------------------------"
+echo ""
+
+# СЕКЦИЯ 1: Проверка дали модулът вече е изпълнен
+if sudo grep -q '^DNS_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
+else
+  # ✅ Проверка дали Модул 2 е завършен
+  if ! sudo grep -q '^DNS_RESULT_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+    echo "❌ Не може да продължи: Модул 2 не е изпълнен успешно."
+    exit 1
+  fi
+
+  # ✅ Четене на данни от todo.modules
+  if [[ -f "$MODULES_FILE" ]]; then
+    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | cut -d '"' -f2)
+  else
+    echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # 🔍 Проверка дали има валиден IPv4 адрес
+  if [[ -z "$SERVER_IP" ]]; then
+    echo "❌ Не е намерен SERVER_IP в $MODULES_FILE. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Проверка за IPv6 поддръжка
+  SERVER_IPV6=""
+  if ip -6 addr show | grep -q 'inet6 [2-9a-f]'; then
+    SERVER_IPV6="yes"
+  else
+    SERVER_IPV6="no"
+  fi
+
+  # ✅ Обновяване или добавяне на IPv6 в todo.modules
+  if sudo grep -q '^SERVER_IPV6=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i "s|^SERVER_IPV6=.*|SERVER_IPV6=\"$SERVER_IPV6\"|" "$MODULES_FILE"
+  else
+    echo "SERVER_IPV6=\"$SERVER_IPV6\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  fi
+
+  echo "🔧 Създаване на нова конфигурация в named.conf.options..."
+  sudo cp /etc/bind/named.conf.options /etc/bind/named.conf.options.bak
+
+  # ✅ Генериране на новия блок options
+  cat <<EOF | sudo tee /etc/bind/named.conf.options > /dev/null
+options {
+    directory "/var/cache/bind";
+
+    listen-on { $SERVER_IP; };
+    $( [[ "$SERVER_IPV6" == "yes" ]] && echo 'listen-on-v6 { any; };' || echo 'listen-on-v6 { none; };' )
+
+    allow-query { any; };
+
+    recursion no;
+
+    forwarders {
+        1.1.1.1;
+        8.8.8.8;
+    };
+
+    dnssec-validation auto;
+};
+EOF
+
+  # ✅ Проверка на синтаксиса
+  echo "🔍 Проверка на синтаксиса..."
+  if ! sudo named-checkconf; then
+    echo "❌ Грешка в конфигурацията на BIND9. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Рестарт на услугата
+  echo "🔄 Рестартиране на BIND9..."
+  sudo systemctl restart bind9
+  if ! systemctl is-active --quiet bind9; then
+    echo "❌ Услугата BIND9 не стартира след промени. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Запис на резултат за Модул 3
+  if sudo grep -q '^DNS_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^DNS_RESULT_MODULE3=.*|DNS_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "DNS_RESULT_MODULE3=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  fi
+
+  echo "✅ Модул 3 завърши успешно: конфигурацията на named.conf.options е обновена."
+fi
+echo ""
+echo ""
+
 
 # === [МОДУЛ 4] ОПРЕДЕЛЯНЕ НА РОЛЯТА НА DNS СЪРВЪРА =========================
 echo "[4] ОПРЕДЕЛЯНЕ НА РОЛЯТА НА DNS СЪРВЪРА..."
@@ -333,13 +406,285 @@ if ! systemctl is-active --quiet bind9; then
   exit 1
 fi
 
-# ✅ Запис на резултата в setup.env
-if sudo grep -q '^RESULT_BIND9_ROLE=' "$SETUP_ENV_FILE" 2>/dev/null; then
-  sudo sed -i 's|^RESULT_BIND9_ROLE=.*|RESULT_BIND9_ROLE=✅|' "$SETUP_ENV_FILE"
+# ✅ Запис на резултат за Модул 4
+if sudo grep -q '^DNS_RESULT_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
+  sudo sed -i 's|^DNS_RESULT_MODULE4=.*|DNS_RESULT_MODULE4=✅|' "$SETUP_ENV_FILE"
 else
-  echo "RESULT_BIND9_ROLE=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo "DNS_RESULT_MODULE4=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 fi
 
 echo "✅ Модул 4 завърши успешно: ролята на DNS сървъра е $DNS_ROLE."
 echo ""
 echo ""
+
+
+# === [МОДУЛ 4] ОПРЕДЕЛЯНЕ НА РОЛЯТА НА DNS СЪРВЪРА =========================
+echo "[4] ОПРЕДЕЛЯНЕ НА РОЛЯТА НА DNS СЪРВЪРА..."
+echo "-----------------------------------------------------------"
+echo ""
+
+# СЕКЦИЯ 1: Проверка дали модулът вече е изпълнен
+if sudo grep -q '^DNS_RESULT_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
+else
+  # ✅ Проверка дали Модул 3 е завършен
+  if ! sudo grep -q '^DNS_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+    echo "❌ Не може да продължи: Модул 3 не е изпълнен успешно."
+    exit 1
+  fi
+
+  # ✅ Четене на данни от todo.modules
+  if [[ -f "$MODULES_FILE" ]]; then
+    SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | cut -d '"' -f2)
+  else
+    echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # 🔍 Проверка дали имаме валиден FQDN
+  if [[ -z "$SERVER_FQDN" ]]; then
+    echo "❌ Не е намерен SERVER_FQDN в $MODULES_FILE. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Определяне на ролята по FQDN
+  DNS_ROLE=""
+  if [[ "$SERVER_FQDN" =~ ^ns1\. ]]; then
+    DNS_ROLE="primary"
+  elif [[ "$SERVER_FQDN" =~ ^ns[23]\. ]]; then
+    DNS_ROLE="secondary"
+  else
+    echo "🛑 Несъвместимо име на сървъра: $SERVER_FQDN"
+    echo "Сървърът не е валиден DNS (ns1/ns2/ns3)."
+    exit 1
+  fi
+
+  echo "✅ Определена роля: $DNS_ROLE"
+  echo ""
+
+  # ✅ Запис или обновяване на DNS_ROLE в todo.modules
+  if sudo grep -q '^DNS_ROLE=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i "s|^DNS_ROLE=.*|DNS_ROLE=\"$DNS_ROLE\"|" "$MODULES_FILE"
+  else
+    echo "DNS_ROLE=\"$DNS_ROLE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  fi
+
+  # ✅ Подготовка на named.conf.local (ако не съществува)
+  if [[ ! -f /etc/bind/named.conf.local ]]; then
+    echo "// Локални DNS зони ще се добавят тук" | sudo tee /etc/bind/named.conf.local > /dev/null
+  fi
+
+  # ✅ Проверка на синтаксиса
+  echo "🔍 Проверка на синтаксиса..."
+  if ! sudo named-checkconf; then
+    echo "❌ Грешка в конфигурацията на BIND9. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Рестарт на услугата
+  echo "🔄 Рестартиране на BIND9..."
+  sudo systemctl restart bind9
+  if ! systemctl is-active --quiet bind9; then
+    echo "❌ Услугата BIND9 не стартира след промени. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Запис на резултат за Модул 4
+  if sudo grep -q '^DNS_RESULT_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^DNS_RESULT_MODULE4=.*|DNS_RESULT_MODULE4=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "DNS_RESULT_MODULE4=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  fi
+
+  echo "✅ Модул 4 завърши успешно: ролята на DNS сървъра е $DNS_ROLE."
+fi
+echo ""
+echo ""
+
+
+# === [МОДУЛ 5] СЪЗДАВАНЕ НА ЗОНИ =========================
+echo "[5] СЪЗДАВАНЕ НА ЗОНИ..."
+echo "-----------------------------------------------------------"
+echo ""
+
+# СЕКЦИЯ 1: Проверка дали модулът вече е изпълнен
+if sudo grep -q '^DNS_RESULT_MODULE5=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
+else
+  # ✅ Проверка дали Модул 4 е завършен
+  if ! sudo grep -q '^DNS_RESULT_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+    echo "❌ Не може да продължи: Модул 4 не е изпълнен успешно."
+    exit 1
+  fi
+
+  # ✅ Четене на данни от todo.modules
+  if [[ -f "$MODULES_FILE" ]]; then
+    SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | cut -d '"' -f2)
+    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | cut -d '"' -f2)
+    DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | cut -d '"' -f2)
+  else
+    echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # 🔍 Проверка на DNS_ROLE
+  if [[ -z "$DNS_ROLE" ]]; then
+    echo "❌ Липсва DNS_ROLE в $MODULES_FILE. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Подготовка на named.conf.local
+  if [[ ! -f /etc/bind/named.conf.local ]]; then
+    echo "// Локални DNS зони" | sudo tee /etc/bind/named.conf.local > /dev/null
+  fi
+
+  # ✅ Папка за зонови файлове (само за PRIMARY)
+  if [[ "$DNS_ROLE" == "primary" ]]; then
+    if [[ ! -d /etc/bind/zones ]]; then
+      sudo mkdir /etc/bind/zones
+    fi
+  fi
+
+  # ✅ Конфигуриране според ролята
+  if [[ "$DNS_ROLE" == "primary" ]]; then
+    echo "🔧 Конфигуриране на PRIMARY DNS (ns1)..."
+
+    DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
+    ZONE_FILE="/etc/bind/zones/db.$DOMAIN"
+    REVERSE_ZONE_FILE="/etc/bind/zones/db.$(echo "$SERVER_IP" | awk -F. '{print $3"."$2"."$1}.in-addr.arpa')"
+
+    # Добавяне на зони в named.conf.local (ако липсват)
+    if ! grep -q "$DOMAIN" /etc/bind/named.conf.local; then
+      cat <<EOF | sudo tee -a /etc/bind/named.conf.local > /dev/null
+
+zone "$DOMAIN" {
+    type master;
+    file "$ZONE_FILE";
+};
+
+zone "$(echo "$SERVER_IP" | awk -F. '{print $3"."$2"."$1}.in-addr.arpa')" {
+    type master;
+    file "$REVERSE_ZONE_FILE";
+};
+EOF
+    fi
+
+    # Създаване на forward зона
+    cat <<EOF | sudo tee "$ZONE_FILE" > /dev/null
+\$TTL    604800
+@       IN      SOA     ns1.$DOMAIN. admin.$DOMAIN. (
+                        $(date +%Y%m%d%H) ; Serial
+                        604800     ; Refresh
+                        86400      ; Retry
+                        2419200    ; Expire
+                        604800 )   ; Negative Cache TTL
+;
+@       IN      NS      ns1.$DOMAIN.
+@       IN      NS      ns2.$DOMAIN.
+
+ns1     IN      A       $SERVER_IP
+EOF
+
+    # (Ако има втори DNS – ще се добави по-късно от контролен панел или автоматизация)
+
+  elif [[ "$DNS_ROLE" == "secondary" ]]; then
+    echo "🔧 Конфигуриране на SECONDARY DNS (slave)..."
+
+    DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
+    MASTER_IP="" # ще се изиска в бъдеща версия или от todo.modules
+
+    if [[ -z "$MASTER_IP" ]]; then
+      echo "❌ Липсва IP на PRIMARY DNS. Добавете го в todo.modules (MASTER_IP)."
+      exit 1
+    fi
+
+    if ! grep -q "$DOMAIN" /etc/bind/named.conf.local; then
+      cat <<EOF | sudo tee -a /etc/bind/named.conf.local > /dev/null
+
+zone "$DOMAIN" {
+    type slave;
+    masters { $MASTER_IP; };
+    file "/var/cache/bind/db.$DOMAIN";
+};
+EOF
+    fi
+  else
+    echo "❌ Непозната роля: $DNS_ROLE"
+    exit 1
+  fi
+
+  # ✅ Проверка на синтаксиса
+  echo "🔍 Проверка на синтаксиса..."
+  if ! sudo named-checkconf; then
+    echo "❌ Грешка в конфигурацията на BIND9. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Рестарт на услугата
+  echo "🔄 Рестартиране на BIND9..."
+  sudo systemctl restart bind9
+  if ! systemctl is-active --quiet bind9; then
+    echo "❌ Услугата BIND9 не стартира след промени."
+    exit 1
+  fi
+
+  # ✅ Запис на резултат за Модул 5
+  if sudo grep -q '^DNS_RESULT_MODULE5=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^DNS_RESULT_MODULE5=.*|DNS_RESULT_MODULE5=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "DNS_RESULT_MODULE5=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  fi
+
+  echo "✅ Модул 5 завърши успешно: зоните са конфигурирани."
+fi
+echo ""
+echo ""
+
+
+# === [ФИНАЛЕН ОТЧЕТ] =======================================================
+echo ""
+echo -e "\e[32m=========================================="
+echo -e "         ОТЧЕТ ЗА КОНФИГУРАЦИЯТА"
+echo -e "==========================================\e[0m"
+echo ""
+
+# Четене на резултати
+MODULE1_STATUS=$(grep '^DNS_RESULT_MODULE1=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+MODULE2_STATUS=$(grep '^DNS_RESULT_MODULE2=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+MODULE3_STATUS=$(grep '^DNS_RESULT_MODULE3=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+MODULE4_STATUS=$(grep '^DNS_RESULT_MODULE4=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+MODULE5_STATUS=$(grep '^DNS_RESULT_MODULE5=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+
+echo "📌 Модул 1 – Предварителни проверки:    ${MODULE1_STATUS:-❌}"
+echo "📌 Модул 2 – Инсталиране на BIND9:      ${MODULE2_STATUS:-❌}"
+echo "📌 Модул 3 – Конфигурация options:      ${MODULE3_STATUS:-❌}"
+echo "📌 Модул 4 – Определяне на роля:        ${MODULE4_STATUS:-❌}"
+echo "📌 Модул 5 – Създаване на зони:         ${MODULE5_STATUS:-❌}"
+echo ""
+echo "------------------------------------------------------------------"
+echo ""
+
+# ✅ Потвърждение от оператора
+read -p "✅ Приемате ли конфигурацията като успешна? (y/n): " confirm
+if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+  # ✅ Запис на финален статус
+  if sudo grep -q '^SETUP_VPS_DNS_STATUS=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^SETUP_VPS_DNS_STATUS=.*|SETUP_VPS_DNS_STATUS=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "SETUP_VPS_DNS_STATUS=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  fi
+
+  # ✅ Изтриване на todo.modules
+  if [[ -f "$MODULES_FILE" ]]; then
+    sudo rm -f "$MODULES_FILE"
+    echo "🗑️ Файлът $MODULES_FILE беше изтрит."
+  fi
+
+  # ✅ Изтриване на скрипта
+  echo "🗑️ Скриптът ще се премахне."
+  [[ -f "$0" ]] && rm -- "$0"
+
+  echo "🎯 Конфигурацията на DNS сървъра е завършена успешно."
+else
+  echo "ℹ️ Конфигурацията не е маркирана като успешна. Нищо не е изтрито."
+fi
