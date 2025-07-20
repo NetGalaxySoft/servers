@@ -564,19 +564,22 @@ echo ""
 echo ""
 
 
-# === [ФИНАЛЕН ОТЧЕТ] =======================================================
+# === [МОДУЛ 6] ФИНАЛЕН ОТЧЕТ =========================
+echo "[6] ФИНАЛЕН ОТЧЕТ..."
+echo "-----------------------------------------------------------"
 echo ""
+
 echo -e "\e[32m=========================================="
 echo -e "         ОТЧЕТ ЗА КОНФИГУРАЦИЯТА"
 echo -e "==========================================\e[0m"
 echo ""
 
-# Четене на резултати
-MODULE1_STATUS=$(grep '^DNS_RESULT_MODULE1=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
-MODULE2_STATUS=$(grep '^DNS_RESULT_MODULE2=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
-MODULE3_STATUS=$(grep '^DNS_RESULT_MODULE3=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
-MODULE4_STATUS=$(grep '^DNS_RESULT_MODULE4=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
-MODULE5_STATUS=$(grep '^DNS_RESULT_MODULE5=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+# ✅ Четене на резултати (с sudo)
+MODULE1_STATUS=$(sudo grep '^DNS_RESULT_MODULE1=' "$SETUP_ENV_FILE" 2>/dev/null | cut -d '=' -f2)
+MODULE2_STATUS=$(sudo grep '^DNS_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null | cut -d '=' -f2)
+MODULE3_STATUS=$(sudo grep '^DNS_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null | cut -d '=' -f2)
+MODULE4_STATUS=$(sudo grep '^DNS_RESULT_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null | cut -d '=' -f2)
+MODULE5_STATUS=$(sudo grep '^DNS_RESULT_MODULE5=' "$SETUP_ENV_FILE" 2>/dev/null | cut -d '=' -f2)
 
 echo "📌 Модул 1 – Предварителни проверки:    ${MODULE1_STATUS:-❌}"
 echo "📌 Модул 2 – Инсталиране на BIND9:      ${MODULE2_STATUS:-❌}"
