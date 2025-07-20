@@ -339,81 +339,72 @@ echo "-----------------------------------------------------------"
 echo ""
 
 # 🔍 Проверка дали модулът вече е изпълнен
-if sudo grep -q '^RESULT_BIND9_ROLE=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+if sudo grep -q '^DNS_RESULT_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
   echo ""
-  return 0 2>/dev/null || exit 0
-fi
-
-# ✅ Четене на данни от todo.modules
-if [[ -f "$MODULES_FILE" ]]; then
-  SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | cut -d '"' -f2)
 else
-  echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
-  [[ -f "$0" ]] && rm -- "$0"
-  exit 1
+  # Тук започва реалната логика на модула
+  # ✅ Четене на данни от todo.modules
+  if [[ -f "$MODULES_FILE" ]]; then
+    SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  else
+    echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # 🔍 Проверка дали имаме валиден FQDN
+  if [[ -z "$SERVER_FQDN" ]]; then
+    echo "❌ Не е намерен SERVER_FQDN в $MODULES_FILE. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Определяне на ролята по FQDN
+  DNS_ROLE=""
+  if [[ "$SERVER_FQDN" =~ ^ns1\. ]]; then
+    DNS_ROLE="primary"
+  elif [[ "$SERVER_FQDN" =~ ^ns[23]\. ]]; then
+    DNS_ROLE="secondary"
+  else
+    echo "🛑 Несъвместимо име на сървъра: $SERVER_FQDN"
+    echo "Скриптът не може да продължи, защото този сървър не е валиден DNS (ns1/ns2/ns3)."
+    exit 1
+  fi
+
+  echo "✅ Определена роля: $DNS_ROLE"
+  echo ""
+
+  # ✅ Запис или обновяване на DNS_ROLE в todo.modules
+  if sudo grep -q '^DNS_ROLE=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i "s|^DNS_ROLE=.*|DNS_ROLE=\"$DNS_ROLE\"|" "$MODULES_FILE"
+  else
+    echo "DNS_ROLE=\"$DNS_ROLE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  fi
+
+  # ✅ Проверка на синтаксиса
+  echo "🔍 Проверка на синтаксиса..."
+  if ! sudo named-checkconf; then
+    echo "❌ Грешка в конфигурацията на BIND9. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Рестарт на услугата
+  echo "🔄 Рестартиране на BIND9..."
+  sudo systemctl restart bind9
+  if ! systemctl is-active --quiet bind9; then
+    echo "❌ Услугата BIND9 не стартира след промени. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # ✅ Запис на резултат за Модул 4
+  if sudo grep -q '^DNS_RESULT_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^DNS_RESULT_MODULE4=.*|DNS_RESULT_MODULE4=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "DNS_RESULT_MODULE4=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  fi
+
+  echo "✅ Модул 4 завърши успешно: ролята на DNS сървъра е $DNS_ROLE."
+  echo ""
 fi
-
-# 🔍 Проверка дали имаме валиден FQDN
-if [[ -z "$SERVER_FQDN" ]]; then
-  echo "❌ Не е намерен SERVER_FQDN в $MODULES_FILE. Скриптът не може да продължи."
-  [[ -f "$0" ]] && rm -- "$0"
-  exit 1
-fi
-
-# ✅ Определяне на ролята по FQDN
-DNS_ROLE=""
-if [[ "$SERVER_FQDN" =~ ^ns1\. ]]; then
-  DNS_ROLE="primary"
-elif [[ "$SERVER_FQDN" =~ ^ns[23]\. ]]; then
-  DNS_ROLE="secondary"
-else
-  echo "🛑 Несъвместимо име на сървъра: $SERVER_FQDN"
-  echo "Скриптът не може да продължи, защото този сървър не е валиден DNS (ns1/ns2/ns3)."
-  [[ -f "$0" ]] && rm -- "$0"
-  exit 1
-fi
-
-echo "✅ Определена роля: $DNS_ROLE"
-echo ""
-
-# ✅ Запис или обновяване на DNS_ROLE в todo.modules
-if sudo grep -q '^DNS_ROLE=' "$MODULES_FILE" 2>/dev/null; then
-  sudo sed -i "s|^DNS_ROLE=.*|DNS_ROLE=\"$DNS_ROLE\"|" "$MODULES_FILE"
-else
-  echo "DNS_ROLE=\"$DNS_ROLE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
-fi
-
-# ✅ Подготовка на named.conf.local (ако не съществува)
-if [[ ! -f /etc/bind/named.conf.local ]]; then
-  echo "// Локални DNS зони ще се добавят тук" | sudo tee /etc/bind/named.conf.local > /dev/null
-fi
-
-# ✅ Проверка на синтаксиса
-echo "🔍 Проверка на синтаксиса..."
-if ! sudo named-checkconf; then
-  echo "❌ Грешка в конфигурацията на BIND9. Скриптът не може да продължи."
-  [[ -f "$0" ]] && rm -- "$0"
-  exit 1
-fi
-
-# ✅ Рестарт на услугата
-echo "🔄 Рестартиране на BIND9..."
-sudo systemctl restart bind9
-if ! systemctl is-active --quiet bind9; then
-  echo "❌ Услугата BIND9 не стартира след промени. Скриптът не може да продължи."
-  [[ -f "$0" ]] && rm -- "$0"
-  exit 1
-fi
-
-# ✅ Запис на резултат за Модул 4
-if sudo grep -q '^DNS_RESULT_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
-  sudo sed -i 's|^DNS_RESULT_MODULE4=.*|DNS_RESULT_MODULE4=✅|' "$SETUP_ENV_FILE"
-else
-  echo "DNS_RESULT_MODULE4=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-fi
-
-echo "✅ Модул 4 завърши успешно: ролята на DNS сървъра е $DNS_ROLE."
 echo ""
 echo ""
 
