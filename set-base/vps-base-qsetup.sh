@@ -935,19 +935,8 @@ echo ""
 echo ""
 
 
-
-
-
-
-
-
-
-
-
-exit 0
-
-# === [МОДУЛ 11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА И РЕСТАРТ ========================
-echo "[11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА И РЕСТАРТ..."
+# === [МОДУЛ 11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА ========================
+echo "[11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА..."
 echo "-------------------------------------------------------------------------"
 echo ""
 
@@ -964,35 +953,53 @@ fi
 # ✅ Проверка за съществуване на setup.env
 if [[ ! -f "$SETUP_ENV_FILE" ]]; then
   echo "❌ Критична грешка: липсва $SETUP_ENV_FILE."
-  echo "Скриптът не може да продължи."
   exit 1
 fi
 
 # ✅ Зареждане на временни данни от todo.modules
-if [[ -f "$MODULES_FILE" ]]; then
-  source "$MODULES_FILE"
-fi
+[[ -f "$MODULES_FILE" ]] && source "$MODULES_FILE"
 
 # ✅ Обработка на липсващи данни
-[[ -z "$PORT_LIST" ]] && PORT_LIST="❔ няма въведени"
-[[ -z "$TRUSTED_NETS" ]] && TRUSTED_NETS="❔ няма въведени"
+[[ -z "$SERVER_IP" ]] && SERVER_IP="❔ не е зададен"
+[[ -z "$FQDN" ]] && FQDN="❔ не е зададен"
 [[ -z "$SSH_PORT" ]] && SSH_PORT="❔ не е зададен"
 [[ -z "$ADMIN_USER" ]] && ADMIN_USER="❔ не е зададен"
+[[ -z "$TRUSTED_NETS" ]] && TRUSTED_NETS="❔ няма въведени"
+[[ -z "$PORT_LIST" ]] && PORT_LIST="❔ няма въведени"
 
-# ✅ Извеждане на резултатите
-echo "📋 СЪСТОЯНИЕ НА КОНФИГУРАЦИЯТА:"
+# ✅ Четене на статуси по модули от setup.env
+status_module1=$(grep '^BASE_RESULT_MODULE1=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+status_module2=$(grep '^BASE_RESULT_MODULE2=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+status_module3=$(grep '^BASE_RESULT_MODULE3=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+status_module4=$(grep '^BASE_RESULT_MODULE4=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+status_module5=$(grep '^BASE_RESULT_MODULE5=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+status_module6=$(grep '^BASE_RESULT_MODULE6=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+status_module7=$(grep '^BASE_RESULT_MODULE7=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+status_module8=$(grep '^BASE_RESULT_MODULE8=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+status_module9=$(grep '^BASE_RESULT_MODULE9=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+status_module10=$(grep '^BASE_RESULT_MODULE10=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
+
+# ✅ Извеждане на отчет по реда на модулите
+echo "📋 СЪСТОЯНИЕ НА КОНФИГУРАЦИЯТА (ПО МОДУЛИ):"
 echo ""
-printf "🌐 IP адрес на сървъра:           %s\n" "${SERVER_IP:-❔}"
-printf "🌍 FQDN (hostname):               %s\n" "${FQDN:-❔}"
-printf "🔐 SSH порт:                      %s\n" "${SSH_PORT:-❔}"
-printf "🔒 Администраторски профил:       %s\n" "${ADMIN_USER:-❔}"
-printf "🛡️  Защитна стена (UFW):            %s\n" "ще бъде активирана"
-printf "🚪 Допълнителни портове:          %s\n" "${PORT_LIST:-❔}"
-printf "🌐 Доверени мрежи (VPN/LAN):      %s\n" "${TRUSTED_NETS:-❔}"
-printf "🌐 Локализации:                   %s\n" "$(grep '^BASE_RESULT_MODULE5=' "$SETUP_ENV_FILE" | cut -d '=' -f2)"
-printf "🕒 Времева зона и NTP:            %s\n" "$(grep '^BASE_RESULT_MODULE6=' "$SETUP_ENV_FILE" | cut -d '=' -f2)"
+printf "[1] IP адрес на сървъра:          %-15s (%s)\n" "$SERVER_IP" "${status_module1:-❔}"
+printf "[2] FQDN (hostname):              %-15s (%s)\n" "$FQDN" "${status_module2:-❔}"
+printf "[3] Обновяване на системата:      %s\n" "${status_module3:-❔}"
+printf "[4] Основни инструменти:          %s\n" "${status_module4:-❔}"
+printf "[5] Локализации:                  %s\n" "${status_module5:-❔}"
+printf "[6] Времева зона и NTP:           %s\n" "${status_module6:-❔}"
+printf "[7] Администраторски профил:      %-15s (%s)\n" "$ADMIN_USER" "${status_module7:-❔}"
+printf "[8] Настройка на UFW:             %s\n" "${status_module8:-❔}"
+printf "[9] Trusted мрежи:                %-15s (%s)\n" "$TRUSTED_NETS" "${status_module9:-❔}"
+printf "[10] SSH порт:                    %-15s (%s)\n" "$SSH_PORT" "${status_module10:-❔}"
+printf "[Допълнителни портове]:           %s\n" "$PORT_LIST"
 echo ""
 
+
+# === [МОДУЛ 12] ФИНАЛЕН ДИАЛОГ С ОПЕРАТОРА И РЕСТАРТ ========================
+echo "[12] ФИНАЛЕН ДИАЛОГ С ОПЕРАТОРА И РЕСТАРТ..."
+echo "-------------------------------------------------------------------------"
+echo ""
 # === Финален диалог с оператор ===============================================
 while true; do
   echo "📋 Приемате ли конфигурацията като успешна?"
