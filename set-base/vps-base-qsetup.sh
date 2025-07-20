@@ -818,11 +818,16 @@ if [[ ${#TRUSTED_NETS[@]} -gt 0 ]]; then
   done
 fi
 
-# ✅ Запис на доверените мрежи в todo.modules (обновяване, ако вече съществуват)
+# ✅ Запис на доверените мрежи в todo.modules (ако няма → No)
+TRUSTED_VALUE="No"
+if [[ ${#TRUSTED_NETS[@]} -gt 0 ]]; then
+  TRUSTED_VALUE="${TRUSTED_NETS[*]}"
+fi
+
 if sudo grep -q '^TRUSTED_NETS=' "$MODULES_FILE" 2>/dev/null; then
-  sudo sed -i "s|^TRUSTED_NETS=.*|TRUSTED_NETS=\"${TRUSTED_NETS[*]}\"|" "$MODULES_FILE"
+  sudo sed -i "s|^TRUSTED_NETS=.*|TRUSTED_NETS=\"$TRUSTED_VALUE\"|" "$MODULES_FILE"
 else
-  echo "TRUSTED_NETS=\"${TRUSTED_NETS[*]}\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  echo "TRUSTED_NETS=\"$TRUSTED_VALUE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
 fi
 
 # ✅ Записване на резултат за модула (с обновяване, ако вече съществува)
