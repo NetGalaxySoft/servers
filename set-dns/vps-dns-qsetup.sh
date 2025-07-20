@@ -291,7 +291,7 @@ echo "[3] КОНФИГУРИРАНЕ НА named.conf.options..."
 echo "-----------------------------------------------------------"
 echo ""
 
-# СЕКЦИЯ 1: Проверка дали модулът вече е изпълнен
+# Проверка дали модулът вече е изпълнен
 if sudo grep -q '^DNS_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
 else
@@ -303,7 +303,8 @@ else
 
   # ✅ Четене на данни от todo.modules
   if [[ -f "$MODULES_FILE" ]]; then
-    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | cut -d '"' -f2)
+    SERVER_IPV6=$(grep '^SERVER_IPV6=' "$MODULES_FILE" | cut -d '"' -f2)
   else
     echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
     exit 1
@@ -315,18 +316,11 @@ else
     exit 1
   fi
 
-  # ✅ Проверка за IPv6 поддръжка (глобален адрес)
-  if ip -6 addr show scope global | grep -q 'inet6'; then
-    SERVER_IPV6="yes"
+  # ✅ Определяне на IPv6 настройката
+  if [[ "$SERVER_IPV6" == "yes" ]]; then
+    IPV6_LINE="listen-on-v6 { any; };"
   else
-    SERVER_IPV6="no"
-  fi
-
-  # ✅ Обновяване или добавяне на IPv6 в todo.modules
-  if sudo grep -q '^SERVER_IPV6=' "$MODULES_FILE" 2>/dev/null; then
-    sudo sed -i "s|^SERVER_IPV6=.*|SERVER_IPV6=\"$SERVER_IPV6\"|" "$MODULES_FILE"
-  else
-    echo "SERVER_IPV6=\"$SERVER_IPV6\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    IPV6_LINE="listen-on-v6 { none; };"
   fi
 
   echo "🔧 Създаване на нова конфигурация в named.conf.options..."
@@ -337,8 +331,8 @@ else
 options {
     directory "/var/cache/bind";
 
-    listen-on { $SERVER_IP; };
-    $( [[ "$SERVER_IPV6" == "yes" ]] && echo 'listen-on-v6 { any; };' || echo 'listen-on-v6 { none; };' )
+    listen-on { 127.0.0.1; $SERVER_IP; };
+    $IPV6_LINE
 
     allow-query { any; };
 
@@ -359,6 +353,11 @@ EOF
     echo "❌ Грешка в конфигурацията на BIND9. Скриптът не може да продължи."
     exit 1
   fi
+
+  # ✅ Отваряне на порт 53 за DNS (TCP и UDP)
+  echo "🔓 Отваряне на порт 53 (TCP/UDP) за DNS..."
+  sudo ufw allow 53/tcp
+  sudo ufw allow 53/udp
 
   # ✅ Рестарт на услугата
   echo "🔄 Рестартиране на BIND9..."
