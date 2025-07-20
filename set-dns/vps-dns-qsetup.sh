@@ -210,7 +210,7 @@ fi
 if sudo grep -q '^SETUP_VPS_DNS_STATUS=' "$SETUP_ENV_FILE" 2>/dev/null; then
   sudo sed -i 's|^SETUP_VPS_DNS_STATUS=.*|SETUP_VPS_DNS_STATUS=✅|' "$SETUP_ENV_FILE"
 else
-  echo "SETUP_VPS_DNS_STATUS=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo "RESULT_DNS_CHECKS=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 fi
 
 echo "✅ Сървърът е с валидна начална конфигурация."
