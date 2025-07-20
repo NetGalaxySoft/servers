@@ -196,43 +196,36 @@ echo "✅ Потвърдено: hostname = $HOSTNAME_FQDN"
 echo ""
 
 # -------------------------------------------------------------------------------------
-# СЕКЦИЯ 5: Запис на IP/FQDN
+# СЕКЦИЯ 5: Запис на IP/FQDN и подготовка на todo.modules
 # -------------------------------------------------------------------------------------
 
-# Обновяване на SERVER_IP (ключът трябва да съществува)
+# ✅ Създаване на todo.modules, ако липсва (временен файл за текущия скрипт)
+if [[ ! -f "$MODULES_FILE" ]]; then
+  sudo touch "$MODULES_FILE"
+fi
+
+# ✅ Запис на SERVER_IP
 if [[ -n "$SERVER_IP" ]]; then
   if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
     sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
   else
-    echo "❌ В $MODULES_FILE липсва ключът SERVER_IP. Скриптът не може да продължи."
-    exit 1
+    echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
   fi
 else
   echo "❌ Променливата SERVER_IP е празна. Скриптът не може да продължи."
   exit 1
 fi
 
-# Обновяване на SERVER_FQDN (ключът трябва да съществува)
+# ✅ Запис на SERVER_FQDN
 if [[ -n "$HOSTNAME_FQDN" ]]; then
   if sudo grep -q '^SERVER_FQDN=' "$MODULES_FILE" 2>/dev/null; then
     sudo sed -i "s|^SERVER_FQDN=.*|SERVER_FQDN=\"$HOSTNAME_FQDN\"|" "$MODULES_FILE"
   else
-    echo "❌ В $MODULES_FILE липсва ключът SERVER_FQDN. Скриптът не може да продължи."
-    exit 1
+    echo "SERVER_FQDN=\"$HOSTNAME_FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
   fi
 else
   echo "❌ Променливата HOSTNAME_FQDN е празна. Скриптът не може да продължи."
   exit 1
-fi
-
-# ✅ Запис на резултат за Модул 1 в setup.env
-if sudo grep -q '^DNS_RESULT_MODULE1=' "$SETUP_ENV_FILE" 2>/dev/null; then
-  sudo sed -i 's|^DNS_RESULT_MODULE1=.*|DNS_RESULT_MODULE1=✅|' "$SETUP_ENV_FILE"
-else
-  echo "DNS_RESULT_MODULE1=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-fi
-
-echo "✅ Модул 1 завърши успешно."
 fi
 echo ""
 echo ""
