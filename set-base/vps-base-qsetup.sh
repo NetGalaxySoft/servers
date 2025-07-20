@@ -273,6 +273,7 @@ if sudo grep -q '^BASE_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
 else
   echo "BASE_RESULT_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 fi
+fi
 echo ""
 echo ""
 
