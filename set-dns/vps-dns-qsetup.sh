@@ -414,7 +414,7 @@ echo "[5] СЪЗДАВАНЕ НА ЗОНИ..."
 echo "-----------------------------------------------------------"
 echo ""
 
-# СЕКЦИЯ 1: Проверка дали модулът вече е изпълнен
+# ✅ Проверка дали модулът вече е изпълнен
 if sudo grep -q '^DNS_RESULT_MODULE5=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
 else
@@ -426,39 +426,45 @@ else
 
   # ✅ Четене на данни от todo.modules
   if [[ -f "$MODULES_FILE" ]]; then
-    SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | cut -d '"' -f2)
-    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | cut -d '"' -f2)
-    DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | cut -d '"' -f2)
+    SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+    DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
   else
     echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
     exit 1
   fi
 
-  # 🔍 Проверка на DNS_ROLE
-  if [[ -z "$DNS_ROLE" ]]; then
-    echo "❌ Липсва DNS_ROLE в $MODULES_FILE. Скриптът не може да продължи."
+  # ✅ Проверка на данните
+  if [[ -z "$SERVER_FQDN" || -z "$SERVER_IP" || -z "$DNS_ROLE" ]]; then
+    echo "❌ Липсват критични данни (FQDN, IP или роля). Проверете $MODULES_FILE."
     exit 1
   fi
+
+  # ✅ Извличане на домейна
+  DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
+  if [[ -z "$DOMAIN" ]]; then
+    echo "❌ Невалиден домейн. Проверете SERVER_FQDN в $MODULES_FILE."
+    exit 1
+  fi
+
+  # ✅ Обратна зона (reverse)
+  REVERSE_ZONE_NAME=$(echo "$SERVER_IP" | awk -F. '{print $3"."$2"."$1}')
+  ZONE_FILE="/etc/bind/zones/db.$DOMAIN"
+  REVERSE_ZONE_FILE="/etc/bind/zones/db.$REVERSE_ZONE_NAME.in-addr.arpa"
 
   # ✅ Подготовка на named.conf.local
   if [[ ! -f /etc/bind/named.conf.local ]]; then
     echo "// Локални DNS зони" | sudo tee /etc/bind/named.conf.local > /dev/null
   fi
 
-  # ✅ Папка за зонови файлове (само за PRIMARY)
-  if [[ "$DNS_ROLE" == "primary" ]]; then
-    if [[ ! -d /etc/bind/zones ]]; then
-      sudo mkdir /etc/bind/zones
-    fi
+  # ✅ Създаване на папка за зонови файлове (само за PRIMARY)
+  if [[ "$DNS_ROLE" == "primary" && ! -d /etc/bind/zones ]]; then
+    sudo mkdir /etc/bind/zones
   fi
 
   # ✅ Конфигуриране според ролята
   if [[ "$DNS_ROLE" == "primary" ]]; then
     echo "🔧 Конфигуриране на PRIMARY DNS (ns1)..."
-
-    DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
-    ZONE_FILE="/etc/bind/zones/db.$DOMAIN"
-    REVERSE_ZONE_FILE="/etc/bind/zones/db.$(echo "$SERVER_IP" | awk -F. '{print $3"."$2"."$1}.in-addr.arpa')"
 
     # Добавяне на зони в named.conf.local (ако липсват)
     if ! grep -q "$DOMAIN" /etc/bind/named.conf.local; then
@@ -469,14 +475,14 @@ zone "$DOMAIN" {
     file "$ZONE_FILE";
 };
 
-zone "$(echo "$SERVER_IP" | awk -F. '{print $3"."$2"."$1}.in-addr.arpa')" {
+zone "$REVERSE_ZONE_NAME.in-addr.arpa" {
     type master;
     file "$REVERSE_ZONE_FILE";
 };
 EOF
     fi
 
-    # Създаване на forward зона
+    # ✅ Създаване на forward зона
     cat <<EOF | sudo tee "$ZONE_FILE" > /dev/null
 \$TTL    604800
 @       IN      SOA     ns1.$DOMAIN. admin.$DOMAIN. (
@@ -492,16 +498,26 @@ EOF
 ns1     IN      A       $SERVER_IP
 EOF
 
-    # (Ако има втори DNS – ще се добави по-късно от контролен панел или автоматизация)
+    # ✅ Създаване на reverse зона
+    LAST_OCTET=$(echo "$SERVER_IP" | awk -F. '{print $4}')
+    cat <<EOF | sudo tee "$REVERSE_ZONE_FILE" > /dev/null
+\$TTL    604800
+@       IN      SOA     ns1.$DOMAIN. admin.$DOMAIN. (
+                        $(date +%Y%m%d%H) ; Serial
+                        604800     ; Refresh
+                        86400      ; Retry
+                        2419200    ; Expire
+                        604800 )   ; Negative Cache TTL
+;
+@       IN      NS      ns1.$DOMAIN.
+$LAST_OCTET    IN      PTR     ns1.$DOMAIN.
+EOF
 
   elif [[ "$DNS_ROLE" == "secondary" ]]; then
-    echo "🔧 Конфигуриране на SECONDARY DNS (slave)..."
-
-    DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
-    MASTER_IP="" # ще се изиска в бъдеща версия или от todo.modules
-
+    echo "🔧 Конфигуриране на SECONDARY DNS..."
+    MASTER_IP=$(grep '^MASTER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
     if [[ -z "$MASTER_IP" ]]; then
-      echo "❌ Липсва IP на PRIMARY DNS. Добавете го в todo.modules (MASTER_IP)."
+      echo "❌ Липсва IP на PRIMARY DNS (MASTER_IP). Добавете го в $MODULES_FILE."
       exit 1
     fi
 
@@ -546,6 +562,7 @@ EOF
 fi
 echo ""
 echo ""
+
 
 
 
