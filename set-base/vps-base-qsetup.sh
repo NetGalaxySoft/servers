@@ -286,7 +286,7 @@ MODULE_NAME="mod_03_system_update"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
-# Проверка дали модулът вече е изпълнен
+# ✅ Проверка дали модулът вече е изпълнен
 if sudo grep -q '^BASE_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
 else
@@ -304,7 +304,7 @@ else
     fi
   done
 
-# Изпълнение на обновяването
+  # Изпълнение на обновяването
   if sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get autoremove -y; then
     echo "✅ Системата е успешно обновена."
 
@@ -314,9 +314,14 @@ else
     else
       echo "BASE_RESULT_MODULE3=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
     fi
+  else
+    echo "❌ Възникна грешка при обновяване на системата. Проверете горните съобщения."
+    exit 1
+  fi
 fi
 echo ""
 echo ""
+
 
 
 
