@@ -851,14 +851,24 @@ if sudo grep -q '^BASE_RESULT_MODULE10=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo ""
 else
 
-# --- Извличане на SSH порта от todo.modules ---
-if sudo grep -q "^SSH_PORT=" "$MODULES_FILE"; then
-  SSH_PORT=$(sudo grep "^SSH_PORT=" "$MODULES_FILE" | cut -d '=' -f2 | tr -d '"')
-else
-  echo "❌ Не е намерен запис за SSH порта в $MODULES_FILE. Скриптът ще бъде прекратен."
+# --- Засичане на текущия SSH порт ---
+CURRENT_SSH_PORT=$(sudo ss -tlpn 2>/dev/null | grep sshd | awk '{print $4}' | awk -F: '{print $NF}' | head -n 1)
+
+if [[ -z "$CURRENT_SSH_PORT" ]]; then
+  echo "❌ Не може да се определи текущият SSH порт. Скриптът ще бъде прекратен."
   exit 1
 fi
 
+echo "🔍 Засечен SSH порт: $CURRENT_SSH_PORT"
+
+# --- Извличане на SSH порта от todo.modules (ако има запис) ---
+if sudo grep -q "^SSH_PORT=" "$MODULES_FILE"; then
+  SSH_PORT=$(sudo grep "^SSH_PORT=" "$MODULES_FILE" | cut -d '=' -f2 | tr -d '"')
+else
+  SSH_PORT="$CURRENT_SSH_PORT"
+fi
+
+# --- Диалог за промяна на SSH порт ---
 while true; do
   printf "👉 В момента използвате SSH порт %s.\n" "$CURRENT_SSH_PORT"
   echo "   Въведете нов порт, ако желаете да го промените,"
@@ -882,7 +892,7 @@ while true; do
   fi
 done
 
-# Промяна в sshd_config, ако портът е различен
+# --- Промяна в sshd_config, ако портът е различен ---
 if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
   echo "🔧 Актуализиране на /etc/ssh/sshd_config..."
   if grep -q "^#*Port " /etc/ssh/sshd_config; then
@@ -901,14 +911,14 @@ else
   echo "ℹ️ Няма промяна – SSH портът остава $SSH_PORT."
 fi
 
-# 🔓 Настройка на UFW за новия порт
+# --- Настройка на UFW за новия порт ---
 echo "🛡️ Настройка на UFW (в неактивен режим)..."
 if ! sudo ufw status | grep -q "$SSH_PORT/tcp"; then
   echo "➕ Добавяне на правило за SSH порт $SSH_PORT..."
   sudo ufw allow "$SSH_PORT"/tcp comment 'Allow SSH port'
 fi
 
-# Забрана на стария порт (ако е сменен)
+# --- Забрана на стария порт (ако е сменен) ---
 if [[ "$SSH_PORT" != "$CURRENT_SSH_PORT" ]]; then
   echo "🛡️ Забрана на стария SSH порт $CURRENT_SSH_PORT..."
   sudo ufw deny "$CURRENT_SSH_PORT"/tcp comment 'Block old SSH port'
@@ -927,10 +937,11 @@ if sudo grep -q '^BASE_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
 else
   echo "BASE_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 fi
-fi
+
 fi
 echo ""
 echo ""
+
 
 
 
