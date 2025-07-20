@@ -426,6 +426,13 @@ else
   if sudo locale-gen && sudo update-locale; then
     echo "✅ Локализациите са конфигурирани успешно."
 
+    # ✅ Запис в todo.modules (информация за конфигурираните локали)
+    if sudo grep -q '^LOCALES=' "$MODULES_FILE" 2>/dev/null; then
+      sudo sed -i 's|^LOCALES=.*|LOCALES="bg_BG.UTF-8 ru_RU.UTF-8 en_US.UTF-8"|' "$MODULES_FILE"
+    else
+      echo 'LOCALES="bg_BG.UTF-8 ru_RU.UTF-8 en_US.UTF-8"' | sudo tee -a "$MODULES_FILE" > /dev/null
+    fi
+
     # ✅ Записване на резултат за модула (с обновяване, ако вече съществува)
     if sudo grep -q '^BASE_RESULT_MODULE5=' "$SETUP_ENV_FILE" 2>/dev/null; then
       sudo sed -i 's|^BASE_RESULT_MODULE5=.*|BASE_RESULT_MODULE5=✅|' "$SETUP_ENV_FILE"
@@ -440,6 +447,9 @@ else
   fi
 echo ""
 echo ""
+
+
+exit 0
 
 
 # === [МОДУЛ 6] НАСТРОЙКА НА ВРЕМЕВА ЗОНА И NTP СИНХРОНИЗАЦИЯ ==================
@@ -508,6 +518,7 @@ if sudo grep -q '^BASE_RESULT_MODULE6=' "$SETUP_ENV_FILE" 2>/dev/null; then
   sudo sed -i 's|^BASE_RESULT_MODULE6=.*|BASE_RESULT_MODULE6=✅|' "$SETUP_ENV_FILE"
 else
   echo "BASE_RESULT_MODULE6=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+fi
 fi
 echo ""
 echo ""
