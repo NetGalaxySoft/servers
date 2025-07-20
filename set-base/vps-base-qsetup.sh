@@ -677,7 +677,7 @@ echo ""
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
-if sudo grep -q "^RESULT_FIREWALL_SETUP=✅" "$SETUP_ENV_FILE"; then
+if sudo grep -q '^BASE_RESULT_MODULE8=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "🔁 Пропускане (защитната стена вече е конфигурирана)..."
   echo ""
 else
