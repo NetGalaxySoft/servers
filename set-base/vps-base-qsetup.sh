@@ -185,7 +185,6 @@ MODULES_FILE="/etc/netgalaxy/todo.modules"
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
-# Проверка дали модулът вече е изпълнен
 if sudo grep -q '^BASE_RESULT_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 2 вече е изпълнен успешно. Пропускане..."
   echo ""
@@ -315,6 +314,7 @@ else
     else
       echo "BASE_RESULT_MODULE3=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
     fi
+fi
 echo ""
 echo ""
 
