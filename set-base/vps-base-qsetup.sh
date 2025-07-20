@@ -992,7 +992,7 @@ printf "[7] Администраторски профил:      %-15s (%s)\n" "$
 printf "[8] Настройка на UFW:             %s\n" "${status_module8:-❔}"
 printf "[9] Trusted мрежи:                %-15s (%s)\n" "$TRUSTED_NETS" "${status_module9:-❔}"
 printf "[10] SSH порт:                    %-15s (%s)\n" "$SSH_PORT" "${status_module10:-❔}"
-printf "[Допълнителни портове]:           %s\n" "$PORT_LIST"
+echo ""
 echo ""
 
 
