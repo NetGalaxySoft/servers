@@ -536,7 +536,6 @@ EOF
                         604800 )   ; Negative Cache TTL
 ;
 @       IN      NS      ns1.$DOMAIN.
-@       IN      NS      ns2.$DOMAIN.
 
 ns1     IN      A       $SERVER_IP
 EOF
