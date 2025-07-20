@@ -330,6 +330,7 @@ EOF
 
   echo "✅ Модул 3 завърши успешно: конфигурацията на named.conf.options е обновена."
 fi
+fi
 echo ""
 echo ""
 
