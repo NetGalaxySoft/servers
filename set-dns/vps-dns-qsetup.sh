@@ -155,27 +155,43 @@ echo ""
 # -------------------------------------------------------------------------------------
 # СЕКЦИЯ 5: Проверка за начална конфигурация и запис на IP/FQDN
 # -------------------------------------------------------------------------------------
-if [[ ! -f "$SETUP_ENV_FILE" ]] || ! sudo grep -q '^SETUP_VPS_BASE_STATUS=✅' "$SETUP_ENV_FILE"; then
+
+# Проверка за setup.env и статус на базова конфигурация
+if [[ ! -f "$SETUP_ENV_FILE" ]] || ! sudo grep -q '^SETUP_VPS_BASE_STATUS=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "🛑 Началната конфигурация липсва. Стартирайте vps-base-qsetup.sh"
   exit 1
 fi
 
-if sudo grep -q '^SETUP_VPS_DNS_STATUS=✅' "$SETUP_ENV_FILE"; then
+# Проверка дали DNS конфигурацията вече е завършена
+if [[ -f "$SETUP_ENV_FILE" ]] && sudo grep -q '^SETUP_VPS_DNS_STATUS=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "🛑 Целият DNS скрипт вече е изпълнен на този сървър."
   exit 0
 fi
 
-if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
-  sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
+# Запис на SERVER_IP
+if [[ -n "$SERVER_IP" ]]; then
+  if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
+  else
+    echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  fi
 else
-  echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  echo "❌ Променливата SERVER_IP е празна. Скриптът не може да продължи."
+  exit 1
 fi
 
-if sudo grep -q '^SERVER_FQDN=' "$MODULES_FILE" 2>/dev/null; then
-  sudo sed -i "s|^SERVER_FQDN=.*|SERVER_FQDN=\"$HOSTNAME_FQDN\"|" "$MODULES_FILE"
+# Запис на SERVER_FQDN
+if [[ -n "$HOSTNAME_FQDN" ]]; then
+  if sudo grep -q '^SERVER_FQDN=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i "s|^SERVER_FQDN=.*|SERVER_FQDN=\"$HOSTNAME_FQDN\"|" "$MODULES_FILE"
+  else
+    echo "SERVER_FQDN=\"$HOSTNAME_FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  fi
 else
-  echo "SERVER_FQDN=\"$HOSTNAME_FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  echo "❌ Променливата HOSTNAME_FQDN е празна. Скриптът не може да продължи."
+  exit 1
 fi
+
 
 # ✅ Запис на резултат
 if sudo grep -q '^DNS_RESULT_MODULE1=' "$SETUP_ENV_FILE" 2>/dev/null; then
