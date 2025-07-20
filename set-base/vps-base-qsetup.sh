@@ -433,9 +433,10 @@ else
       echo "BASE_RESULT_MODULE5=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
     fi
 
-  else
-    echo "❌ Грешка при генериране на локализации."
-    exit 1
+    else
+      echo "❌ Грешка при генериране на локализации."
+      exit 1
+    fi
   fi
 fi
 echo ""
