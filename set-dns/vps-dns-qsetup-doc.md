@@ -57,5 +57,23 @@ RESULT_BIND9_INSTALL=✅ (вече инсталиран)
 Записът в setup.env се обновява с sed (ако вече съществува), иначе се добавя нов ред. 
 При неуспешна инсталация или проблем с услугата → скриптът се спира и изтрива себе си. 
 
+---
 
-  
+## Модул 3 Конфигуриране на named.conf.options
+✅ Какво прави този скрипт:
+1. Проверка дали вече е бил изпълнен на този сървър → ако да, пропуска изпълнението.
+2. Извлича ip адреса на сървъра чрез SERVER_IP от todo.modules.
+3. Проверява дали сървърът е с IPv6 поддръжка:
+   - Ако да → записва това чрез SERVER_IPV6="yes" в todo.modules и добавя запис listen-on-v6 { any; };.
+   - Ако не → записва SERVER_IPV6="no" и listen-on-v6 { none; };.
+4. Архивира стария named.conf.options.
+5. Създава нов блок със следните записи:
+   listen-on { SERVER_IP; };
+   allow-query { any; };
+   forwarders → Cloudflare + Google.
+   dnssec-validation auto;
+   recursion no;.
+6. Проверява синтаксиса с named-checkconf.
+7. Рестартира BIND9 и проверява дали работи.
+8. Записва резултат в setup.env:
+   RESULT_BIND9_OPTIONS=✅
