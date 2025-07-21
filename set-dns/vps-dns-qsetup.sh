@@ -558,28 +558,32 @@ if [[ "$DNS_ROLE" == "primary" ]]; then
 zone "$DOMAIN" {
     type master;
     file "$ZONE_FILE";
-EOF
-
-    if [[ -n "$SECOND_DNS_IP" ]]; then
-      echo "    allow-transfer { $SECOND_DNS_IP; };" | sudo tee -a /etc/bind/named.conf.local > /dev/null
-      echo "    also-notify { $SECOND_DNS_IP; };" | sudo tee -a /etc/bind/named.conf.local > /dev/null
-    fi
-
-    echo "};" | sudo tee -a /etc/bind/named.conf.local > /dev/null
-
-    cat <<EOF | sudo tee -a /etc/bind/named.conf.local > /dev/null
-
+};
 zone "$REVERSE_ZONE_NAME.in-addr.arpa" {
     type master;
     file "$REVERSE_ZONE_FILE";
+};
 EOF
+  fi
 
-    if [[ -n "$SECOND_DNS_IP" ]]; then
-      echo "    allow-transfer { $SECOND_DNS_IP; };" | sudo tee -a /etc/bind/named.conf.local > /dev/null
-      echo "    also-notify { $SECOND_DNS_IP; };" | sudo tee -a /etc/bind/named.conf.local > /dev/null
-    fi
+  # ✅ Добавяне на allow-transfer и also-notify (ако SECOND_DNS_IP е зададен)
+  if [[ -n "$SECOND_DNS_IP" ]]; then
+    for ZONE in "$DOMAIN" "$REVERSE_ZONE_NAME.in-addr.arpa"; do
+      if grep -q "zone \"$ZONE\"" /etc/bind/named.conf.local; then
+        # Премахваме стари директиви, ако има
+        sudo sed -i "/zone \"$ZONE\" {/,/}/ {
+          /allow-transfer/d
+          /also-notify/d
+        }" /etc/bind/named.conf.local
 
-    echo "};" | sudo tee -a /etc/bind/named.conf.local > /dev/null
+        # Вмъкваме нови редове преди затварящата скоба
+        sudo sed -i "/zone \"$ZONE\" {/,/}/ {
+          /^};/i\    allow-transfer { $SECOND_DNS_IP; };
+          /^};/i\    also-notify { $SECOND_DNS_IP; };
+        }" /etc/bind/named.conf.local
+        echo "✅ Обновени allow-transfer и also-notify за $ZONE"
+      fi
+    done
   fi
 
   # ✅ Създаване на forward зона
@@ -633,48 +637,29 @@ zone "$DOMAIN" {
     file "/var/cache/bind/db.$DOMAIN";
 };
 EOF
+  else
+    # Поправяме master IP, ако е различен
+    sudo sed -i "/zone \"$DOMAIN\" {/,/}/ {
+      /masters/d
+    }" /etc/bind/named.conf.local
+    sudo sed -i "/zone \"$DOMAIN\" {/,/}/ {
+      /^};/i\    masters { $MASTER_IP; };
+    }" /etc/bind/named.conf.local
+    echo "✅ Обновен MASTER IP за $DOMAIN"
   fi
+
 else
   echo "❌ Непозната роля: $DNS_ROLE"
   exit 1
 fi
 
-# ✅ Поправка на DNS конфигурацията за MASTER/SLAVE
-echo "🔍 Проверка за корекция на IP адреси и зонови параметри..."
-
-if [[ "$DNS_ROLE" == "primary" && -n "$SECOND_DNS_IP" ]]; then
-    for ZONE in "$DOMAIN" "$REVERSE_ZONE_NAME.in-addr.arpa"; do
-        if grep -q "zone \"$ZONE\"" /etc/bind/named.conf.local; then
-            sudo sed -i "/zone \"$ZONE\" {/,/}/ {
-                /allow-transfer/d
-                /also-notify/d
-            }" /etc/bind/named.conf.local
-
-            sudo sed -i "/zone \"$ZONE\" {/,/}/ s/};/\
-    allow-transfer { $SECOND_DNS_IP; };\
-    also-notify { $SECOND_DNS_IP; };\
-};/" /etc/bind/named.conf.local
-            echo "✅ Обновени allow-transfer и also-notify за $ZONE"
-        fi
-    done
-fi
-
-if [[ "$DNS_ROLE" == "secondary" ]]; then
-    if grep -q "zone \"$DOMAIN\"" /etc/bind/named.conf.local; then
-        sudo sed -i "/masters/d" /etc/bind/named.conf.local
-        sudo sed -i "/zone \"$DOMAIN\" {/,/}/ s/};/\
-    masters { $MASTER_IP; };\
-};/" /etc/bind/named.conf.local
-        echo "✅ Обновен MASTER IP за $DOMAIN"
-    fi
-fi
-
-# ✅ Задаване на правилни права за /var/cache/bind/
+# ✅ Уверяваме се, че /var/cache/bind/ има правилните права
 if [[ -d "/var/cache/bind" ]]; then
     sudo chown bind:bind /var/cache/bind
     sudo chmod 750 /var/cache/bind
     echo "✅ Дадени са правилни права на /var/cache/bind/"
 fi
+
 
 
 # -------------------------------------------------------------------------------------
@@ -703,7 +688,6 @@ fi
 echo "✅ Модул 5 завърши успешно: зоните са конфигурирани."
 echo ""
 echo ""
-
 
 # -------------------------------------------------------------------------------------
 # СЕКЦИЯ 6: Проверка на синтаксиса и рестарт
