@@ -60,16 +60,6 @@ NETGALAXY_DIR="/etc/netgalaxy"
 MODULES_FILE="$NETGALAXY_DIR/todo.modules"
 SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 
-echo ""
-echo -e "\e[32m=========================================="
-echo -e "       КОНФИГУРАЦИЯ НА DNS СЪРВЪР"
-echo -e "==========================================\e[0m"
-echo ""
-
-NETGALAXY_DIR="/etc/netgalaxy"
-MODULES_FILE="$NETGALAXY_DIR/todo.modules"
-SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
-
 # === [МОДУЛ 1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ =========================
 echo "[1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ..."
 echo "-----------------------------------------------------------"
