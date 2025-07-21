@@ -551,7 +551,7 @@ fi
 if [[ "$DNS_ROLE" == "primary" ]]; then
   echo "🔧 Конфигуриране на PRIMARY DNS (ns1)..."
 
-  # Добавяне на зони в named.conf.local
+  # Добавяне на зони в named.conf.local (без allow-transfer и also-notify на този етап)
   if ! grep -q "$DOMAIN" /etc/bind/named.conf.local; then
     cat <<EOF | sudo tee -a /etc/bind/named.conf.local > /dev/null
 
@@ -566,7 +566,7 @@ zone "$REVERSE_ZONE_NAME.in-addr.arpa" {
 EOF
   fi
 
-  # ✅ Добавяне на allow-transfer и also-notify (ако SECOND_DNS_IP е зададен)
+  # ✅ Добавяне на allow-transfer и also-notify (само ако SECOND_DNS_IP е зададен)
   if [[ -n "$SECOND_DNS_IP" ]]; then
     for ZONE in "$DOMAIN" "$REVERSE_ZONE_NAME.in-addr.arpa"; do
       if grep -q "zone \"$ZONE\"" /etc/bind/named.conf.local; then
@@ -576,11 +576,12 @@ EOF
           /also-notify/d
         }" /etc/bind/named.conf.local
 
-        # Вмъкваме нови редове преди затварящата скоба
+        # Инжектираме новите редове преди затварящата скоба
         sudo sed -i "/zone \"$ZONE\" {/,/}/ {
           /^};/i\    allow-transfer { $SECOND_DNS_IP; };
           /^};/i\    also-notify { $SECOND_DNS_IP; };
         }" /etc/bind/named.conf.local
+
         echo "✅ Обновени allow-transfer и also-notify за $ZONE"
       fi
     done
@@ -659,8 +660,6 @@ if [[ -d "/var/cache/bind" ]]; then
     sudo chmod 750 /var/cache/bind
     echo "✅ Дадени са правилни права на /var/cache/bind/"
 fi
-
-
 
 # -------------------------------------------------------------------------------------
 # СЕКЦИЯ 6: Проверка и рестарт
