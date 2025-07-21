@@ -567,11 +567,15 @@ if [[ "$DNS_ROLE" == "primary" ]]; then
 zone "$DOMAIN" {
     type master;
     file "$ZONE_FILE";
+    allow-transfer { $SECOND_DNS_IP; };
+    also-notify { $SECOND_DNS_IP; };
 };
 
 zone "$REVERSE_ZONE_NAME.in-addr.arpa" {
     type master;
     file "$REVERSE_ZONE_FILE";
+    allow-transfer { $SECOND_DNS_IP; };
+    also-notify { $SECOND_DNS_IP; };
 };
 EOF
   fi
@@ -632,6 +636,34 @@ else
   echo "❌ Непозната роля: $DNS_ROLE"
   exit 1
 fi
+
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 6: Проверка и рестарт
+# -------------------------------------------------------------------------------------
+echo "🔍 Проверка на синтаксиса..."
+if ! sudo named-checkconf; then
+  echo "❌ Грешка в конфигурацията на BIND9."
+  exit 1
+fi
+
+echo "🔄 Рестартиране на BIND9..."
+sudo systemctl restart bind9
+if ! systemctl is-active --quiet bind9; then
+  echo "❌ Услугата BIND9 не стартира след промени."
+  exit 1
+fi
+
+# ✅ Запис на резултат за Модул 5
+if sudo grep -q '^DNS_RESULT_MODULE5=' "$SETUP_ENV_FILE" 2>/dev/null; then
+  sudo sed -i 's|^DNS_RESULT_MODULE5=.*|DNS_RESULT_MODULE5=✅|' "$SETUP_ENV_FILE"
+else
+  echo "DNS_RESULT_MODULE5=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+fi
+
+echo "✅ Модул 5 завърши успешно: зоните са конфигурирани."
+echo ""
+echo ""
+
 
 # -------------------------------------------------------------------------------------
 # СЕКЦИЯ 6: Проверка на синтаксиса и рестарт
