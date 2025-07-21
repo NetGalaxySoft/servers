@@ -637,6 +637,31 @@ else
   exit 1
 fi
 
+# === Поправка на DNS конфигурацията за MASTER/SLAVE ===
+echo "🔍 Проверка за корекция на IP адреси и зонови параметри..."
+
+if [[ "$DNS_ROLE" == "primary" ]]; then
+    for ZONE in "$DOMAIN" "$REVERSE_ZONE_NAME.in-addr.arpa"; do
+        if grep -q "zone \"$ZONE\"" /etc/bind/named.conf.local; then
+            sudo sed -i "/zone \"$ZONE\" {/,/}/ {
+                /allow-transfer/d
+                /also-notify/d
+            }" /etc/bind/named.conf.local
+
+            sudo sed -i "/zone \"$ZONE\" {/,/}/ s/};/    allow-transfer { $SECOND_DNS_IP; };\n    also-notify { $SECOND_DNS_IP; };\n};/" /etc/bind/named.conf.local
+            echo "✅ Добавени allow-transfer и also-notify за $ZONE"
+        fi
+    done
+fi
+
+if [[ "$DNS_ROLE" == "secondary" ]]; then
+    if grep -q "zone \"$DOMAIN\"" /etc/bind/named.conf.local; then
+        sudo sed -i "/masters/d" /etc/bind/named.conf.local
+        sudo sed -i "/zone \"$DOMAIN\" {/,/}/ s/};/    masters { $MASTER_IP; };\n};/" /etc/bind/named.conf.local
+        echo "✅ Добавен правилен MASTER IP за $DOMAIN"
+    fi
+fi
+
 # -------------------------------------------------------------------------------------
 # СЕКЦИЯ 6: Проверка и рестарт
 # -------------------------------------------------------------------------------------
