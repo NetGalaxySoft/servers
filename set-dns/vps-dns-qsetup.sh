@@ -572,24 +572,23 @@ EOF
   fi
 
   # ✅ Създаване на forward зона
-  cat <<EOF | sudo tee "$ZONE_FILE" > /dev/null
-\$TTL    604800
-@       IN      SOA     ns1.$DOMAIN. admin.$DOMAIN. (
-                        $(date +%Y%m%d%H) ; Serial
-                        604800     ; Refresh
-                        86400      ; Retry
-                        2419200    ; Expire
-                        604800 )   ; Negative Cache TTL
-;
-@       IN      NS      ns1.$DOMAIN.
-EOF
-
-  # Добавяне на записи за ns1 и ns2 (ако SECOND_DNS_IP е въведен)
-  echo "ns1     IN      A       $SERVER_IP" | sudo tee -a "$ZONE_FILE" > /dev/null
-  if [[ -n "$SECOND_DNS_IP" ]]; then
-    echo "@       IN      NS      ns2.$DOMAIN." | sudo tee -a "$ZONE_FILE" > /dev/null
-    echo "ns2     IN      A       $SECOND_DNS_IP" | sudo tee -a "$ZONE_FILE" > /dev/null
-  fi
+  {
+    echo "\$TTL    604800"
+    echo "@       IN      SOA     ns1.$DOMAIN. admin.$DOMAIN. ("
+    echo "                        $(date +%Y%m%d%H) ; Serial"
+    echo "                        604800     ; Refresh"
+    echo "                        86400      ; Retry"
+    echo "                        2419200    ; Expire"
+    echo "                        604800 )   ; Negative Cache TTL"
+    echo ";"
+    echo "@       IN      NS      ns1.$DOMAIN."
+    echo "@       IN      A       $SERVER_IP"
+    echo "ns1     IN      A       $SERVER_IP"
+    if [[ -n "$SECOND_DNS_IP" ]]; then
+      echo "@       IN      NS      ns2.$DOMAIN."
+      echo "ns2     IN      A       $SECOND_DNS_IP"
+    fi
+  } | sudo tee "$ZONE_FILE" > /dev/null
 
   # ✅ Създаване на reverse зона
   LAST_OCTET=$(echo "$SERVER_IP" | awk -F. '{print $4}')
