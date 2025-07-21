@@ -168,6 +168,36 @@ else
     fi
   done
   echo ""
+  echo ""
+
+while true; do
+  printf "🌐 Въведете IP адреса на другия DNS сървър (или 'q' за изход): "
+  read SECOND_DNS_IP
+
+  if [[ "$SECOND_DNS_IP" == "q" || "$SECOND_DNS_IP" == "Q" ]]; then
+    echo "❎ Скриптът беше прекратен от потребителя."
+    exit 0
+  fi
+
+  if [[ -z "$SECOND_DNS_IP" ]]; then
+    echo "❌ Задължително е да въведете IP на другия DNS сървър."
+    continue
+  fi
+
+  if [[ "$SECOND_DNS_IP" == "$SERVER_IP" ]]; then
+    echo "❌ Невалидно: IP адресът на втория DNS не може да съвпада с текущия сървър. Опитайте отново."
+    continue
+  fi
+
+  if [[ "$SECOND_DNS_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "✅ Въведен IP на друг DNS: $SECOND_DNS_IP"
+    break
+  else
+    echo "❌ Невалиден IP адрес. Опитайте отново."
+  fi
+done
+echo ""
+echo ""
 
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 4: Проверка на hostname
@@ -218,6 +248,13 @@ else
   else
     echo "❌ Променливата HOSTNAME_FQDN е празна. Скриптът не може да продължи."
     exit 1
+  fi
+
+  # SECOND_DNS_IP
+  if sudo grep -q '^SECOND_DNS_IP=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i "s|^SECOND_DNS_IP=.*|SECOND_DNS_IP=\"$SECOND_DNS_IP\"|" "$MODULES_FILE"
+  else
+    echo "SECOND_DNS_IP=\"$SECOND_DNS_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
   fi
 
   # ✅ Запис на резултат
@@ -457,61 +494,70 @@ echo "[5] СЪЗДАВАНЕ НА ЗОНИ..."
 echo "-----------------------------------------------------------"
 echo ""
 
-# ✅ Проверка дали модулът вече е изпълнен
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 1: Проверка дали модулът вече е изпълнен
+# -------------------------------------------------------------------------------------
 if sudo grep -q '^DNS_RESULT_MODULE5=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
+  return 0 2>/dev/null || exit 0
+fi
+
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 2: Проверка на предходния модул и зареждане на данни
+# -------------------------------------------------------------------------------------
+if ! sudo grep -q '^DNS_RESULT_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "❌ Не може да продължи: Модул 4 не е изпълнен успешно."
+  exit 1
+fi
+
+if [[ -f "$MODULES_FILE" ]]; then
+  SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  SECOND_DNS_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
 else
-  # ✅ Проверка дали Модул 4 е завършен
-  if ! sudo grep -q '^DNS_RESULT_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
-    echo "❌ Не може да продължи: Модул 4 не е изпълнен успешно."
-    exit 1
-  fi
+  echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
+  exit 1
+fi
 
-  # ✅ Четене на данни от todo.modules
-  if [[ -f "$MODULES_FILE" ]]; then
-    SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-    DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-  else
-    echo "❌ Липсва файлът $MODULES_FILE. Скриптът не може да продължи."
-    exit 1
-  fi
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 3: Проверка на данните
+# -------------------------------------------------------------------------------------
+if [[ -z "$SERVER_FQDN" || -z "$SERVER_IP" || -z "$DNS_ROLE" ]]; then
+  echo "❌ Липсват критични данни (FQDN, IP или роля). Проверете $MODULES_FILE."
+  exit 1
+fi
 
-  # ✅ Проверка на данните
-  if [[ -z "$SERVER_FQDN" || -z "$SERVER_IP" || -z "$DNS_ROLE" ]]; then
-    echo "❌ Липсват критични данни (FQDN, IP или роля). Проверете $MODULES_FILE."
-    exit 1
-  fi
+DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
+if [[ -z "$DOMAIN" ]]; then
+  echo "❌ Невалиден домейн. Проверете SERVER_FQDN в $MODULES_FILE."
+  exit 1
+fi
 
-  # ✅ Извличане на домейна
-  DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
-  if [[ -z "$DOMAIN" ]]; then
-    echo "❌ Невалиден домейн. Проверете SERVER_FQDN в $MODULES_FILE."
-    exit 1
-  fi
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 4: Подготовка на конфигурационните файлове
+# -------------------------------------------------------------------------------------
+REVERSE_ZONE_NAME=$(echo "$SERVER_IP" | awk -F. '{print $3"."$2"."$1}')
+ZONE_FILE="/etc/bind/zones/db.$DOMAIN"
+REVERSE_ZONE_FILE="/etc/bind/zones/db.$REVERSE_ZONE_NAME.in-addr.arpa"
 
-  # ✅ Обратна зона (reverse)
-  REVERSE_ZONE_NAME=$(echo "$SERVER_IP" | awk -F. '{print $3"."$2"."$1}')
-  ZONE_FILE="/etc/bind/zones/db.$DOMAIN"
-  REVERSE_ZONE_FILE="/etc/bind/zones/db.$REVERSE_ZONE_NAME.in-addr.arpa"
+if [[ ! -f /etc/bind/named.conf.local ]]; then
+  echo "// Локални DNS зони" | sudo tee /etc/bind/named.conf.local > /dev/null
+fi
 
-  # ✅ Подготовка на named.conf.local
-  if [[ ! -f /etc/bind/named.conf.local ]]; then
-    echo "// Локални DNS зони" | sudo tee /etc/bind/named.conf.local > /dev/null
-  fi
+if [[ "$DNS_ROLE" == "primary" && ! -d /etc/bind/zones ]]; then
+  sudo mkdir /etc/bind/zones
+fi
 
-  # ✅ Създаване на папка за зонови файлове (само за PRIMARY)
-  if [[ "$DNS_ROLE" == "primary" && ! -d /etc/bind/zones ]]; then
-    sudo mkdir /etc/bind/zones
-  fi
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 5: Конфигуриране според ролята
+# -------------------------------------------------------------------------------------
+if [[ "$DNS_ROLE" == "primary" ]]; then
+  echo "🔧 Конфигуриране на PRIMARY DNS (ns1)..."
 
-  # ✅ Конфигуриране според ролята
-  if [[ "$DNS_ROLE" == "primary" ]]; then
-    echo "🔧 Конфигуриране на PRIMARY DNS (ns1)..."
-
-    # Добавяне на зони в named.conf.local (ако липсват)
-    if ! grep -q "$DOMAIN" /etc/bind/named.conf.local; then
-      cat <<EOF | sudo tee -a /etc/bind/named.conf.local > /dev/null
+  # Добавяне на зони в named.conf.local
+  if ! grep -q "$DOMAIN" /etc/bind/named.conf.local; then
+    cat <<EOF | sudo tee -a /etc/bind/named.conf.local > /dev/null
 
 zone "$DOMAIN" {
     type master;
@@ -523,10 +569,10 @@ zone "$REVERSE_ZONE_NAME.in-addr.arpa" {
     file "$REVERSE_ZONE_FILE";
 };
 EOF
-    fi
+  fi
 
-    # ✅ Създаване на forward зона
-    cat <<EOF | sudo tee "$ZONE_FILE" > /dev/null
+  # ✅ Създаване на forward зона
+  cat <<EOF | sudo tee "$ZONE_FILE" > /dev/null
 \$TTL    604800
 @       IN      SOA     ns1.$DOMAIN. admin.$DOMAIN. (
                         $(date +%Y%m%d%H) ; Serial
@@ -536,13 +582,18 @@ EOF
                         604800 )   ; Negative Cache TTL
 ;
 @       IN      NS      ns1.$DOMAIN.
-@       IN      A       $SERVER_IP
-ns1     IN      A       $SERVER_IP
 EOF
 
-    # ✅ Създаване на reverse зона
-    LAST_OCTET=$(echo "$SERVER_IP" | awk -F. '{print $4}')
-    cat <<EOF | sudo tee "$REVERSE_ZONE_FILE" > /dev/null
+  # Добавяне на записи за ns1 и ns2 (ако SECOND_DNS_IP е въведен)
+  echo "ns1     IN      A       $SERVER_IP" | sudo tee -a "$ZONE_FILE" > /dev/null
+  if [[ -n "$SECOND_DNS_IP" ]]; then
+    echo "@       IN      NS      ns2.$DOMAIN." | sudo tee -a "$ZONE_FILE" > /dev/null
+    echo "ns2     IN      A       $SECOND_DNS_IP" | sudo tee -a "$ZONE_FILE" > /dev/null
+  fi
+
+  # ✅ Създаване на reverse зона
+  LAST_OCTET=$(echo "$SERVER_IP" | awk -F. '{print $4}')
+  cat <<EOF | sudo tee "$REVERSE_ZONE_FILE" > /dev/null
 \$TTL    604800
 @       IN      SOA     ns1.$DOMAIN. admin.$DOMAIN. (
                         $(date +%Y%m%d%H) ; Serial
@@ -555,16 +606,16 @@ EOF
 $LAST_OCTET    IN      PTR     ns1.$DOMAIN.
 EOF
 
-  elif [[ "$DNS_ROLE" == "secondary" ]]; then
-    echo "🔧 Конфигуриране на SECONDARY DNS..."
-    MASTER_IP=$(grep '^MASTER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-    if [[ -z "$MASTER_IP" ]]; then
-      echo "❌ Липсва IP на PRIMARY DNS (MASTER_IP). Добавете го в $MODULES_FILE."
-      exit 1
-    fi
+elif [[ "$DNS_ROLE" == "secondary" ]]; then
+  echo "🔧 Конфигуриране на SECONDARY DNS..."
+  MASTER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  if [[ -z "$MASTER_IP" ]]; then
+    echo "❌ Липсва IP на PRIMARY DNS (MASTER_IP). Проверете $MODULES_FILE."
+    exit 1
+  fi
 
-    if ! grep -q "$DOMAIN" /etc/bind/named.conf.local; then
-      cat <<EOF | sudo tee -a /etc/bind/named.conf.local > /dev/null
+  if ! grep -q "$DOMAIN" /etc/bind/named.conf.local; then
+    cat <<EOF | sudo tee -a /etc/bind/named.conf.local > /dev/null
 
 zone "$DOMAIN" {
     type slave;
@@ -572,36 +623,38 @@ zone "$DOMAIN" {
     file "/var/cache/bind/db.$DOMAIN";
 };
 EOF
-    fi
-  else
-    echo "❌ Непозната роля: $DNS_ROLE"
-    exit 1
   fi
-
-  # ✅ Проверка на синтаксиса
-  echo "🔍 Проверка на синтаксиса..."
-  if ! sudo named-checkconf; then
-    echo "❌ Грешка в конфигурацията на BIND9. Скриптът не може да продължи."
-    exit 1
-  fi
-
-  # ✅ Рестарт на услугата
-  echo "🔄 Рестартиране на BIND9..."
-  sudo systemctl restart bind9
-  if ! systemctl is-active --quiet bind9; then
-    echo "❌ Услугата BIND9 не стартира след промени."
-    exit 1
-  fi
-
-  # ✅ Запис на резултат за Модул 5
-  if sudo grep -q '^DNS_RESULT_MODULE5=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^DNS_RESULT_MODULE5=.*|DNS_RESULT_MODULE5=✅|' "$SETUP_ENV_FILE"
-  else
-    echo "DNS_RESULT_MODULE5=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  fi
-
-  echo "✅ Модул 5 завърши успешно: зоните са конфигурирани."
+else
+  echo "❌ Непозната роля: $DNS_ROLE"
+  exit 1
 fi
+
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 6: Проверка на синтаксиса и рестарт
+# -------------------------------------------------------------------------------------
+echo "🔍 Проверка на синтаксиса..."
+if ! sudo named-checkconf; then
+  echo "❌ Грешка в конфигурацията на BIND9. Скриптът не може да продължи."
+  exit 1
+fi
+
+echo "🔄 Рестартиране на BIND9..."
+sudo systemctl restart bind9
+if ! systemctl is-active --quiet bind9; then
+  echo "❌ Услугата BIND9 не стартира след промени."
+  exit 1
+fi
+
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 7: Финален запис
+# -------------------------------------------------------------------------------------
+if sudo grep -q '^DNS_RESULT_MODULE5=' "$SETUP_ENV_FILE" 2>/dev/null; then
+  sudo sed -i 's|^DNS_RESULT_MODULE5=.*|DNS_RESULT_MODULE5=✅|' "$SETUP_ENV_FILE"
+else
+  echo "DNS_RESULT_MODULE5=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+fi
+
+echo "✅ Модул 5 завърши успешно: зоните са конфигурирани."
 echo ""
 echo ""
 
