@@ -78,11 +78,6 @@ echo "[1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ..."
 echo "-----------------------------------------------------------"
 echo ""
 
-# Директории и файлове
-NETGALAXY_DIR="/etc/netgalaxy"
-MODULES_FILE="$NETGALAXY_DIR/todo.modules"
-SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
-
 # -------------------------------------------------------------------------------------
 # СЕКЦИЯ 1: Проверка за базова DNS конфигурация
 # -------------------------------------------------------------------------------------
@@ -312,9 +307,9 @@ if sudo grep -q '^SECURE_DNS_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  # -------------------------------------------------------------------------------------
-# СЕКЦИЯ 1: Зареждане на данните от todo.modules
-# -------------------------------------------------------------------------------------
+
+# Зареждане на данните от todo.modules
+-----------------------------------------------------------------
 if [[ ! -f "$MODULES_FILE" ]]; then
   echo "❌ Липсва $MODULES_FILE. Скриптът не може да продължи."
   echo "➡️ Стартирайте първо vps-dns-qsetup.sh за подготовка."
@@ -325,8 +320,7 @@ fi
 SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
 SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
 
-# 2. Извличане на SECOND_DNS_IP
-SECOND_DNS_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+
 
 # 3. Извличане на DNS_ROLE (primary/secondary)
 DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
