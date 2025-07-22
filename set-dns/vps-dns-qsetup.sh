@@ -764,11 +764,13 @@ else
     exit 1
 fi
 
-# 3. Проверка на обратната зона (reverse)
-if dig @127.0.0.1 -x "$SERVER_IP" +short | grep -q "ns1.$DOMAIN"; then
-    echo "✅ Обратната зона отговаря за IP $SERVER_IP."
-else
-    echo "⚠️ Обратната зона не отговаря коректно (ns1.$DOMAIN не е върнат)."
+# 3. Проверка на обратната зона (само ако роля = primary)
+if [[ "$DNS_ROLE" == "primary" ]]; then
+    if dig @127.0.0.1 -x "$SERVER_IP" +short | grep -q "ns1.$DOMAIN"; then
+        echo "✅ Обратната зона отговаря за IP $SERVER_IP."
+    else
+        echo "⚠️ Обратната зона не отговаря коректно (ns1.$DOMAIN не е върнат)."
+    fi
 fi
 
 # 4. Ако роля = secondary → проверка за трансфер и serial
@@ -786,7 +788,7 @@ fi
 
 # 5. Допълнителна проверка чрез dumpdb (последна гаранция)
 sudo rndc dumpdb -zones >/dev/null 2>&1
-if grep -q "$DOMAIN" /var/cache/bind/named_dump.db; then
+if sudo grep -q "$DOMAIN" /var/cache/bind/named_dump.db; then
     echo "✅ Потвърдено: зоната $DOMAIN е в заредените зони."
 else
     echo "❌ Зоната $DOMAIN не се вижда в dumpdb! DNS конфигурацията е проблемна."
