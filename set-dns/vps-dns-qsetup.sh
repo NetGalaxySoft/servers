@@ -773,20 +773,7 @@ if [[ "$DNS_ROLE" == "primary" ]]; then
     fi
 fi
 
-# 4. Ако роля = secondary → проверка за трансфер и serial
-if [[ "$DNS_ROLE" == "secondary" ]]; then
-    echo "🔍 Проверка на SLAVE зоната..."
-    SERIAL=$(sudo rndc zonestatus "$DOMAIN" 2>/dev/null | grep "serial" | awk '{print $NF}')
-    if [[ -n "$SERIAL" ]]; then
-        echo "✅ SLAVE има зона $DOMAIN със serial: $SERIAL"
-    else
-        echo "❌ Зоната не е заредена на SLAVE! Опитайте:"
-        echo "   sudo rndc retransfer $DOMAIN"
-        exit 1
-    fi
-fi
-
-# 5. Допълнителна проверка чрез dumpdb (последна гаранция)
+# 4. Допълнителна проверка чрез dumpdb (гаранция, че зоната е заредена)
 sudo rndc dumpdb -zones >/dev/null 2>&1
 if sudo grep -q "$DOMAIN" /var/cache/bind/named_dump.db; then
     echo "✅ Потвърдено: зоната $DOMAIN е в заредените зони."
@@ -795,7 +782,9 @@ else
     exit 1
 fi
 
-# ✅ Проверка на serial номера между MASTER и SLAVE
+# 5. Проверка за SLAVE + сравнение на serial (само ако роля = secondary)
+if [[ "$DNS_ROLE" == "secondary" ]]; then
+    echo "🔍 Проверка на SLAVE зоната..."
     MASTER_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
     MASTER_SERIAL=$(dig @"$MASTER_IP" "$DOMAIN" SOA +short | awk '{print $3}')
     SLAVE_SERIAL=$(dig @127.0.0.1 "$DOMAIN" SOA +short | awk '{print $3}')
@@ -811,9 +800,11 @@ fi
         echo "❌ Несъответствие на serial номера (MASTER=$MASTER_SERIAL, SLAVE=$SLAVE_SERIAL)"
         exit 1
     fi
+fi
 
 echo "✅ Всички критични проверки са успешни."
 echo ""
+
 
 # ✅ Потвърждение от оператора
 read -p "✅ Приемате ли конфигурацията като успешна? (y/n): " confirm
