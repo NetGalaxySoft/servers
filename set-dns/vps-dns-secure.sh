@@ -300,6 +300,7 @@ fi
 echo ""
 echo ""
 
+
 # =====================================================================
 # [МОДУЛ 3] ACL И ОГРАНИЧЕНИЯ ПО IP
 # =====================================================================
@@ -324,8 +325,30 @@ else
     exit 1
   fi
 
-  if [[ -z "$SERVER_IP" || -z "$SECOND_DNS_IP" || -z "$DNS_ROLE" ]]; then
-    echo "❌ Липсват ключови данни (SERVER_IP, SECOND_DNS_IP или DNS_ROLE)."
+  # Ако липсва DNS_ROLE → определяме го по FQDN
+  if [[ -z "$DNS_ROLE" ]]; then
+    HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo "")
+    if [[ "$HOSTNAME_FQDN" =~ ^ns1\. ]]; then
+      DNS_ROLE="primary"
+    elif [[ "$HOSTNAME_FQDN" =~ ^ns[23]\. ]]; then
+      DNS_ROLE="secondary"
+    else
+      echo "❌ Неуспешно определяне на DNS_ROLE от FQDN ($HOSTNAME_FQDN)."
+      exit 1
+    fi
+
+    # Записваме DNS_ROLE в todo.modules
+    if sudo grep -q '^DNS_ROLE=' "$MODULES_FILE" 2>/dev/null; then
+      sudo sed -i "s|^DNS_ROLE=.*|DNS_ROLE=\"$DNS_ROLE\"|" "$MODULES_FILE"
+    else
+      echo "DNS_ROLE=\"$DNS_ROLE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    fi
+    echo "ℹ️ DNS_ROLE беше определена автоматично: $DNS_ROLE"
+  fi
+
+  # Проверка за IP адреси
+  if [[ -z "$SERVER_IP" || -z "$SECOND_DNS_IP" ]]; then
+    echo "❌ Липсват SERVER_IP или SECOND_DNS_IP. Проверете $MODULES_FILE."
     exit 1
   fi
 
@@ -348,7 +371,7 @@ else
   sudo sed -i '/also-notify/d' "$OPTIONS_FILE"
   sudo sed -i '/acl "trusted"/,/};/d' "$OPTIONS_FILE"
 
-  # Добавяне на ACL в началото на файла (ако няма)
+  # Добавяне на ACL в началото на файла
   sudo sed -i "1i acl \"trusted\" {\n    $SERVER_IP;\n    $SECOND_DNS_IP;\n};\n" "$OPTIONS_FILE"
 
   # Обновяване на опции
