@@ -313,22 +313,15 @@ if sudo grep -q '^SECURE_DNS_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo ""
 else
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 1: Подготовка и четене на текущи данни
+  # СЕКЦИЯ 1: Подготовка и зареждане на данни
   # -------------------------------------------------------------------------------------
-  SERVER_IP=""
-  SECOND_DNS_IP=""
-  DNS_ROLE=""
+  [[ ! -f "$MODULES_FILE" ]] && sudo touch "$MODULES_FILE"
 
-  # Ако файлът съществува → четем
-  if [[ -f "$MODULES_FILE" ]]; then
-    SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-    SECOND_DNS_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-    DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-  else
-    sudo touch "$MODULES_FILE"
-  fi
+  SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null | awk -F'=' '{print $2}' | tr -d '"')
+  SECOND_DNS_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" 2>/dev/null | awk -F'=' '{print $2}' | tr -d '"')
+  DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" 2>/dev/null | awk -F'=' '{print $2}' | tr -d '"')
 
-  # Ако липсва SERVER_IP → изискваме
+  # Изискваме SERVER_IP, ако липсва
   if [[ -z "$SERVER_IP" ]]; then
     read -p "🌐 Въведете публичния IP на този DNS сървър: " SERVER_IP
     if [[ -z "$SERVER_IP" ]]; then
@@ -342,7 +335,7 @@ else
     fi
   fi
 
-  # Ако липсва SECOND_DNS_IP → изискваме
+  # Изискваме SECOND_DNS_IP, ако липсва
   if [[ -z "$SECOND_DNS_IP" ]]; then
     read -p "🌐 Въведете IP на другия DNS сървър: " SECOND_DNS_IP
     if [[ -z "$SECOND_DNS_IP" ]]; then
@@ -356,7 +349,7 @@ else
     fi
   fi
 
-  # Ако липсва DNS_ROLE → определяме по hostname
+  # Определяме DNS_ROLE, ако липсва
   if [[ -z "$DNS_ROLE" ]]; then
     HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo "")
     if [[ "$HOSTNAME_FQDN" =~ ^ns1\. ]]; then
@@ -374,7 +367,7 @@ else
     fi
   fi
 
-  echo "✅ Данни за ACL: SERVER_IP=$SERVER_IP | SECOND_DNS_IP=$SECOND_DNS_IP | DNS_ROLE=$DNS_ROLE"
+  echo "✅ Данни: SERVER_IP=$SERVER_IP | SECOND_DNS_IP=$SECOND_DNS_IP | DNS_ROLE=$DNS_ROLE"
   echo ""
 
   # -------------------------------------------------------------------------------------
@@ -386,7 +379,7 @@ else
     exit 1
   fi
 
-  echo "🔧 Добавяне на ACL 'trusted' в $OPTIONS_FILE..."
+  echo "🔧 Добавяне на ACL 'trusted' и политики..."
   sudo sed -i '/acl "trusted"/,/};/d' "$OPTIONS_FILE"
   sudo sed -i "1i acl \"trusted\" {\n    $SERVER_IP;\n    $SECOND_DNS_IP;\n};\n" "$OPTIONS_FILE"
 
@@ -402,7 +395,7 @@ else
     }' "$OPTIONS_FILE"
   fi
 
-  echo "✅ ACL добавен успешно."
+  echo "✅ ACL конфигурацията е добавена."
   echo ""
 
   # -------------------------------------------------------------------------------------
@@ -421,7 +414,7 @@ else
     echo "❌ Bind9 не стартира след промени."
     exit 1
   fi
-  echo "✅ Bind9 е рестартиран."
+  echo "✅ Bind9 е рестартиран успешно."
   echo ""
 
   # -------------------------------------------------------------------------------------
