@@ -313,35 +313,50 @@ if sudo grep -q '^SECURE_DNS_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo ""
 else
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 1: Зареждане или изискване на данни
+  # СЕКЦИЯ 1: Подготовка и четене на текущи данни
   # -------------------------------------------------------------------------------------
+  SERVER_IP=""
+  SECOND_DNS_IP=""
+  DNS_ROLE=""
+
+  # Ако файлът съществува → четем
   if [[ -f "$MODULES_FILE" ]]; then
     SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
     SECOND_DNS_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
     DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  else
+    sudo touch "$MODULES_FILE"
   fi
 
-  # Ако липсва SERVER_IP → искаме го от потребителя
+  # Ако липсва SERVER_IP → изискваме
   if [[ -z "$SERVER_IP" ]]; then
-    read -p "🌐 Въведете публичния IP на този сървър: " SERVER_IP
+    read -p "🌐 Въведете публичния IP на този DNS сървър: " SERVER_IP
     if [[ -z "$SERVER_IP" ]]; then
       echo "❌ SERVER_IP е задължителен."
       exit 1
     fi
-    echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
+      sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
+    else
+      echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    fi
   fi
 
-  # Ако липсва SECOND_DNS_IP → искаме го от потребителя
+  # Ако липсва SECOND_DNS_IP → изискваме
   if [[ -z "$SECOND_DNS_IP" ]]; then
     read -p "🌐 Въведете IP на другия DNS сървър: " SECOND_DNS_IP
     if [[ -z "$SECOND_DNS_IP" ]]; then
       echo "❌ SECOND_DNS_IP е задължителен."
       exit 1
     fi
-    echo "SECOND_DNS_IP=\"$SECOND_DNS_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    if sudo grep -q '^SECOND_DNS_IP=' "$MODULES_FILE" 2>/dev/null; then
+      sudo sed -i "s|^SECOND_DNS_IP=.*|SECOND_DNS_IP=\"$SECOND_DNS_IP\"|" "$MODULES_FILE"
+    else
+      echo "SECOND_DNS_IP=\"$SECOND_DNS_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    fi
   fi
 
-  # Ако липсва DNS_ROLE → определяме по FQDN
+  # Ако липсва DNS_ROLE → определяме по hostname
   if [[ -z "$DNS_ROLE" ]]; then
     HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo "")
     if [[ "$HOSTNAME_FQDN" =~ ^ns1\. ]]; then
@@ -352,7 +367,11 @@ else
       echo "❌ Неуспешно определяне на DNS_ROLE (hostname=$HOSTNAME_FQDN)."
       exit 1
     fi
-    echo "DNS_ROLE=\"$DNS_ROLE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    if sudo grep -q '^DNS_ROLE=' "$MODULES_FILE" 2>/dev/null; then
+      sudo sed -i "s|^DNS_ROLE=.*|DNS_ROLE=\"$DNS_ROLE\"|" "$MODULES_FILE"
+    else
+      echo "DNS_ROLE=\"$DNS_ROLE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    fi
   fi
 
   echo "✅ Данни за ACL: SERVER_IP=$SERVER_IP | SECOND_DNS_IP=$SECOND_DNS_IP | DNS_ROLE=$DNS_ROLE"
