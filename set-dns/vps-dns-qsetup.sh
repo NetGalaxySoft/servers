@@ -623,7 +623,7 @@ EOF
 
 elif [[ "$DNS_ROLE" == "secondary" ]]; then
   echo "🔧 Конфигуриране на SECONDARY DNS..."
-  MASTER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  MASTER_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
   if [[ -z "$MASTER_IP" ]]; then
     echo "❌ Липсва IP на PRIMARY DNS (MASTER_IP). Проверете $MODULES_FILE."
     exit 1
