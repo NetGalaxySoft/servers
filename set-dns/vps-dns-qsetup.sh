@@ -811,11 +811,9 @@ fi
         echo "❌ Несъответствие на serial номера (MASTER=$MASTER_SERIAL, SLAVE=$SLAVE_SERIAL)"
         exit 1
     fi
-fi
 
 echo "✅ Всички критични проверки са успешни."
 echo ""
-
 
 # ✅ Потвърждение от оператора
 read -p "✅ Приемате ли конфигурацията като успешна? (y/n): " confirm
