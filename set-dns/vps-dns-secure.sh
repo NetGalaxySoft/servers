@@ -309,49 +309,62 @@ if sudo grep -q '^SECURE_DNS_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
 else
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 1: Динамично извличане на данни
+  # СЕКЦИЯ 1: Извличане на данни
   # -------------------------------------------------------------------------------------
+  if [[ ! -f "$MODULES_FILE" ]]; then
+    echo "❌ Липсва $MODULES_FILE. Скриптът не може да продължи."
+    exit 1
+  fi
+
+  # Основен IP на сървъра
   SERVER_IP=$(hostname -I | awk '{print $1}')
-  HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo "")
 
-  if [[ -z "$SERVER_IP" || -z "$HOSTNAME_FQDN" ]]; then
-    echo "❌ Неуспешно извличане на SERVER_IP или HOSTNAME_FQDN."
+  # Опит за извличане от todo.modules
+  SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+
+  # Ако SERVER_FQDN е празен → fallback към hostname -f
+  if [[ -z "$SERVER_FQDN" ]]; then
+    SERVER_FQDN=$(hostname -f 2>/dev/null || echo "")
+  fi
+
+  # Ако DNS_ROLE липсва → определяме по hostname (ns1 → primary, ns2 → secondary)
+  if [[ -z "$DNS_ROLE" ]]; then
+    if [[ "$SERVER_FQDN" =~ ^ns1\. ]]; then
+      DNS_ROLE="primary"
+    elif [[ "$SERVER_FQDN" =~ ^ns[23]\. ]]; then
+      DNS_ROLE="secondary"
+    fi
+  fi
+
+  if [[ -z "$SERVER_FQDN" || -z "$DNS_ROLE" ]]; then
+    echo "❌ Липсват SERVER_FQDN или DNS_ROLE и не могат да се определят автоматично."
     exit 1
   fi
 
-  DOMAIN=$(echo "$HOSTNAME_FQDN" | cut -d '.' -f2-)
+  DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
+  SECOND_DNS_IP=$(dig +short ns2.$DOMAIN A | tail -n 1)
 
-  # Определяне на ролята
-  if [[ "$HOSTNAME_FQDN" =~ ^ns1\. ]]; then
-    DNS_ROLE="primary"
-    SECOND_DNS_IP=$(dig +short ns2.$DOMAIN A | tail -n 1)
-  elif [[ "$HOSTNAME_FQDN" =~ ^ns2\. ]]; then
-    DNS_ROLE="secondary"
-    SECOND_DNS_IP=$(dig +short ns1.$DOMAIN A | tail -n 1)
-  else
-    echo "❌ Несъвместимо име на сървъра: $HOSTNAME_FQDN"
-    exit 1
-  fi
-
-  # Проверка за IP на втория DNS
   if [[ -z "$SECOND_DNS_IP" ]]; then
-    echo "❌ Не може да се извлече IP на другия DNS (ns1/ns2)."
+    echo "❌ Не може да се извлече IP за ns2.$DOMAIN."
+    echo "➡ Добавете го ръчно в $MODULES_FILE:"
+    echo "SECOND_DNS_IP=\"xxx.xxx.xxx.xxx\""
     exit 1
   fi
 
-  # Проверка на валидността на IP адресите
+  # ✅ Проверка на IP адресите
   if ! [[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "❌ SERVER_IP ($SERVER_IP) е невалиден."
+    echo "❌ SERVER_IP ($SERVER_IP) не е валиден IPv4."
     exit 1
   fi
   if ! [[ "$SECOND_DNS_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "❌ SECOND_DNS_IP ($SECOND_DNS_IP) е невалиден."
+    echo "❌ SECOND_DNS_IP ($SECOND_DNS_IP) не е валиден IPv4."
     exit 1
   fi
 
   echo "✅ Заредени данни:"
   echo "SERVER_IP=$SERVER_IP"
-  echo "SERVER_FQDN=$HOSTNAME_FQDN"
+  echo "SERVER_FQDN=$SERVER_FQDN"
   echo "SECOND_DNS_IP=$SECOND_DNS_IP"
   echo "DNS_ROLE=$DNS_ROLE"
   echo ""
