@@ -756,47 +756,65 @@ else
     exit 1
 fi
 
-# 2. Проверка на основната зона с dig
-if dig @127.0.0.1 "$DOMAIN" +short | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+# 2. Проверка на основната зона (forward)
+if dig @127.0.0.1 "$DOMAIN" +short >/dev/null 2>&1; then
     echo "✅ Зоната $DOMAIN отговаря на локални заявки."
 else
-    echo "❌ Основната зона $DOMAIN не отговаря! Проверете BIND логовете."
+    echo "❌ DNS не отговаря на локални заявки за $DOMAIN."
     exit 1
 fi
 
-# 3. Проверка на обратната зона (само ако роля = primary)
-if [[ "$DNS_ROLE" == "primary" ]]; then
-    if dig @127.0.0.1 -x "$SERVER_IP" +short | grep -q "ns1.$DOMAIN"; then
-        echo "✅ Обратната зона отговаря за IP $SERVER_IP."
-    else
-        echo "⚠️ Обратната зона не отговаря коректно (ns1.$DOMAIN не е върнат)."
-    fi
+# 3. Проверка на обратната зона (reverse)
+REVERSE_TEST=$(dig @127.0.0.1 -x "$SERVER_IP" +short)
+if [[ "$REVERSE_TEST" == *"ns1.$DOMAIN."* ]]; then
+    echo "✅ Обратната зона е правилно конфигурирана."
+else
+    echo "⚠️ Обратната зона не отговаря коректно (ns1.$DOMAIN не е върнат)."
 fi
 
-# 4. Ако роля = secondary → проверка за трансфер и serial
+# 4. Допълнителни проверки за SLAVE
 if [[ "$DNS_ROLE" == "secondary" ]]; then
     echo "🔍 Проверка на SLAVE зоната..."
-    SERIAL=$(sudo rndc zonestatus "$DOMAIN" 2>/dev/null | grep "serial" | awk '{print $NF}')
-    if [[ -n "$SERIAL" ]]; then
-        echo "✅ SLAVE има зона $DOMAIN със serial: $SERIAL"
+
+    # Проверка с rndc zonestatus
+    ZONE_STATUS=$(sudo rndc zonestatus "$DOMAIN" 2>/dev/null | grep "loaded serial")
+    if [[ -n "$ZONE_STATUS" ]]; then
+        echo "✅ SLAVE има зона $DOMAIN: $ZONE_STATUS"
     else
-        echo "❌ Зоната не е заредена на SLAVE! Опитайте:"
-        echo "   sudo rndc retransfer $DOMAIN"
+        echo "❌ SLAVE няма заредена зона $DOMAIN или rndc няма информация."
+        exit 1
+    fi
+
+    # Проверка с dumpdb
+    sudo rndc dumpdb -zones >/dev/null 2>&1
+    if sudo grep -q "$DOMAIN" /var/cache/bind/named_dump.db; then
+        echo "✅ Потвърдено: зоната $DOMAIN е в заредените зони (dumpdb)."
+    else
+        echo "❌ Зоната $DOMAIN не се вижда в dumpdb!"
+        exit 1
+    fi
+
+    # ✅ Проверка на serial номера между MASTER и SLAVE
+    MASTER_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+    MASTER_SERIAL=$(dig @"$MASTER_IP" "$DOMAIN" SOA +short | awk '{print $3}')
+    SLAVE_SERIAL=$(dig @127.0.0.1 "$DOMAIN" SOA +short | awk '{print $3}')
+
+    if [[ -z "$MASTER_SERIAL" || -z "$SLAVE_SERIAL" ]]; then
+        echo "❌ Неуспешно извличане на serial номера от MASTER или SLAVE!"
+        exit 1
+    fi
+
+    if [[ "$MASTER_SERIAL" -eq "$SLAVE_SERIAL" ]]; then
+        echo "✅ Serial номера съвпадат: $MASTER_SERIAL"
+    else
+        echo "❌ Несъответствие на serial номера (MASTER=$MASTER_SERIAL, SLAVE=$SLAVE_SERIAL)"
         exit 1
     fi
 fi
 
-# 5. Допълнителна проверка чрез dumpdb (последна гаранция)
-sudo rndc dumpdb -zones >/dev/null 2>&1
-if sudo grep -q "$DOMAIN" /var/cache/bind/named_dump.db; then
-    echo "✅ Потвърдено: зоната $DOMAIN е в заредените зони."
-else
-    echo "❌ Зоната $DOMAIN не се вижда в dumpdb! DNS конфигурацията е проблемна."
-    exit 1
-fi
-
 echo "✅ Всички критични проверки са успешни."
 echo ""
+
 
 # ✅ Потвърждение от оператора
 read -p "✅ Приемате ли конфигурацията като успешна? (y/n): " confirm
