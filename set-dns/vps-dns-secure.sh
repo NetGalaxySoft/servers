@@ -313,61 +313,36 @@ if sudo grep -q '^SECURE_DNS_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo ""
 else
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 1: Подготовка и зареждане на данни
+  # СЕКЦИЯ 1: Зареждане на данните от todo.modules
   # -------------------------------------------------------------------------------------
-  [[ ! -f "$MODULES_FILE" ]] && sudo touch "$MODULES_FILE"
-
-  SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null | awk -F'=' '{print $2}' | tr -d '"')
-  SECOND_DNS_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" 2>/dev/null | awk -F'=' '{print $2}' | tr -d '"')
-  DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" 2>/dev/null | awk -F'=' '{print $2}' | tr -d '"')
-
-  # Изискваме SERVER_IP, ако липсва
-  if [[ -z "$SERVER_IP" ]]; then
-    read -p "🌐 Въведете публичния IP на този DNS сървър: " SERVER_IP
-    if [[ -z "$SERVER_IP" ]]; then
-      echo "❌ SERVER_IP е задължителен."
-      exit 1
-    fi
-    if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
-      sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
-    else
-      echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
-    fi
+  if [[ ! -f "$MODULES_FILE" ]]; then
+    echo "❌ Липсва $MODULES_FILE. Скриптът не може да продължи."
+    echo "➡️ Стартирайте първо vps-dns-qsetup.sh, за да подготвите системата."
+    exit 1
   fi
 
-  # Изискваме SECOND_DNS_IP, ако липсва
-  if [[ -z "$SECOND_DNS_IP" ]]; then
-    read -p "🌐 Въведете IP на другия DNS сървър: " SECOND_DNS_IP
-    if [[ -z "$SECOND_DNS_IP" ]]; then
-      echo "❌ SECOND_DNS_IP е задължителен."
-      exit 1
-    fi
-    if sudo grep -q '^SECOND_DNS_IP=' "$MODULES_FILE" 2>/dev/null; then
-      sudo sed -i "s|^SECOND_DNS_IP=.*|SECOND_DNS_IP=\"$SECOND_DNS_IP\"|" "$MODULES_FILE"
-    else
-      echo "SECOND_DNS_IP=\"$SECOND_DNS_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
-    fi
+  SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  SECOND_DNS_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+
+  # Проверка на наличието
+  if [[ -z "$SERVER_IP" || -z "$SECOND_DNS_IP" || -z "$DNS_ROLE" ]]; then
+    echo "❌ Липсват SERVER_IP или SECOND_DNS_IP или DNS_ROLE в $MODULES_FILE."
+    echo "➡️ Стартирайте vps-dns-qsetup.sh, за да въведете тези данни."
+    exit 1
   fi
 
-  # Определяме DNS_ROLE, ако липсва
-  if [[ -z "$DNS_ROLE" ]]; then
-    HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo "")
-    if [[ "$HOSTNAME_FQDN" =~ ^ns1\. ]]; then
-      DNS_ROLE="primary"
-    elif [[ "$HOSTNAME_FQDN" =~ ^ns[23]\. ]]; then
-      DNS_ROLE="secondary"
-    else
-      echo "❌ Неуспешно определяне на DNS_ROLE (hostname=$HOSTNAME_FQDN)."
-      exit 1
-    fi
-    if sudo grep -q '^DNS_ROLE=' "$MODULES_FILE" 2>/dev/null; then
-      sudo sed -i "s|^DNS_ROLE=.*|DNS_ROLE=\"$DNS_ROLE\"|" "$MODULES_FILE"
-    else
-      echo "DNS_ROLE=\"$DNS_ROLE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
-    fi
+  # Проверка за валиден IPv4 формат
+  if ! [[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "❌ SERVER_IP ($SERVER_IP) не е валиден IPv4 адрес."
+    exit 1
+  fi
+  if ! [[ "$SECOND_DNS_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "❌ SECOND_DNS_IP ($SECOND_DNS_IP) не е валиден IPv4 адрес."
+    exit 1
   fi
 
-  echo "✅ Данни: SERVER_IP=$SERVER_IP | SECOND_DNS_IP=$SECOND_DNS_IP | DNS_ROLE=$DNS_ROLE"
+  echo "✅ Данни за ACL: SERVER_IP=$SERVER_IP | SECOND_DNS_IP=$SECOND_DNS_IP | DNS_ROLE=$DNS_ROLE"
   echo ""
 
   # -------------------------------------------------------------------------------------
