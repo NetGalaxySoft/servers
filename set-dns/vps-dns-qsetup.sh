@@ -795,6 +795,24 @@ else
     exit 1
 fi
 
+# ✅ Проверка на serial номера между MASTER и SLAVE
+    MASTER_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+    MASTER_SERIAL=$(dig @"$MASTER_IP" "$DOMAIN" SOA +short | awk '{print $3}')
+    SLAVE_SERIAL=$(dig @127.0.0.1 "$DOMAIN" SOA +short | awk '{print $3}')
+
+    if [[ -z "$MASTER_SERIAL" || -z "$SLAVE_SERIAL" ]]; then
+        echo "❌ Неуспешно извличане на serial номера от MASTER или SLAVE!"
+        exit 1
+    fi
+
+    if [[ "$MASTER_SERIAL" -eq "$SLAVE_SERIAL" ]]; then
+        echo "✅ Serial номера съвпадат: $MASTER_SERIAL"
+    else
+        echo "❌ Несъответствие на serial номера (MASTER=$MASTER_SERIAL, SLAVE=$SLAVE_SERIAL)"
+        exit 1
+    fi
+fi
+
 echo "✅ Всички критични проверки са успешни."
 echo ""
 
