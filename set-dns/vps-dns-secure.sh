@@ -308,24 +308,40 @@ echo "[3] ACL И ОГРАНИЧЕНИЯ ПО IP..."
 echo "-----------------------------------------------------------"
 echo ""
 
-# Проверка дали модулът вече е изпълнен
 if sudo grep -q '^SECURE_DNS_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 1: Четене на данни от todo.modules
+  # СЕКЦИЯ 1: Зареждане или изискване на данни
   # -------------------------------------------------------------------------------------
   if [[ -f "$MODULES_FILE" ]]; then
     SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
     SECOND_DNS_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
     DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-  else
-    echo "❌ Липсва $MODULES_FILE. Скриптът не може да продължи."
-    exit 1
   fi
 
-  # Ако липсва DNS_ROLE → определяме го по FQDN
+  # Ако липсва SERVER_IP → искаме го от потребителя
+  if [[ -z "$SERVER_IP" ]]; then
+    read -p "🌐 Въведете публичния IP на този сървър: " SERVER_IP
+    if [[ -z "$SERVER_IP" ]]; then
+      echo "❌ SERVER_IP е задължителен."
+      exit 1
+    fi
+    echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  fi
+
+  # Ако липсва SECOND_DNS_IP → искаме го от потребителя
+  if [[ -z "$SECOND_DNS_IP" ]]; then
+    read -p "🌐 Въведете IP на другия DNS сървър: " SECOND_DNS_IP
+    if [[ -z "$SECOND_DNS_IP" ]]; then
+      echo "❌ SECOND_DNS_IP е задължителен."
+      exit 1
+    fi
+    echo "SECOND_DNS_IP=\"$SECOND_DNS_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  fi
+
+  # Ако липсва DNS_ROLE → определяме по FQDN
   if [[ -z "$DNS_ROLE" ]]; then
     HOSTNAME_FQDN=$(hostname -f 2>/dev/null || echo "")
     if [[ "$HOSTNAME_FQDN" =~ ^ns1\. ]]; then
@@ -333,30 +349,17 @@ else
     elif [[ "$HOSTNAME_FQDN" =~ ^ns[23]\. ]]; then
       DNS_ROLE="secondary"
     else
-      echo "❌ Неуспешно определяне на DNS_ROLE от FQDN ($HOSTNAME_FQDN)."
+      echo "❌ Неуспешно определяне на DNS_ROLE (hostname=$HOSTNAME_FQDN)."
       exit 1
     fi
-
-    # Записваме DNS_ROLE в todo.modules
-    if sudo grep -q '^DNS_ROLE=' "$MODULES_FILE" 2>/dev/null; then
-      sudo sed -i "s|^DNS_ROLE=.*|DNS_ROLE=\"$DNS_ROLE\"|" "$MODULES_FILE"
-    else
-      echo "DNS_ROLE=\"$DNS_ROLE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
-    fi
-    echo "ℹ️ DNS_ROLE беше определена автоматично: $DNS_ROLE"
+    echo "DNS_ROLE=\"$DNS_ROLE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
   fi
 
-  # Проверка за IP адреси
-  if [[ -z "$SERVER_IP" || -z "$SECOND_DNS_IP" ]]; then
-    echo "❌ Липсват SERVER_IP или SECOND_DNS_IP. Проверете $MODULES_FILE."
-    exit 1
-  fi
-
-  echo "✅ Данни: SERVER_IP=$SERVER_IP, SECOND_DNS_IP=$SECOND_DNS_IP, DNS_ROLE=$DNS_ROLE"
+  echo "✅ Данни за ACL: SERVER_IP=$SERVER_IP | SECOND_DNS_IP=$SECOND_DNS_IP | DNS_ROLE=$DNS_ROLE"
   echo ""
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 2: Добавяне на ACL и политики
+  # СЕКЦИЯ 2: Обновяване на named.conf.options
   # -------------------------------------------------------------------------------------
   OPTIONS_FILE="/etc/bind/named.conf.options"
   if [[ ! -f "$OPTIONS_FILE" ]]; then
@@ -364,39 +367,27 @@ else
     exit 1
   fi
 
-  echo "🔧 Добавяне на ACL 'trusted' и обновяване на политики в $OPTIONS_FILE..."
-
-  # Премахване на стари allow-transfer, also-notify
-  sudo sed -i '/allow-transfer/d' "$OPTIONS_FILE"
-  sudo sed -i '/also-notify/d' "$OPTIONS_FILE"
+  echo "🔧 Добавяне на ACL 'trusted' в $OPTIONS_FILE..."
   sudo sed -i '/acl "trusted"/,/};/d' "$OPTIONS_FILE"
-
-  # Добавяне на ACL в началото на файла
   sudo sed -i "1i acl \"trusted\" {\n    $SERVER_IP;\n    $SECOND_DNS_IP;\n};\n" "$OPTIONS_FILE"
 
-  # Обновяване на опции
+  sudo sed -i '/allow-transfer/d' "$OPTIONS_FILE"
   sudo sed -i '/options {/,/};/ {
     /^};/i\    allow-transfer { trusted; };
   }' "$OPTIONS_FILE"
 
-  echo "✅ ACL 'trusted' е добавен и allow-transfer е настроен."
-  echo ""
-
-  # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 3: Добавяне на also-notify за PRIMARY
-  # -------------------------------------------------------------------------------------
   if [[ "$DNS_ROLE" == "primary" ]]; then
-    echo "🔧 Добавяне на also-notify за PRIMARY DNS..."
+    sudo sed -i '/also-notify/d' "$OPTIONS_FILE"
     sudo sed -i '/options {/,/};/ {
       /^};/i\    also-notify { '"$SECOND_DNS_IP"'; };
     }' "$OPTIONS_FILE"
-    echo "✅ also-notify добавен за PRIMARY."
   fi
 
+  echo "✅ ACL добавен успешно."
   echo ""
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 4: Проверка на синтаксиса
+  # СЕКЦИЯ 3: Проверка и рестарт
   # -------------------------------------------------------------------------------------
   echo "🔍 Проверка на синтаксиса..."
   if ! sudo named-checkconf; then
@@ -404,22 +395,18 @@ else
     exit 1
   fi
   echo "✅ Синтаксисът е валиден."
-  echo ""
 
-  # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 5: Рестарт на Bind9
-  # -------------------------------------------------------------------------------------
   echo "🔄 Рестартиране на Bind9..."
   sudo systemctl restart bind9
   if ! systemctl is-active --quiet bind9; then
-    echo "❌ Услугата Bind9 не стартира след промените."
+    echo "❌ Bind9 не стартира след промени."
     exit 1
   fi
-  echo "✅ Bind9 е рестартиран успешно."
+  echo "✅ Bind9 е рестартиран."
   echo ""
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 6: Запис на резултат
+  # СЕКЦИЯ 4: Запис на резултат
   # -------------------------------------------------------------------------------------
   if sudo grep -q '^SECURE_DNS_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
     sudo sed -i 's|^SECURE_DNS_MODULE3=.*|SECURE_DNS_MODULE3=✅|' "$SETUP_ENV_FILE"
@@ -428,7 +415,6 @@ else
   fi
 
   echo "✅ Модул 3 завърши успешно."
-  echo ""
 fi
 echo ""
 echo ""
