@@ -757,13 +757,15 @@ else
     echo "❌ BIND9 не е активен!"
 fi
 
-# 2. Проверка на зоната при SLAVE
+# 2. Проверка на зоната при SLAVE чрез rndc zonestatus
 if [[ "$DNS_ROLE" == "secondary" ]]; then
-    ZONE_FILE_SLAVE="/var/cache/bind/db.$DOMAIN"
-    if [[ -f "$ZONE_FILE_SLAVE" && -s "$ZONE_FILE_SLAVE" ]]; then
-        echo "✅ Зоната е успешно трансферирана: $ZONE_FILE_SLAVE"
+    echo "🔍 Проверка на статус на зоната $DOMAIN..."
+    ZONE_STATUS=$(sudo rndc zonestatus "$DOMAIN" 2>/dev/null | grep "loaded serial")
+    if [[ -n "$ZONE_STATUS" ]]; then
+        echo "✅ Зоната е заредена на SLAVE: $ZONE_STATUS"
     else
-        echo "⚠️ Зоната не е налична на SLAVE. Може да опитате:"
+        echo "⚠️ Зоната не е заредена на SLAVE или rndc няма информация."
+        echo "ℹ️ Може да проверите логовете или да изпълните ръчно:"
         echo "   sudo rndc retransfer $DOMAIN"
     fi
 fi
@@ -774,7 +776,7 @@ if dig @127.0.0.1 "$DOMAIN" +short >/dev/null 2>&1; then
 else
     echo "❌ DNS не отговаря на локални заявки за $DOMAIN."
 fi
-
+echo ""
 echo ""
 
 # ✅ Потвърждение от оператора
