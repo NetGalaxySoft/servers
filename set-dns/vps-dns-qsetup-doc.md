@@ -23,7 +23,7 @@
 
 ```bash
 # 1. Изтегляне на скрипта с GitHub токен
-curl -H "Authorization: token <ВАШИЯ_ТОКЕН>" \
+curl -H "Authorization: token <ВАШИЯТ_ТОКЕН>" \
      -fsSL https://raw.githubusercontent.com/NetGalaxySoft/servers/main/set-dns/vps-dns-qsetup.sh \
      -o vps-dns-qsetup.sh
 
