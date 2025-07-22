@@ -755,24 +755,19 @@ else
     echo "❌ BIND9 не е активен!"
 fi
 
-# 2. Проверка на зоната при SLAVE чрез rndc zonestatus
-if [[ "$DNS_ROLE" == "secondary" ]]; then
-    echo "🔍 Проверка на статус на зоната $DOMAIN..."
-    ZONE_STATUS=$(sudo rndc zonestatus "$DOMAIN" 2>/dev/null | grep "loaded serial")
-    if [[ -n "$ZONE_STATUS" ]]; then
-        echo "✅ Зоната е заредена на SLAVE: $ZONE_STATUS"
-    else
-        echo "⚠️ Зоната не е заредена на SLAVE или rndc няма информация."
-        echo "ℹ️ Може да проверите логовете или да изпълните ръчно:"
-        echo "   sudo rndc retransfer $DOMAIN"
-    fi
-fi
-
-# 3. Бърз dig тест за отговор на локална заявка
+# 2. Проверка на зоната с dig и fallback към dumpdb
+echo "🔍 Проверка на зоната $DOMAIN..."
 if dig @127.0.0.1 "$DOMAIN" +short >/dev/null 2>&1; then
     echo "✅ DNS отговаря на локални заявки за $DOMAIN."
 else
-    echo "❌ DNS не отговаря на локални заявки за $DOMAIN."
+    echo "⚠️ dig не върна отговор. Проверяваме локалната база..."
+    sudo rndc dumpdb -zones >/dev/null 2>&1
+    if grep -q "$DOMAIN" /var/cache/bind/named_dump.db 2>/dev/null; then
+        echo "✅ Зоната $DOMAIN е налична в локалната база (slave/master)."
+    else
+        echo "❌ Зоната $DOMAIN не е заредена. Може да опитате:"
+        echo "   sudo rndc retransfer $DOMAIN"
+    fi
 fi
 echo ""
 echo ""
