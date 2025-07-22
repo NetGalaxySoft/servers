@@ -308,43 +308,49 @@ if sudo grep -q '^SECURE_DNS_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo ""
 else
 
-# Зареждане на данните от todo.modules
------------------------------------------------------------------
-if [[ ! -f "$MODULES_FILE" ]]; then
-  echo "❌ Липсва $MODULES_FILE. Скриптът не може да продължи."
-  echo "➡️ Стартирайте първо vps-dns-qsetup.sh за подготовка."
-  exit 1
-fi
+  # -------------------------------------------------------------------------------------
+  # СЕКЦИЯ 1: Извличане на данни
+  # -------------------------------------------------------------------------------------
+  if [[ ! -f "$MODULES_FILE" ]]; then
+    echo "❌ Липсва $MODULES_FILE. Проверете конфигурацията."
+    exit 1
+  fi
 
-# 1. Извличане на IP и FQDN
-SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  # 1. Извличане на primary IP (реалния IP на този сървър)
+  SERVER_IP=$(hostname -I | awk '{print $1}')
 
+  # 2. Извличане на secondary IP чрез DNS заявка
+  SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
 
+  if [[ -z "$SERVER_FQDN" || -z "$DNS_ROLE" ]]; then
+    echo "❌ Липсват SERVER_FQDN или DNS_ROLE в $MODULES_FILE."
+    echo "➡ Поправете ръчно: добавете SERVER_FQDN и DNS_ROLE (primary/secondary)."
+    exit 1
+  fi
 
-# 3. Извличане на DNS_ROLE (primary/secondary)
-DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
+  SECOND_DNS_IP=$(dig +short ns2.$DOMAIN A | tail -n 1)
 
-# ✅ Проверка за липсващи данни
-if [[ -z "$SERVER_IP" || -z "$SERVER_FQDN" || -z "$SECOND_DNS_IP" || -z "$DNS_ROLE" ]]; then
-  echo "❌ Липсват критични данни (SERVER_IP, SERVER_FQDN, SECOND_DNS_IP или DNS_ROLE)."
-  echo "➡️ Стартирайте vps-dns-qsetup.sh, за да ги зададете."
-  exit 1
-fi
+  if [[ -z "$SECOND_DNS_IP" ]]; then
+    echo "❌ Не може да се извлече IP за ns2.$DOMAIN."
+    echo "➡ Добавете го ръчно в $MODULES_FILE като:"
+    echo "SECOND_DNS_IP=\"xxx.xxx.xxx.xxx\""
+    exit 1
+  fi
 
-# ✅ Проверка на формата на IP адресите
-if ! [[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "❌ SERVER_IP ($SERVER_IP) не е валиден IPv4 адрес."
-  exit 1
-fi
-if ! [[ "$SECOND_DNS_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "❌ SECOND_DNS_IP ($SECOND_DNS_IP) не е валиден IPv4 адрес."
-  exit 1
-fi
+  # ✅ Проверка на формата на IP адресите
+  if ! [[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "❌ SERVER_IP ($SERVER_IP) не е валиден IPv4."
+    exit 1
+  fi
+  if ! [[ "$SECOND_DNS_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "❌ SECOND_DNS_IP ($SECOND_DNS_IP) не е валиден IPv4."
+    exit 1
+  fi
 
-echo "✅ Данни заредени: SERVER_IP=$SERVER_IP | SERVER_FQDN=$SERVER_FQDN | SECOND_DNS_IP=$SECOND_DNS_IP | DNS_ROLE=$DNS_ROLE"
-echo ""
-
+  echo "✅ Данни заредени: SERVER_IP=$SERVER_IP | SERVER_FQDN=$SERVER_FQDN | SECOND_DNS_IP=$SECOND_DNS_IP | DNS_ROLE=$DNS_ROLE"
+  echo ""
 
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 2: Обновяване на named.conf.options
