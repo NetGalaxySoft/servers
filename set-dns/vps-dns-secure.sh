@@ -602,25 +602,6 @@ echo ""
 echo ""
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-exit 0
-
-
 # =====================================================================
 # [МОДУЛ 6] ТЕСТ НА TSIG
 # =====================================================================
@@ -628,16 +609,32 @@ echo "[6] ТЕСТ НА TSIG..."
 echo "-----------------------------------------------------------"
 echo ""
 
-if sudo grep -q '^SECURE_DNS_MODULE6=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+TSIG_KEY_FILE="/etc/bind/keys/tsig.key"
+
+if [[ ! -f "$SETUP_ENV_FILE" ]]; then
+  echo "❌ Липсва $SETUP_ENV_FILE. Стартирайте предишните модули!"
+  exit 1
+fi
+
+if grep -q '^SECURE_DNS_MODULE6=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 6 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
+  echo "▶ Започва изпълнение на Модул 6..."
+  echo ""
 
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 1: Проверка за наличието на TSIG ключ
   # -------------------------------------------------------------------------------------
-  if ! sudo test -f "/etc/bind/keys/tsig.key"; then
-    echo "❌ Липсва TSIG ключ (/etc/bind/keys/tsig.key). Модул 4 не е изпълнен."
+  if [[ ! -f "$TSIG_KEY_FILE" ]]; then
+    echo "❌ Липсва TSIG ключ ($TSIG_KEY_FILE). Модул 4 не е изпълнен."
+    exit 1
+  fi
+
+  if ! command -v dig &>/dev/null; then
+    echo "❌ Липсва командата dig! Инсталирайте пакет dnsutils."
     exit 1
   fi
 
@@ -670,7 +667,7 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 3: Извличане на името на ключа
   # -------------------------------------------------------------------------------------
-  TSIG_KEY_NAME=$(sudo grep 'key "' /etc/bind/keys/tsig.key | awk '{print $2}' | tr -d '"')
+  TSIG_KEY_NAME=$(grep 'key "' "$TSIG_KEY_FILE" | awk '{print $2}' | tr -d '"')
   if [[ -z "$TSIG_KEY_NAME" ]]; then
     echo "❌ Неуспешно извличане на името на TSIG ключа."
     exit 1
@@ -682,7 +679,7 @@ else
   # СЕКЦИЯ 4: Тест чрез AXFR с TSIG
   # -------------------------------------------------------------------------------------
   echo "🔍 Тест на TSIG чрез AXFR (зонен трансфер)..."
-  DIG_RESULT=$(dig @"$SECOND_DNS_IP" "$DOMAIN" AXFR -k /etc/bind/keys/tsig.key 2>&1)
+  DIG_RESULT=$(dig @"$SECOND_DNS_IP" "$DOMAIN" AXFR -k "$TSIG_KEY_FILE" 2>&1)
 
   if echo "$DIG_RESULT" | grep -q "Transfer failed"; then
     echo "❌ Трансферът е неуспешен! Проверете конфигурацията на ACL и TSIG."
@@ -700,22 +697,29 @@ else
     echo "$DIG_RESULT"
     exit 1
   fi
+  echo ""
 
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 5: Запис на резултат
   # -------------------------------------------------------------------------------------
-  if sudo grep -q '^SECURE_DNS_MODULE6=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^SECURE_DNS_MODULE6=.*|SECURE_DNS_MODULE6=✅|' "$SETUP_ENV_FILE"
-  else
-    echo "SECURE_DNS_MODULE6=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  fi
+  grep -q '^SECURE_DNS_MODULE6=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE6=.*|SECURE_DNS_MODULE6=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE6=✅" >> "$SETUP_ENV_FILE"
 
   echo "✅ Модул 6 завърши успешно."
   echo ""
-
 fi
 echo ""
 echo ""
+
+
+
+
+
+
+
+
+
+exit 0
+
 
 
 # =====================================================================
