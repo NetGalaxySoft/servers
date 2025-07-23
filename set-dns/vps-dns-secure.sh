@@ -679,6 +679,67 @@ echo ""
 echo ""
 
 
+# =====================================================================
+# [МОДУЛ 7] ТЕСТ НА TSIG (AXFR)
+# =====================================================================
+echo "[7] ТЕСТ НА TSIG (AXFR)..."
+echo "-----------------------------------------------------------"
+echo ""
+
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+TSIG_KEY_FILE="/etc/bind/keys/tsig.key"
+
+if [[ ! -f "$SETUP_ENV_FILE" ]]; then
+  echo "❌ Липсва $SETUP_ENV_FILE. Стартирайте предишните модули!"
+  exit 1
+fi
+
+if grep -q '^SECURE_DNS_MODULE7=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 6B вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
+  echo "▶ Започва изпълнение на Модул 7..."
+  echo ""
+
+  # Проверка за TSIG ключ
+  if [[ ! -f "$TSIG_KEY_FILE" ]]; then
+    echo "❌ Липсва TSIG ключ ($TSIG_KEY_FILE). Модул 4 не е изпълнен."
+    exit 1
+  fi
+
+  # Зареждане на данни
+  SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  SECOND_DNS_IP=$(grep '^SECOND_DNS_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+
+  DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
+
+  echo "🔍 Тест на TSIG чрез AXFR..."
+  DIG_RESULT=$(dig @"$SECOND_DNS_IP" "$DOMAIN" AXFR -k "$TSIG_KEY_FILE" 2>&1)
+
+  if echo "$DIG_RESULT" | grep -q "Transfer failed"; then
+    echo "❌ Трансферът е неуспешен! Проверете ACL и TSIG."
+    exit 1
+  elif echo "$DIG_RESULT" | grep -q "connection timed out"; then
+    echo "❌ Timeout! Проверете firewall и достъп между сървърите."
+    exit 1
+  elif echo "$DIG_RESULT" | grep -q "TSIG error"; then
+    echo "❌ TSIG грешка! Ключовете не съвпадат."
+    exit 1
+  elif echo "$DIG_RESULT" | grep -q "IN"; then
+    echo "✅ TSIG тестът е успешен! Зонен трансфер е удостоверен."
+  else
+    echo "⚠️ Неочакван резултат. Изход:"
+    echo "$DIG_RESULT"
+    exit 1
+  fi
+
+  grep -q '^SECURE_DNS_MODULE7=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE7=.*|SECURE_DNS_MODULE7=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE7=✅" >> "$SETUP_ENV_FILE"
+
+  echo "✅ Модул 7 завърши успешно."
+fi
+echo ""
+echo ""
 
 
 
