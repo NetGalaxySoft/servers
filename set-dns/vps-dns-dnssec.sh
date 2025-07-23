@@ -410,61 +410,60 @@ echo "[4] АКТИВИРАНЕ НА DNSSEC В ЗОНИТЕ..."
 echo "-----------------------------------------------------------"
 echo ""
 
-if sudo grep -q '^DNSSEC_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+if sudo grep -q '^SECURE_DNS_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 1: Проверка на ключовете
+  # СЕКЦИЯ 1: Зареждане на информацията от todo.modules
   # -------------------------------------------------------------------------------------
-  DNSSEC_DIR="/etc/bind/keys/dnssec"
-  if [[ ! -d "$DNSSEC_DIR" ]] || [[ -z "$(sudo ls -A "$DNSSEC_DIR" 2>/dev/null)" ]]; then
-    echo "❌ Липсват DNSSEC ключове. Уверете се, че Модул 2 е изпълнен."
+  if [[ ! -f "$MODULES_FILE" ]]; then
+    echo "❌ Липсва $MODULES_FILE. Скриптът не може да продължи."
     exit 1
   fi
 
-  echo "✅ DNSSEC ключовете са налични в $DNSSEC_DIR."
+  DOMAIN=$(grep '^DNSSEC_DOMAIN=' "$MODULES_FILE" | cut -d '=' -f2 | tr -d '"')
+  DNSSEC_DIR=$(grep '^DNSSEC_KEYS_DIR=' "$MODULES_FILE" | cut -d '=' -f2 | tr -d '"')
+
+  if [[ -z "$DOMAIN" || -z "$DNSSEC_DIR" ]]; then
+    echo "❌ Липсват данни за DNSSEC (DOMAIN или DNSSEC_DIR)."
+    exit 1
+  fi
+
+  echo "✅ Заредени данни: DOMAIN=$DOMAIN | DNSSEC_DIR=$DNSSEC_DIR"
   echo ""
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 2: Засичане на зони
+  # СЕКЦИЯ 2: Проверка за DNSSEC ключове
   # -------------------------------------------------------------------------------------
-  echo "🔍 Засичане на конфигурираните зони за активиране на DNSSEC..."
-  ZONES_DIR="/etc/bind/zones"
-  if [[ ! -d "$ZONES_DIR" ]]; then
-    echo "❌ Липсва директорията със зоните: $ZONES_DIR"
+  if ! sudo ls "$DNSSEC_DIR"/K"$DOMAIN".+* >/dev/null 2>&1; then
+    echo "❌ Липсват DNSSEC ключове за $DOMAIN в $DNSSEC_DIR."
+    echo "➡ Уверете се, че Модул 2 е изпълнен успешно."
     exit 1
   fi
-
-  ZONES=$(ls "$ZONES_DIR" | grep '^db\.' | sed 's/^db\.//')
-  if [[ -z "$ZONES" ]]; then
-    echo "❌ Не са открити конфигурационни файлове за зони."
-    exit 1
-  fi
-
-  echo "✅ Засечени зони: $ZONES"
+  echo "✅ Засечени DNSSEC ключове за $DOMAIN."
   echo ""
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 3: Активиране на DNSSEC в named.conf.local
+  # СЕКЦИЯ 3: Добавяне на конфигурация за inline signing
   # -------------------------------------------------------------------------------------
   CONF_LOCAL="/etc/bind/named.conf.local"
   if [[ ! -f "$CONF_LOCAL" ]]; then
-    echo "❌ Липсва $CONF_LOCAL. Скриптът не може да продължи."
+    echo "❌ Липсва конфигурационният файл $CONF_LOCAL."
     exit 1
   fi
 
-  echo "🔧 Активиране на DNSSEC параметри в зоните..."
-  for ZONE in $ZONES; do
-    if ! sudo grep -q "dnssec-enable yes;" "$CONF_LOCAL" | grep "$ZONE"; then
-      sudo sed -i "/zone \"$ZONE\" {/,/};/ {
-        /};/i\    auto-dnssec maintain;\n    inline-signing yes;
-      }" "$CONF_LOCAL"
-    fi
-  done
-
-  echo "✅ DNSSEC е активиран за всички зони."
+  echo "🔧 Актуализиране на зоната $DOMAIN за DNSSEC..."
+  # Проверяваме дали вече има inline-signing
+  if ! sudo grep -q "inline-signing" "$CONF_LOCAL"; then
+    sudo sed -i "/zone \"$DOMAIN\" {/,/};/ {
+      /file/ a\    inline-signing yes;\n    auto-dnssec maintain;
+    }" "$CONF_LOCAL"
+    echo "✅ Добавени опции inline-signing и auto-dnssec в зоната $DOMAIN."
+  else
+    echo "ℹ️ Опциите inline-signing и auto-dnssec вече са активирани."
+  fi
   echo ""
 
   # -------------------------------------------------------------------------------------
@@ -475,8 +474,8 @@ else
     echo "❌ Грешка в конфигурацията след активиране на DNSSEC."
     exit 1
   fi
-
   echo "✅ Синтаксисът е валиден."
+
   echo "🔄 Рестартиране на Bind9..."
   sudo systemctl restart bind9
   if ! systemctl is-active --quiet bind9; then
@@ -487,18 +486,19 @@ else
   echo ""
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 5: Запис на резултат
+  # СЕКЦИЯ 5: Запис на резултата
   # -------------------------------------------------------------------------------------
-  if sudo grep -q '^DNSSEC_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^DNSSEC_MODULE4=.*|DNSSEC_MODULE4=✅|' "$SETUP_ENV_FILE"
+  if sudo grep -q '^SECURE_DNS_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^SECURE_DNS_MODULE4=.*|SECURE_DNS_MODULE4=✅|' "$SETUP_ENV_FILE"
   else
-    echo "DNSSEC_MODULE4=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "SECURE_DNS_MODULE4=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
   fi
 
   echo "✅ Модул 4 завърши успешно."
 fi
 echo ""
 echo ""
+
 
 
 
