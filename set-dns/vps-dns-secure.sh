@@ -453,7 +453,6 @@ CONF_LOCAL="/etc/bind/named.conf.local"
 if grep -q '^SECURE_DNS_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
   echo ""
-  exit 0
 fi
 
 # Зареждане на ролята и данни
