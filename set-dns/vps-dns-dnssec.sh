@@ -545,30 +545,21 @@ if sudo rndc signing -list "$DNSSEC_DOMAIN" | grep -q "key"; then
 else
   echo "🔐 Подготовка за подписване..."
 
+  # Проверка за ключове
+  if ! sudo ls "$DNSSEC_KEYS_DIR"/*.key >/dev/null 2>&1; then
+    echo "❌ Липсват DNSSEC ключове в $DNSSEC_KEYS_DIR!"
+    echo "➡ Изпълнете Модул 2 за генериране на ключове и стартирайте отново."
+    exit 1
+  fi
+
   # Осигуряване на достъп до ключовете
   sudo chown -R bind:bind "$DNSSEC_KEYS_DIR"
   sudo chmod -R 640 "$DNSSEC_KEYS_DIR"/*.private
   sudo chmod -R 644 "$DNSSEC_KEYS_DIR"/*.key
 
-  # Проверка на controls секцията
-  NAMED_CONF="/etc/bind/named.conf"
-  RNDC_KEY_FILE="/etc/bind/rndc.key"
-
-  if ! sudo grep -q 'controls {' "$NAMED_CONF"; then
-    echo "⚠️ Липсва controls секция. Добавяне..."
-    cat <<EOF | sudo tee -a "$NAMED_CONF" > /dev/null
-
-controls {
-    inet 127.0.0.1 port 953 allow { localhost; } keys { "rndc-key"; };
-};
-EOF
-    echo "🔄 Рестартиране на Bind9 след добавяне на controls..."
-    sudo named-checkconf && sudo systemctl restart bind9
-  fi
-
-  # Проверка дали rndc работи
+  # Проверка на controls
   if ! sudo rndc status >/dev/null 2>&1; then
-    echo "❌ rndc все още не работи. Прекратяване."
+    echo "❌ rndc не работи! Проверете конфигурацията."
     exit 1
   fi
 
