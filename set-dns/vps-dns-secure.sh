@@ -631,21 +631,6 @@ echo ""
 echo ""
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-exit 0
 # =====================================================================
 # [МОДУЛ 6] ПОДГОТОВКА ЗА TSIG ТЕСТ
 # =====================================================================
@@ -656,11 +641,6 @@ echo ""
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
 TSIG_KEY_FILE="/etc/bind/keys/tsig.key"
-
-if [[ ! -f "$SETUP_ENV_FILE" ]]; then
-  echo "❌ Липсва $SETUP_ENV_FILE. Стартирайте предишните модули!"
-  exit 1
-fi
 
 if grep -q '^SECURE_DNS_MODULE6=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 6 вече е изпълнен успешно. Пропускане..."
@@ -715,14 +695,35 @@ else
   echo ""
 
   # Запис в setup.env
-  grep -q '^SECURE_DNS_MODULE6=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE6=.*|SECURE_DNS_MODULE6=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE6=✅" >> "$SETUP_ENV_FILE"
+  if grep -q '^SECURE_DNS_MODULE6=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sed -i 's|^SECURE_DNS_MODULE6=.*|SECURE_DNS_MODULE6=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "SECURE_DNS_MODULE6=✅" >> "$SETUP_ENV_FILE"
+  fi
 
   echo "✅ Модул 6 завърши успешно."
 fi
-fi
+
 echo ""
 echo ""
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+exit 0
 
 # =====================================================================
 # [МОДУЛ 7] ТЕСТ НА TSIG (AXFR)
