@@ -198,7 +198,11 @@ else
   echo ""
 
   # Запис на резултат
-  grep -q '^SECURE_DNS_MODULE1=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE1=.*|SECURE_DNS_MODULE1=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE1=✅" >> "$SETUP_ENV_FILE"
+  if grep -q '^SECURE_DNS_MODULE1=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sed -i 's|^SECURE_DNS_MODULE1=.*|SECURE_DNS_MODULE1=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "SECURE_DNS_MODULE1=✅" >> "$SETUP_ENV_FILE"
+  fi
 
   echo "✅ Модул 1 завърши успешно."
   echo ""
@@ -420,7 +424,11 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 5: Запис на резултат
   # -------------------------------------------------------------------------------------
-  grep -q '^SECURE_DNS_MODULE3=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE3=.*|SECURE_DNS_MODULE3=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE3=✅" >> "$SETUP_ENV_FILE"
+  if grep -q '^SECURE_DNS_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sed -i 's|^SECURE_DNS_MODULE3=.*|SECURE_DNS_MODULE3=✅|' "$SETUP_ENV_FILE"
+  else
+  echo "SECURE_DNS_MODULE3=✅" >> "$SETUP_ENV_FILE"
+fi
 
   echo "✅ Модул 3 завърши успешно."
 fi
@@ -548,10 +556,11 @@ echo ""
 # -------------------------------------------------------------------------------------
 # СЕКЦИЯ 5: Запис в setup.env
 # -------------------------------------------------------------------------------------
-grep -q '^SECURE_DNS_MODULE4=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE4=.*|SECURE_DNS_MODULE4=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE4=✅" >> "$SETUP_ENV_FILE"
-
-echo "✅ Модул 4 завърши успешно."
-echo ""
+if grep -q '^SECURE_DNS_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
+  sed -i 's|^SECURE_DNS_MODULE4=.*|SECURE_DNS_MODULE4=✅|' "$SETUP_ENV_FILE"
+else
+  echo "SECURE_DNS_MODULE4=✅" >> "$SETUP_ENV_FILE"
+fi
 
 
 # =====================================================================
@@ -618,6 +627,7 @@ else
 fi
 echo ""
 echo ""
+
 
 
 
