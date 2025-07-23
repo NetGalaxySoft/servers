@@ -544,10 +544,24 @@ if sudo rndc signing -list "$DNSSEC_DOMAIN" | grep -q "key"; then
   echo "ℹ️ Зоната вече е подписана."
 else
   echo "🔐 Зареждане на ключовете..."
+  
+  # Осигуряване на права на rndc за ключовете
+  sudo chown -R bind:bind "$DNSSEC_KEYS_DIR"
+  sudo chmod -R 640 "$DNSSEC_KEYS_DIR"/*.private
+  sudo chmod -R 644 "$DNSSEC_KEYS_DIR"/*.key
+
+  # Опит за зареждане на ключове
   if ! sudo rndc loadkeys "$DNSSEC_DOMAIN"; then
-    echo "❌ rndc loadkeys се провали."
+    echo "❌ rndc loadkeys се провали. Проверка за rndc.key..."
+    if [[ ! -f /etc/bind/rndc.key ]]; then
+      echo "❌ Липсва rndc.key! Скриптът не може да продължи."
+    else
+      echo "⚠️ rndc.key е наличен, но има проблем с достъпа. Проверете controls в named.conf."
+    fi
     exit 1
   fi
+
+  echo "✅ Ключовете са заредени успешно."
 
   echo "🔐 Стартиране на подписване..."
   if ! sudo rndc signing -nsec3param 1 0 10 "$DNSSEC_DOMAIN"; then
