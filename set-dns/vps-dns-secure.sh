@@ -544,6 +544,11 @@ echo ""
 
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
+if [[ ! -f "$SETUP_ENV_FILE" ]]; then
+  echo "❌ Липсва $SETUP_ENV_FILE. Стартирайте предишните модули!"
+  exit 1
+fi
+
 if grep -q '^SECURE_DNS_MODULE5=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
   echo ""
@@ -595,6 +600,7 @@ else
 fi
 echo ""
 echo ""
+
 
 
 
