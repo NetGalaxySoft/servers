@@ -216,11 +216,18 @@ echo ""
 
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 OPTIONS_FILE="/etc/bind/named.conf.options"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
 
+# Проверка за setup.env
 if [[ ! -f "$SETUP_ENV_FILE" ]]; then
   echo "❌ Липсва $SETUP_ENV_FILE. Стартирайте Модул 1 първо."
   exit 1
 fi
+
+# Извличане на ролята за отчет
+DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+echo "ℹ️ DNS роля: ${DNS_ROLE:-неизвестна}"
+echo ""
 
 # Проверка дали модулът вече е изпълнен
 if grep -q '^SECURE_DNS_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
@@ -246,6 +253,7 @@ else
   # -------------------------------------------------------------------------------------
   echo "🔧 Обновяване на политики за сигурност в $OPTIONS_FILE..."
 
+  # Премахване на стари директиви
   sed -i '/options {/,/};/ {
     /recursion/d
     /allow-transfer/d
@@ -253,13 +261,14 @@ else
     /dnssec-validation/d
   }' "$OPTIONS_FILE"
 
+  # Добавяне на правилните директиви
   sed -i '/options {/,/};/ {
     /^};/i\    recursion no;
     /^};/i\    allow-transfer { none; };
     /^};/i\    dnssec-validation auto;
   }' "$OPTIONS_FILE"
 
-  echo "✅ Политиките са добавени: recursion=no, allow-transfer=none, dnssec-validation=auto."
+  echo "✅ Политиките са обновени: recursion=no, allow-transfer=none, dnssec-validation=auto."
   echo ""
 
   # -------------------------------------------------------------------------------------
@@ -288,13 +297,16 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 5: Запис на резултат за Модул 2
   # -------------------------------------------------------------------------------------
-  grep -q '^SECURE_DNS_MODULE2=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE2=.*|SECURE_DNS_MODULE2=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE2=✅" >> "$SETUP_ENV_FILE"
+  grep -q '^SECURE_DNS_MODULE2=' "$SETUP_ENV_FILE" && \
+  sed -i 's|^SECURE_DNS_MODULE2=.*|SECURE_DNS_MODULE2=✅|' "$SETUP_ENV_FILE" || \
+  echo "SECURE_DNS_MODULE2=✅" >> "$SETUP_ENV_FILE"
 
   echo "✅ Модул 2 завърши успешно."
   echo ""
 fi
 echo ""
 echo ""
+
 
 
 
