@@ -149,7 +149,7 @@ echo "[2] ГЕНЕРИРАНЕ НА DNSSEC КЛЮЧОВЕ..."
 echo "-----------------------------------------------------------"
 echo ""
 
-if sudo grep -q '^SECURE_DNS_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+if sudo grep -q '^DNSSEC_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 2 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
@@ -218,10 +218,10 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 4: Запис в setup.env
   # -------------------------------------------------------------------------------------
-  if sudo grep -q '^SECURE_DNS_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^SECURE_DNS_MODULE2=.*|SECURE_DNS_MODULE2=✅|' "$SETUP_ENV_FILE"
+  if sudo grep -q '^DNSSEC_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^DNSSEC_MODULE2=.*|DNSSEC_MODULE2=✅|' "$SETUP_ENV_FILE"
   else
-    echo "SECURE_DNS_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "DNSSEC_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
   fi
 
   echo "✅ Модул 2 завърши успешно."
