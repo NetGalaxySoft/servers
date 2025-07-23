@@ -543,25 +543,40 @@ echo "🔍 Проверка дали зоната вече е подписана
 if sudo rndc signing -list "$DNSSEC_DOMAIN" | grep -q "key"; then
   echo "ℹ️ Зоната вече е подписана."
 else
-  echo "🔐 Зареждане на ключовете..."
-  
-  # Осигуряване на права на rndc за ключовете
+  echo "🔐 Подготовка за подписване..."
+
+  # Осигуряване на достъп до ключовете
   sudo chown -R bind:bind "$DNSSEC_KEYS_DIR"
   sudo chmod -R 640 "$DNSSEC_KEYS_DIR"/*.private
   sudo chmod -R 644 "$DNSSEC_KEYS_DIR"/*.key
 
-  # Опит за зареждане на ключове
-  if ! sudo rndc loadkeys "$DNSSEC_DOMAIN"; then
-    echo "❌ rndc loadkeys се провали. Проверка за rndc.key..."
-    if [[ ! -f /etc/bind/rndc.key ]]; then
-      echo "❌ Липсва rndc.key! Скриптът не може да продължи."
-    else
-      echo "⚠️ rndc.key е наличен, но има проблем с достъпа. Проверете controls в named.conf."
-    fi
+  # Проверка на controls секцията
+  NAMED_CONF="/etc/bind/named.conf"
+  RNDC_KEY_FILE="/etc/bind/rndc.key"
+
+  if ! sudo grep -q 'controls {' "$NAMED_CONF"; then
+    echo "⚠️ Липсва controls секция. Добавяне..."
+    cat <<EOF | sudo tee -a "$NAMED_CONF" > /dev/null
+
+controls {
+    inet 127.0.0.1 port 953 allow { localhost; } keys { "rndc-key"; };
+};
+EOF
+    echo "🔄 Рестартиране на Bind9 след добавяне на controls..."
+    sudo named-checkconf && sudo systemctl restart bind9
+  fi
+
+  # Проверка дали rndc работи
+  if ! sudo rndc status >/dev/null 2>&1; then
+    echo "❌ rndc все още не работи. Прекратяване."
     exit 1
   fi
 
-  echo "✅ Ключовете са заредени успешно."
+  echo "🔐 Зареждане на ключовете с rndc loadkeys..."
+  if ! sudo rndc loadkeys "$DNSSEC_DOMAIN"; then
+    echo "❌ rndc loadkeys се провали."
+    exit 1
+  fi
 
   echo "🔐 Стартиране на подписване..."
   if ! sudo rndc signing -nsec3param 1 0 10 "$DNSSEC_DOMAIN"; then
