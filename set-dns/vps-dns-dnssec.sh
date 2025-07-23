@@ -283,7 +283,7 @@ else
     exit 1
   fi
 
-  echo "✅ Заредени данни:"
+  echo "✅ Добавени данни в todo.modules:"
   echo "SERVER_IP=$SERVER_IP"
   echo "SERVER_FQDN=$SERVER_FQDN"
   echo "SECOND_DNS_IP=$SECOND_DNS_IP"
