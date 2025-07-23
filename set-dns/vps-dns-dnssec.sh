@@ -410,183 +410,173 @@ echo "[4] АКТИВИРАНЕ НА DNSSEC В ЗОНИТЕ..."
 echo "-----------------------------------------------------------"
 echo ""
 
-# Проверка дали модулът вече е изпълнен
 if sudo grep -q '^SECURE_DNS_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 0: Осигуряване на достъп до TCP порт 953 за rndc
-  # -------------------------------------------------------------------------------------
-  echo "🔍 Проверка за UFW правила за порт 953 (rndc)..."
-  if command -v ufw >/dev/null && sudo ufw status | grep -q "Status: active"; then
-    if ! sudo ufw status | grep -q "953/tcp"; then
-      echo "🔧 Отваряне на порт 953/tcp за localhost..."
-      sudo ufw allow from 127.0.0.1 to 127.0.0.1 port 953 proto tcp comment 'Allow rndc local control'
-      sudo ufw reload
-      echo "✅ Порт 953 е позволен за localhost."
-    else
-      echo "ℹ️ Порт 953 вече е разрешен."
-    fi
+
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 0: UFW и rndc.key
+# -------------------------------------------------------------------------------------
+echo "🔍 Проверка за UFW правила за порт 953 (rndc)..."
+if command -v ufw >/dev/null && sudo ufw status | grep -q "Status: active"; then
+  if ! sudo ufw status | grep -q "953/tcp"; then
+    echo "🔧 Отваряне на порт 953/tcp за localhost..."
+    sudo ufw allow from 127.0.0.1 to 127.0.0.1 port 953 proto tcp comment 'Allow rndc local control'
+    sudo ufw reload
+    echo "✅ Порт 953 е позволен за localhost."
   else
-    echo "ℹ️ UFW не е активен. Пропускане..."
+    echo "ℹ️ Порт 953 вече е разрешен."
   fi
-  echo ""
+else
+  echo "ℹ️ UFW не е активен. Пропускане..."
+fi
+echo ""
 
-  # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 0.1: Проверка и конфигурация на rndc
-  # -------------------------------------------------------------------------------------
-  echo "🔍 Проверка на rndc конфигурацията..."
-  if [[ ! -f /etc/rndc.key ]]; then
-    echo "🔧 Създаване на rndc ключ..."
-    sudo rndc-confgen -a
-    sudo chown root:bind /etc/rndc.key
-    sudo chmod 640 /etc/rndc.key
-    echo "✅ rndc ключът е създаден."
-  else
-    echo "ℹ️ rndc ключът вече съществува."
-  fi
+echo "🔍 Проверка на rndc конфигурацията..."
+RNDC_KEY_FILE="/etc/bind/rndc.key"
+NAMED_CONF="/etc/bind/named.conf"
 
-  NAMED_CONF="/etc/bind/named.conf"
-  if ! sudo grep -q 'include "/etc/rndc.key";' "$NAMED_CONF"; then
-    echo "🔧 Добавяне на include за rndc.key в named.conf..."
-    echo 'include "/etc/rndc.key";' | sudo tee -a "$NAMED_CONF" > /dev/null
-  fi
+if [[ ! -f "$RNDC_KEY_FILE" ]]; then
+  echo "🔧 Създаване на rndc ключ..."
+  sudo rndc-confgen -a -c "$RNDC_KEY_FILE"
+  sudo chown root:bind "$RNDC_KEY_FILE"
+  sudo chmod 640 "$RNDC_KEY_FILE"
+  echo "✅ rndc ключът е създаден."
+else
+  echo "ℹ️ rndc ключът вече съществува."
+fi
 
-  if ! sudo grep -q 'controls {' "$NAMED_CONF"; then
-    echo "🔧 Добавяне на controls секция за rndc..."
-    cat <<EOF | sudo tee -a "$NAMED_CONF" > /dev/null
+if ! sudo grep -q "include \"$RNDC_KEY_FILE\";" "$NAMED_CONF"; then
+  echo "🔧 Добавяне на include за rndc.key..."
+  echo "include \"$RNDC_KEY_FILE\";" | sudo tee -a "$NAMED_CONF" > /dev/null
+fi
+
+if ! sudo grep -q 'controls {' "$NAMED_CONF"; then
+  echo "🔧 Добавяне на controls секция за rndc..."
+  cat <<EOF | sudo tee -a "$NAMED_CONF" > /dev/null
 
 controls {
     inet 127.0.0.1 port 953 allow { localhost; } keys { "rndc-key"; };
 };
 EOF
-  fi
+fi
 
-  echo "🔄 Рестартиране на Bind9 за активиране на rndc..."
-  sudo systemctl restart bind9
-  if ! systemctl is-active --quiet bind9; then
-    echo "❌ Bind9 не стартира след промени!"
-    exit 1
-  fi
-  echo "✅ Bind9 е рестартиран успешно."
-  echo ""
+echo "🔍 Проверка на синтаксиса..."
+if ! sudo named-checkconf; then
+  echo "❌ Конфигурацията е невалидна! Прекратяване."
+  exit 1
+fi
 
-  echo "🔍 Проверка на rndc достъпа..."
-  if ! sudo rndc status >/dev/null 2>&1; then
-    echo "❌ rndc не работи правилно! Проверете конфигурацията."
-    exit 1
-  fi
-  echo "✅ rndc работи коректно."
-  echo ""
+echo "🔄 Рестартиране на Bind9..."
+sudo systemctl restart bind9
+if ! systemctl is-active --quiet bind9; then
+  echo "❌ Bind9 не е активна след рестарт!"
+  exit 1
+fi
+echo "✅ Bind9 работи успешно."
+echo ""
 
-  # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 1: Зареждане на критични данни
-  # -------------------------------------------------------------------------------------
-  if [[ ! -f "$MODULES_FILE" ]]; then
-    echo "❌ Липсва $MODULES_FILE. Не може да се продължи."
-    exit 1
-  fi
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 1: Зареждане на данни
+# -------------------------------------------------------------------------------------
+if [[ ! -f "$MODULES_FILE" ]]; then
+  echo "❌ Липсва $MODULES_FILE. Не може да се продължи."
+  exit 1
+fi
 
-  DNSSEC_DOMAIN=$(grep '^DNSSEC_DOMAIN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
-  DNSSEC_KEYS_DIR=$(grep '^DNSSEC_KEYS_DIR=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+DNSSEC_DOMAIN=$(grep '^DNSSEC_DOMAIN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+DNSSEC_KEYS_DIR=$(grep '^DNSSEC_KEYS_DIR=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
 
-  if [[ -z "$DNSSEC_DOMAIN" || -z "$DNSSEC_KEYS_DIR" ]]; then
-    echo "❌ Липсват DNSSEC_DOMAIN или DNSSEC_KEYS_DIR в $MODULES_FILE."
-    echo "➡ Уверете се, че Модул 2 е изпълнен успешно."
-    exit 1
-  fi
+if [[ -z "$DNSSEC_DOMAIN" || -z "$DNSSEC_KEYS_DIR" ]]; then
+  echo "❌ Липсват DNSSEC_DOMAIN или DNSSEC_KEYS_DIR в $MODULES_FILE."
+  exit 1
+fi
 
-  if ! sudo test -d "$DNSSEC_KEYS_DIR"; then
-    echo "❌ Директорията за ключове ($DNSSEC_KEYS_DIR) липсва."
-    exit 1
-  fi
+if ! sudo test -d "$DNSSEC_KEYS_DIR"; then
+  echo "❌ Директорията за ключове ($DNSSEC_KEYS_DIR) липсва."
+  exit 1
+fi
 
-  echo "✅ Заредени данни:"
-  echo "DNSSEC_DOMAIN=$DNSSEC_DOMAIN"
-  echo "DNSSEC_KEYS_DIR=$DNSSEC_KEYS_DIR"
-  echo ""
+echo "✅ Заредени данни:"
+echo "DNSSEC_DOMAIN=$DNSSEC_DOMAIN"
+echo "DNSSEC_KEYS_DIR=$DNSSEC_KEYS_DIR"
+echo ""
 
-  # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 2: Обновяване на named.conf.local за DNSSEC
-  # -------------------------------------------------------------------------------------
-  CONF_LOCAL="/etc/bind/named.conf.local"
-  if [[ ! -f "$CONF_LOCAL" ]]; then
-    echo "❌ Липсва конфигурационният файл $CONF_LOCAL."
-    exit 1
-  fi
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 2: Активиране в named.conf.local
+# -------------------------------------------------------------------------------------
+CONF_LOCAL="/etc/bind/named.conf.local"
+if [[ ! -f "$CONF_LOCAL" ]]; then
+  echo "❌ Липсва конфигурационният файл $CONF_LOCAL."
+  exit 1
+fi
 
-  echo "🔧 Активиране на DNSSEC за зоната $DNSSEC_DOMAIN..."
-  if ! sudo grep -q "zone \"$DNSSEC_DOMAIN\"" "$CONF_LOCAL"; then
-    echo "❌ Зоната $DNSSEC_DOMAIN не е намерена в $CONF_LOCAL."
-    exit 1
-  fi
+echo "🔧 Активиране на DNSSEC за зоната $DNSSEC_DOMAIN..."
+if ! sudo grep -q "zone \"$DNSSEC_DOMAIN\"" "$CONF_LOCAL"; then
+  echo "❌ Зоната $DNSSEC_DOMAIN не е намерена в $CONF_LOCAL."
+  exit 1
+fi
 
-  sudo sed -i "/zone \"$DNSSEC_DOMAIN\" {/,/};/ {
-    /inline-signing/d
-    /auto-dnssec/d
-    /^};/i\    inline-signing yes;\n    auto-dnssec maintain;
-  }" "$CONF_LOCAL"
+sudo sed -i "/zone \"$DNSSEC_DOMAIN\" {/,/};/ {
+  /inline-signing/d
+  /auto-dnssec/d
+  /^};/i\    inline-signing yes;\n    auto-dnssec maintain;
+}" "$CONF_LOCAL"
 
-  echo "✅ DNSSEC опциите са добавени за зоната $DNSSEC_DOMAIN."
-  echo ""
+echo "✅ DNSSEC опциите са добавени."
+echo ""
 
-  # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 3: Зареждане на ключовете и подписване на зоната
-  # -------------------------------------------------------------------------------------
-  echo "🔍 Проверка дали зоната вече е подписана..."
-  if sudo rndc signing -list "$DNSSEC_DOMAIN" | grep -q "key"; then
-    echo "ℹ️ Зоната $DNSSEC_DOMAIN вече е подписана. Пропускане на повторно подписване."
-  else
-    echo "🔐 Зареждане на ключовете с rndc loadkeys..."
-    if ! sudo rndc loadkeys "$DNSSEC_DOMAIN"; then
-      echo "❌ Грешка при изпълнение на rndc loadkeys за $DNSSEC_DOMAIN."
-      exit 1
-    fi
-    echo "✅ Ключовете са заредени успешно."
-
-    echo "🔐 Стартиране на подписване с rndc signing..."
-    if ! sudo rndc signing -nsec3param 1 0 10 "$DNSSEC_DOMAIN"; then
-      echo "❌ Грешка при изпълнение на rndc signing."
-      exit 1
-    fi
-    echo "✅ Подписването е стартирано успешно."
-  fi
-  echo ""
-
-  # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 4: Проверка и рестарт
-  # -------------------------------------------------------------------------------------
-  echo "🔍 Проверка на синтаксиса..."
-  if ! sudo named-checkconf; then
-    echo "❌ Грешка в конфигурацията след DNSSEC промени."
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 3: Подписване
+# -------------------------------------------------------------------------------------
+echo "🔍 Проверка дали зоната вече е подписана..."
+if sudo rndc signing -list "$DNSSEC_DOMAIN" | grep -q "key"; then
+  echo "ℹ️ Зоната вече е подписана."
+else
+  echo "🔐 Зареждане на ключовете..."
+  if ! sudo rndc loadkeys "$DNSSEC_DOMAIN"; then
+    echo "❌ rndc loadkeys се провали."
     exit 1
   fi
 
-  echo "✅ Синтаксисът е валиден."
-  echo "🔄 Рестартиране на Bind9..."
-  sudo systemctl restart bind9
-  if ! systemctl is-active --quiet bind9; then
-    echo "❌ Bind9 не е активна след рестарт!"
+  echo "🔐 Стартиране на подписване..."
+  if ! sudo rndc signing -nsec3param 1 0 10 "$DNSSEC_DOMAIN"; then
+    echo "❌ rndc signing се провали."
     exit 1
   fi
-  echo "✅ Bind9 работи успешно."
-  echo ""
 
-  # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 5: Запис на резултат
-  # -------------------------------------------------------------------------------------
-  if sudo grep -q '^SECURE_DNS_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^SECURE_DNS_MODULE4=.*|SECURE_DNS_MODULE4=✅|' "$SETUP_ENV_FILE"
-  else
-    echo "SECURE_DNS_MODULE4=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  fi
+  echo "✅ Подписването е стартирано."
+fi
+echo ""
 
-  echo "✅ Модул 4 завърши успешно."
-  echo ""
+# -------------------------------------------------------------------------------------
+# СЕКЦИЯ 4: Проверка и запис
+# -------------------------------------------------------------------------------------
+echo "🔍 Финална проверка на синтаксиса..."
+if ! sudo named-checkconf; then
+  echo "❌ Невалидна конфигурация след промени."
+  exit 1
+fi
+
+sudo systemctl restart bind9
+if ! systemctl is-active --quiet bind9; then
+  echo "❌ Bind9 не се стартира след промените."
+  exit 1
+fi
+
+if sudo grep -q '^SECURE_DNS_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
+  sudo sed -i 's|^SECURE_DNS_MODULE4=.*|SECURE_DNS_MODULE4=✅|' "$SETUP_ENV_FILE"
+else
+  echo "SECURE_DNS_MODULE4=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+fi
+
+echo "✅ Модул 4 завърши успешно."
+echo ""
 fi
 echo ""
 echo ""
+
 
 
 
