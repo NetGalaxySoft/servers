@@ -741,12 +741,6 @@ if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
     echo "SETUP_SECURE_DNS_STATUS=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
   fi
 
-  if sudo grep -q '^SECURE_DNS_MODULE7=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^SECURE_DNS_MODULE7=.*|SECURE_DNS_MODULE7=✅|' "$SETUP_ENV_FILE"
-  else
-    echo "SECURE_DNS_MODULE7=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  fi
-
   # ✅ Изтриване на временни файлове
   if [[ -f "$MODULES_FILE" ]]; then
     sudo rm -f "$MODULES_FILE"
