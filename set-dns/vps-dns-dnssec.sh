@@ -187,20 +187,20 @@ else
   echo "$ZONES"
   echo ""
 
-  # -------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------
 # СЕКЦИЯ 3: Генериране на ключовете
 # -------------------------------------------------------------------------------------
 for ZONE in "${ZONES[@]}"; do
   echo "🔐 Генериране на KSK и ZSK за $ZONE..."
 
   # KSK (Key Signing Key)
-  if ! sudo dnssec-keygen -a RSASHA256 -b 2048 -f KSK -n ZONE "$ZONE" -K "$DNSSEC_DIR"; then
+  if ! sudo dnssec-keygen -K "$DNSSEC_DIR" -a RSASHA256 -b 2048 -n ZONE -f KSK "$ZONE"; then
     echo "❌ Грешка при генериране на KSK за $ZONE!"
     exit 1
   fi
 
   # ZSK (Zone Signing Key)
-  if ! sudo dnssec-keygen -a RSASHA256 -b 1024 -n ZONE "$ZONE" -K "$DNSSEC_DIR"; then
+  if ! sudo dnssec-keygen -K "$DNSSEC_DIR" -a RSASHA256 -b 1024 -n ZONE "$ZONE"; then
     echo "❌ Грешка при генериране на ZSK за $ZONE!"
     exit 1
   fi
