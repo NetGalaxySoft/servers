@@ -558,16 +558,57 @@ else
   sudo find "$DNSSEC_KEYS_DIR" -type f -name "*.key" -exec sudo chmod 644 {} \;
   sudo chown -R bind:bind "$DNSSEC_KEYS_DIR"
 
-  # Проверка на rndc
-  if ! sudo rndc status >/dev/null 2>&1; then
-    echo "❌ rndc не работи! Проверете конфигурацията."
-    exit 1
-  fi
-
+  # Опит за зареждане
   echo "🔐 Зареждане на ключовете с rndc loadkeys..."
   if ! sudo rndc loadkeys "$DNSSEC_DOMAIN"; then
-    echo "❌ rndc loadkeys се провали."
-    exit 1
+    echo "⚠️ rndc loadkeys се провали. Поправка на rndc конфигурацията..."
+    
+    # Регенерация на rndc.key
+    RNDC_KEY_FILE="/etc/bind/rndc.key"
+    NAMED_CONF="/etc/bind/named.conf"
+    echo "🔄 Създаване на нов rndc.key..."
+    sudo rndc-confgen -a -c "$RNDC_KEY_FILE"
+    sudo chown root:bind "$RNDC_KEY_FILE"
+    sudo chmod 640 "$RNDC_KEY_FILE"
+
+    # Премахване на стари include редове
+    sudo sed -i '/include "\/etc\/rndc.key";/d' "$NAMED_CONF"
+
+    # Добавяне на правилен include
+    if ! sudo grep -q "include \"$RNDC_KEY_FILE\";" "$NAMED_CONF"; then
+      echo "include \"$RNDC_KEY_FILE\";" | sudo tee -a "$NAMED_CONF" > /dev/null
+    fi
+
+    # Добавяне на controls
+    if ! sudo grep -q 'controls {' "$NAMED_CONF"; then
+      cat <<EOF | sudo tee -a "$NAMED_CONF" > /dev/null
+
+controls {
+    inet 127.0.0.1 port 953 allow { localhost; } keys { "rndc-key"; };
+};
+EOF
+    fi
+
+    # Проверка на конфигурацията
+    echo "🔍 Проверка на синтаксиса..."
+    if ! sudo named-checkconf; then
+      echo "❌ Конфигурацията е невалидна! Прекратяване."
+      exit 1
+    fi
+
+    echo "🔄 Рестартиране на Bind9..."
+    sudo systemctl restart bind9
+    if ! systemctl is-active --quiet bind9; then
+      echo "❌ Bind9 не стартира!"
+      exit 1
+    fi
+
+    # Втори опит за зареждане
+    echo "🔐 Повторен опит за rndc loadkeys..."
+    if ! sudo rndc loadkeys "$DNSSEC_DOMAIN"; then
+      echo "❌ rndc loadkeys отново се провали. Прекратяване."
+      exit 1
+    fi
   fi
 
   echo "🔐 Стартиране на подписване..."
