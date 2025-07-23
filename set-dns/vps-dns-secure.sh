@@ -562,12 +562,24 @@ echo "-----------------------------------------------------------"
 echo ""
 
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
 
+# Проверка за setup.env
 if [[ ! -f "$SETUP_ENV_FILE" ]]; then
   echo "❌ Липсва $SETUP_ENV_FILE. Стартирайте предишните модули!"
   exit 1
 fi
 
+# Извеждане на DNS роля за инфо
+if [[ -f "$MODULES_FILE" ]]; then
+  DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+else
+  DNS_ROLE="неизвестна"
+fi
+echo "ℹ️ DNS роля: ${DNS_ROLE}"
+echo ""
+
+# Проверка дали вече е изпълнен
 if grep -q '^SECURE_DNS_MODULE5=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
   echo ""
@@ -613,12 +625,16 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 4: Запис на резултата
   # -------------------------------------------------------------------------------------
-  grep -q '^SECURE_DNS_MODULE5=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE5=.*|SECURE_DNS_MODULE5=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE5=✅" >> "$SETUP_ENV_FILE"
+  grep -q '^SECURE_DNS_MODULE5=' "$SETUP_ENV_FILE" && \
+  sed -i 's|^SECURE_DNS_MODULE5=.*|SECURE_DNS_MODULE5=✅|' "$SETUP_ENV_FILE" || \
+  echo "SECURE_DNS_MODULE5=✅" >> "$SETUP_ENV_FILE"
 
   echo "✅ Модул 5 завърши успешно."
+  echo ""
 fi
 echo ""
 echo ""
+
 
 
 
