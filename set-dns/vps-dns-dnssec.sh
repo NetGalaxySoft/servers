@@ -224,14 +224,8 @@ echo ""
 # -------------------------------------------------------------------------------------
 echo "🔐 Генериране на KSK и ZSK за $DOMAIN..."
 
-# Промяна на директорията с правилни права
-sudo cd "$DNSSEC_DIR" 2>/dev/null || {
-  echo "❌ Неуспешен достъп до $DNSSEC_DIR"
-  exit 1
-}
-
 # Генериране на KSK (Key Signing Key)
-if sudo dnssec-keygen -K "$DNSSEC_DIR" -a RSASHA256 -b 2048 -f KSK -n ZONE "$DOMAIN"; then
+if sudo dnssec-keygen -a RSASHA256 -b 2048 -f KSK -n ZONE -K "$DNSSEC_DIR" "$DOMAIN"; then
   echo "✅ KSK за $DOMAIN е генериран успешно."
 else
   echo "❌ Грешка при генериране на KSK за $DOMAIN!"
@@ -239,12 +233,13 @@ else
 fi
 
 # Генериране на ZSK (Zone Signing Key)
-if sudo dnssec-keygen -K "$DNSSEC_DIR" -a RSASHA256 -b 1024 -n ZONE "$DOMAIN"; then
+if sudo dnssec-keygen -a RSASHA256 -b 1024 -n ZONE -K "$DNSSEC_DIR" "$DOMAIN"; then
   echo "✅ ZSK за $DOMAIN е генериран успешно."
 else
   echo "❌ Грешка при генериране на ZSK за $DOMAIN!"
   exit 1
 fi
+
 
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 5: Запис на резултата
