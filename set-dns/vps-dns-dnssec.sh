@@ -546,18 +546,19 @@ else
   echo "🔐 Подготовка за подписване..."
 
   # Проверка за ключове
-  if ! sudo ls "$DNSSEC_KEYS_DIR"/*.key >/dev/null 2>&1; then
+  if ! sudo find "$DNSSEC_KEYS_DIR" -type f -name "*.key" | grep -q . || ! sudo find "$DNSSEC_KEYS_DIR" -type f -name "*.private" | grep -q .; then
     echo "❌ Липсват DNSSEC ключове в $DNSSEC_KEYS_DIR!"
-    echo "➡ Изпълнете Модул 2 за генериране на ключове и стартирайте отново."
+    echo "➡ Изпълнете Модул 2 и стартирайте отново."
     exit 1
   fi
 
-  # Осигуряване на достъп до ключовете
+  # Настройка на права върху ключовете
+  echo "🔍 Настройка на права върху DNSSEC ключовете..."
+  sudo find "$DNSSEC_KEYS_DIR" -type f -name "*.private" -exec sudo chmod 640 {} \;
+  sudo find "$DNSSEC_KEYS_DIR" -type f -name "*.key" -exec sudo chmod 644 {} \;
   sudo chown -R bind:bind "$DNSSEC_KEYS_DIR"
-  sudo chmod -R 640 "$DNSSEC_KEYS_DIR"/*.private
-  sudo chmod -R 644 "$DNSSEC_KEYS_DIR"/*.key
 
-  # Проверка на controls
+  # Проверка на rndc
   if ! sudo rndc status >/dev/null 2>&1; then
     echo "❌ rndc не работи! Проверете конфигурацията."
     exit 1
