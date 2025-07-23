@@ -618,11 +618,11 @@ if [[ ! -f "$SETUP_ENV_FILE" ]]; then
   exit 1
 fi
 
-if grep -q '^SECURE_DNS_MODULE6A=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
-  echo "ℹ️ Модул 6A вече е изпълнен успешно. Пропускане..."
+if grep -q '^SECURE_DNS_MODULE6=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 6 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  echo "▶ Започва изпълнение на Модул 6A..."
+  echo "▶ Започва изпълнение на Модул 6..."
   echo ""
 
   # Проверка за TSIG ключ
@@ -671,9 +671,9 @@ else
   echo ""
 
   # Запис в setup.env
-  grep -q '^SECURE_DNS_MODULE6A=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE6A=.*|SECURE_DNS_MODULE6A=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE6A=✅" >> "$SETUP_ENV_FILE"
+  grep -q '^SECURE_DNS_MODULE6=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE6=.*|SECURE_DNS_MODULE6=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE6=✅" >> "$SETUP_ENV_FILE"
 
-  echo "✅ Модул 6A завърши успешно."
+  echo "✅ Модул 6 завърши успешно."
 fi
 echo ""
 echo ""
