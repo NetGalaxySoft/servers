@@ -294,19 +294,6 @@ echo ""
 echo ""
 
 
-
-
-
-
-
-
-
-
-
-
-exit 0
-
-
 # =====================================================================
 # [МОДУЛ 3] ACL И ОГРАНИЧЕНИЯ ПО IP
 # =====================================================================
@@ -314,10 +301,16 @@ echo "[3] ACL И ОГРАНИЧЕНИЯ ПО IP..."
 echo "-----------------------------------------------------------"
 echo ""
 
-if sudo grep -q '^SECURE_DNS_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+OPTIONS_FILE="/etc/bind/named.conf.options"
+
+if grep -q '^SECURE_DNS_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
+  echo "▶ Започва изпълнение на Модул 3..."
+  echo ""
 
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 1: Извличане на данни
@@ -327,19 +320,19 @@ else
     exit 1
   fi
 
-  # Основен IP на сървъра
-  SERVER_IP=$(hostname -I | awk '{print $1}')
+  if ! command -v dig &>/dev/null; then
+    echo "❌ Липсва командата dig. Инсталирайте пакет dnsutils."
+    exit 1
+  fi
 
-  # Опит за извличане от todo.modules
+  SERVER_IP=$(hostname -I | awk '{print $1}')
   SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
   DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
 
-  # Ако SERVER_FQDN е празен → fallback към hostname -f
   if [[ -z "$SERVER_FQDN" ]]; then
     SERVER_FQDN=$(hostname -f 2>/dev/null || echo "")
   fi
 
-  # Ако DNS_ROLE липсва → определяме по hostname (ns1 → primary, ns2 → secondary)
   if [[ -z "$DNS_ROLE" ]]; then
     if [[ "$SERVER_FQDN" =~ ^ns1\. ]]; then
       DNS_ROLE="primary"
@@ -363,7 +356,6 @@ else
     exit 1
   fi
 
-  # ✅ Проверка на IP адресите
   if ! [[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "❌ SERVER_IP ($SERVER_IP) не е валиден IPv4."
     exit 1
@@ -383,24 +375,23 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 2: Обновяване на named.conf.options
   # -------------------------------------------------------------------------------------
-  OPTIONS_FILE="/etc/bind/named.conf.options"
   if [[ ! -f "$OPTIONS_FILE" ]]; then
     echo "❌ Липсва $OPTIONS_FILE. Скриптът не може да продължи."
     exit 1
   fi
 
   echo "🔧 Добавяне на ACL 'trusted' и политики..."
-  sudo sed -i '/acl "trusted"/,/};/d' "$OPTIONS_FILE"
-  sudo sed -i "1i acl \"trusted\" {\n    $SERVER_IP;\n    $SECOND_DNS_IP;\n};\n" "$OPTIONS_FILE"
+  sed -i '/acl "trusted"/,/};/d' "$OPTIONS_FILE"
+  sed -i "1i acl \"trusted\" {\n    $SERVER_IP;\n    $SECOND_DNS_IP;\n};\n" "$OPTIONS_FILE"
 
-  sudo sed -i '/allow-transfer/d' "$OPTIONS_FILE"
-  sudo sed -i '/options {/,/};/ {
+  sed -i '/allow-transfer/d' "$OPTIONS_FILE"
+  sed -i '/options {/,/};/ {
     /^};/i\    allow-transfer { trusted; };
   }' "$OPTIONS_FILE"
 
   if [[ "$DNS_ROLE" == "primary" ]]; then
-    sudo sed -i '/also-notify/d' "$OPTIONS_FILE"
-    sudo sed -i '/options {/,/};/ {
+    sed -i '/also-notify/d' "$OPTIONS_FILE"
+    sed -i '/options {/,/};/ {
       /^};/i\    also-notify { '"$SECOND_DNS_IP"'; };
     }' "$OPTIONS_FILE"
   fi
@@ -412,14 +403,14 @@ else
   # СЕКЦИЯ 3: Проверка и рестарт
   # -------------------------------------------------------------------------------------
   echo "🔍 Проверка на синтаксиса..."
-  if ! sudo named-checkconf; then
+  if ! named-checkconf; then
     echo "❌ Грешка в конфигурацията след промени."
     exit 1
   fi
   echo "✅ Синтаксисът е валиден."
 
   echo "🔄 Рестартиране на Bind9..."
-  sudo systemctl restart bind9
+  systemctl restart bind9
   if ! systemctl is-active --quiet bind9; then
     echo "❌ Bind9 не стартира след промени."
     exit 1
@@ -430,17 +421,10 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 4: Запис в todo.modules
   # -------------------------------------------------------------------------------------
-  if [[ ! -f "$MODULES_FILE" ]]; then
-    sudo touch "$MODULES_FILE"
-  fi
-
+  touch "$MODULES_FILE"
   for VAR in SERVER_IP SECOND_DNS_IP SERVER_FQDN DNS_ROLE; do
     VALUE=$(eval echo "\$$VAR")
-    if sudo grep -q "^$VAR=" "$MODULES_FILE" 2>/dev/null; then
-      sudo sed -i "s|^$VAR=.*|$VAR=\"$VALUE\"|" "$MODULES_FILE"
-    else
-      echo "$VAR=\"$VALUE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
-    fi
+    grep -q "^$VAR=" "$MODULES_FILE" && sed -i "s|^$VAR=.*|$VAR=\"$VALUE\"|" "$MODULES_FILE" || echo "$VAR=\"$VALUE\"" >> "$MODULES_FILE"
   done
 
   echo "✅ Данните са записани в $MODULES_FILE."
@@ -449,16 +433,24 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 5: Запис на резултат
   # -------------------------------------------------------------------------------------
-  if sudo grep -q '^SECURE_DNS_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^SECURE_DNS_MODULE3=.*|SECURE_DNS_MODULE3=✅|' "$SETUP_ENV_FILE"
-  else
-    echo "SECURE_DNS_MODULE3=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  fi
+  grep -q '^SECURE_DNS_MODULE3=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE3=.*|SECURE_DNS_MODULE3=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE3=✅" >> "$SETUP_ENV_FILE"
 
   echo "✅ Модул 3 завърши успешно."
 fi
 echo ""
 echo ""
+
+
+
+
+
+
+
+
+
+
+
+exit 0
 
 
 # =====================================================================
