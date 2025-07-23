@@ -433,7 +433,7 @@ else
     exit 1
   fi
 
-  if [[ ! -d "$DNSSEC_KEYS_DIR" ]]; then
+  if ! sudo test -d "$DNSSEC_KEYS_DIR"; then
     echo "❌ Директорията за ключове ($DNSSEC_KEYS_DIR) липсва."
     echo "➡ Уверете се, че Модул 2 е изпълнен успешно."
     exit 1
