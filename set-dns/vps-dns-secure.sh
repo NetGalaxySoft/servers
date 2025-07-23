@@ -560,6 +560,17 @@ if grep -q '^SECURE_DNS_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
 else
   echo "SECURE_DNS_MODULE4=✅" >> "$SETUP_ENV_FILE"
 fi
+fi
+echo ""
+echo ""
+
+
+
+
+
+
+
+
 
 exit 0
 # =====================================================================
