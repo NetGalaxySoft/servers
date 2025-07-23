@@ -78,27 +78,30 @@ echo "[1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ..."
 echo "-----------------------------------------------------------"
 echo ""
 
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+
 # -------------------------------------------------------------------------------------
 # СЕКЦИЯ 1: Проверка за базова DNS конфигурация
 # -------------------------------------------------------------------------------------
-if [[ ! -f "$SETUP_ENV_FILE" ]] || ! sudo grep -q '^SETUP_VPS_DNS_STATUS=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+if [[ ! -f "$SETUP_ENV_FILE" ]] || ! grep -q '^SETUP_VPS_DNS_STATUS=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "🛑 Не е открита завършена базова DNS конфигурация."
   echo "ℹ️ Стартирайте първо скрипта vps-dns-qsetup.sh и опитайте отново."
   echo "🗑️ Премахване на скрипта."
-  [[ -f "$0" ]] && sudo rm -- "$0"
+  rm -- "$0"
   exit 1
 fi
 
 # Проверка дали защитната конфигурация вече е завършена
-if sudo grep -q '^SETUP_SECURE_DNS_STATUS=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+if grep -q '^SETUP_SECURE_DNS_STATUS=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "🛑 Скриптът вече е изпълнен (DNS сигурността е активирана)."
   echo "🗑️ Премахване на скрипта."
-  [[ -f "$0" ]] && sudo rm -- "$0"
+  rm -- "$0"
   exit 0
 fi
 
 # Проверка дали Модул 1 вече е изпълнен
-if sudo grep -q '^SECURE_DNS_MODULE1=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+if grep -q '^SECURE_DNS_MODULE1=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 1 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
@@ -149,6 +152,11 @@ else
     fi
 
     ACTUAL_IP=$(curl -s -4 ifconfig.me)
+    if [[ -z "$ACTUAL_IP" ]]; then
+      echo "❌ Неуспешно извличане на реален IP (curl ifconfig.me)."
+      exit 1
+    fi
+
     if [[ "$ACTUAL_IP" != "$SERVER_IP" ]]; then
       echo "🚫 Несъответствие! Въведеният IP не съвпада с реалния IP."
       read -p "🔁 Искате ли да опитате отново? [Enter за ДА, 'q' за изход]: " retry
@@ -178,33 +186,16 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 5: Запис на данните в todo.modules
   # -------------------------------------------------------------------------------------
-  if [[ ! -f "$MODULES_FILE" ]]; then
-    sudo touch "$MODULES_FILE"
-  fi
+  touch "$MODULES_FILE"
 
-  # SERVER_IP
-  if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
-    sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
-  else
-    echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
-  fi
-
-  # SERVER_FQDN
-  if sudo grep -q '^SERVER_FQDN=' "$MODULES_FILE" 2>/dev/null; then
-    sudo sed -i "s|^SERVER_FQDN=.*|SERVER_FQDN=\"$HOSTNAME_FQDN\"|" "$MODULES_FILE"
-  else
-    echo "SERVER_FQDN=\"$HOSTNAME_FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
-  fi
+  grep -q '^SERVER_IP=' "$MODULES_FILE" && sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE" || echo "SERVER_IP=\"$SERVER_IP\"" >> "$MODULES_FILE"
+  grep -q '^SERVER_FQDN=' "$MODULES_FILE" && sed -i "s|^SERVER_FQDN=.*|SERVER_FQDN=\"$HOSTNAME_FQDN\"|" "$MODULES_FILE" || echo "SERVER_FQDN=\"$HOSTNAME_FQDN\"" >> "$MODULES_FILE"
 
   echo "✅ Данните са записани в $MODULES_FILE."
   echo ""
 
   # ✅ Запис на резултат за Модул 1
-  if sudo grep -q '^SECURE_DNS_MODULE1=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^SECURE_DNS_MODULE1=.*|SECURE_DNS_MODULE1=✅|' "$SETUP_ENV_FILE"
-  else
-    echo "SECURE_DNS_MODULE1=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  fi
+  grep -q '^SECURE_DNS_MODULE1=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE1=.*|SECURE_DNS_MODULE1=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE1=✅" >> "$SETUP_ENV_FILE"
 
   echo "✅ Модул 1 завърши успешно."
   echo ""
@@ -212,6 +203,11 @@ fi
 echo ""
 echo ""
 
+
+
+
+
+exit 0
 
 # =====================================================================
 # [МОДУЛ 2] ПОДСИГУРЯВАНЕ НА БАЗОВИ ПОЛИТИКИ
