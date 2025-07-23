@@ -219,19 +219,19 @@ echo ""
   echo "DNSSEC_KEYS_DIR=\"$DNSSEC_DIR\""
   echo ""
 
-  # -------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------
 # СЕКЦИЯ 4: Генериране на ключовете
 # -------------------------------------------------------------------------------------
 echo "🔐 Генериране на KSK и ZSK за $DOMAIN..."
 
-# KSK (Key Signing Key)
-if ! sudo dnssec-keygen -a RSASHA256 -b 2048 -f KSK -n ZONE "$DOMAIN" -K "$DNSSEC_DIR"; then
+# Генериране на KSK (Key Signing Key)
+if ! sudo dnssec-keygen -a RSASHA256 -b 2048 -f KSK -n ZONE -K "$DNSSEC_DIR" "$DOMAIN"; then
   echo "❌ Грешка при генериране на KSK за $DOMAIN!"
   exit 1
 fi
 
-# ZSK (Zone Signing Key)
-if ! sudo dnssec-keygen -a RSASHA256 -b 1024 -n ZONE "$DOMAIN" -K "$DNSSEC_DIR"; then
+# Генериране на ZSK (Zone Signing Key)
+if ! sudo dnssec-keygen -a RSASHA256 -b 1024 -n ZONE -K "$DNSSEC_DIR" "$DOMAIN"; then
   echo "❌ Грешка при генериране на ZSK за $DOMAIN!"
   exit 1
 fi
