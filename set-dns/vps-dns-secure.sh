@@ -441,18 +441,6 @@ echo ""
 echo ""
 
 
-
-
-
-
-
-
-
-
-
-exit 0
-
-
 # =====================================================================
 # [МОДУЛ 4] ГЕНЕРИРАНЕ НА TSIG КЛЮЧ
 # =====================================================================
@@ -460,49 +448,58 @@ echo "[4] ГЕНЕРИРАНЕ НА TSIG КЛЮЧ..."
 echo "-----------------------------------------------------------"
 echo ""
 
-if sudo grep -q '^SECURE_DNS_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+KEYS_DIR="/etc/bind/keys"
+TSIG_KEY_FILE="$KEYS_DIR/tsig.key"
+CONF_LOCAL="/etc/bind/named.conf.local"
+
+if grep -q '^SECURE_DNS_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
+  echo "▶ Започва изпълнение на Модул 4..."
+  echo ""
+
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 1: Проверка и подготовка на директория за ключове
   # -------------------------------------------------------------------------------------
-  KEYS_DIR="/etc/bind/keys"
-  TSIG_KEY_FILE="$KEYS_DIR/tsig.key"
-
   if [[ ! -d "$KEYS_DIR" ]]; then
-    sudo mkdir -p "$KEYS_DIR"
-    sudo chown bind:bind "$KEYS_DIR"
-    sudo chmod 750 "$KEYS_DIR"
+    mkdir -p "$KEYS_DIR"
+    chown bind:bind "$KEYS_DIR"
+    chmod 750 "$KEYS_DIR"
     echo "✅ Директорията $KEYS_DIR е създадена."
+  else
+    echo "ℹ️ Директорията $KEYS_DIR вече съществува."
   fi
 
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 2: Генериране на TSIG ключ (hmac-sha256)
   # -------------------------------------------------------------------------------------
-  echo "🔐 Генериране на TSIG ключ (hmac-sha256)..."
-  if command -v tsig-keygen >/dev/null 2>&1; then
-    TSIG_KEY=$(tsig-keygen -a hmac-sha256 netgalaxy-key)
-    echo "$TSIG_KEY" | sudo tee "$TSIG_KEY_FILE" > /dev/null
-    sudo chown bind:bind "$TSIG_KEY_FILE"
-    sudo chmod 640 "$TSIG_KEY_FILE"
-    echo "✅ TSIG ключът е генериран и записан в $TSIG_KEY_FILE."
+  if [[ ! -f "$TSIG_KEY_FILE" ]]; then
+    echo "🔐 Генериране на TSIG ключ (hmac-sha256)..."
+    if command -v tsig-keygen >/dev/null 2>&1; then
+      tsig-keygen -a hmac-sha256 netgalaxy-key > "$TSIG_KEY_FILE"
+      chown bind:bind "$TSIG_KEY_FILE"
+      chmod 640 "$TSIG_KEY_FILE"
+      echo "✅ TSIG ключът е генериран и записан в $TSIG_KEY_FILE."
+    else
+      echo "❌ Липсва tsig-keygen! Инсталирайте пакета bind9-utils и опитайте отново."
+      exit 1
+    fi
   else
-    echo "❌ Липсва tsig-keygen! Инсталирайте пакета bind9-utils и опитайте отново."
-    exit 1
+    echo "ℹ️ TSIG ключът вече съществува в $TSIG_KEY_FILE."
   fi
 
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 3: Добавяне на ключа в named.conf.local
   # -------------------------------------------------------------------------------------
-  CONF_LOCAL="/etc/bind/named.conf.local"
   if [[ ! -f "$CONF_LOCAL" ]]; then
     echo "❌ Липсва $CONF_LOCAL. Скриптът не може да продължи."
     exit 1
   fi
 
   if ! grep -q "include \"$TSIG_KEY_FILE\"" "$CONF_LOCAL"; then
-    echo "include \"$TSIG_KEY_FILE\";" | sudo tee -a "$CONF_LOCAL" > /dev/null
+    echo "include \"$TSIG_KEY_FILE\";" >> "$CONF_LOCAL"
     echo "✅ TSIG ключът е включен в $CONF_LOCAL."
   else
     echo "ℹ️ TSIG ключът вече е добавен в $CONF_LOCAL."
@@ -512,14 +509,14 @@ else
   # СЕКЦИЯ 4: Проверка на синтаксиса и рестарт
   # -------------------------------------------------------------------------------------
   echo "🔍 Проверка на синтаксиса..."
-  if ! sudo named-checkconf; then
+  if ! named-checkconf; then
     echo "❌ Грешка в конфигурацията след добавяне на TSIG ключа."
     exit 1
   fi
   echo "✅ Синтаксисът е валиден."
 
   echo "🔄 Рестартиране на Bind9..."
-  sudo systemctl restart bind9
+  systemctl restart bind9
   if ! systemctl is-active --quiet bind9; then
     echo "❌ Bind9 не стартира след промени."
     exit 1
@@ -530,17 +527,23 @@ else
   # -------------------------------------------------------------------------------------
   # СЕКЦИЯ 5: Запис в setup.env
   # -------------------------------------------------------------------------------------
-  if sudo grep -q '^SECURE_DNS_MODULE4=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^SECURE_DNS_MODULE4=.*|SECURE_DNS_MODULE4=✅|' "$SETUP_ENV_FILE"
-  else
-    echo "SECURE_DNS_MODULE4=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-  fi
+  grep -q '^SECURE_DNS_MODULE4=' "$SETUP_ENV_FILE" && sed -i 's|^SECURE_DNS_MODULE4=.*|SECURE_DNS_MODULE4=✅|' "$SETUP_ENV_FILE" || echo "SECURE_DNS_MODULE4=✅" >> "$SETUP_ENV_FILE"
 
   echo "✅ Модул 4 завърши успешно."
 fi
 echo ""
 echo ""
 
+
+
+
+
+
+
+
+
+
+exit 0
 
 # =====================================================================
 # [МОДУЛ 5] ПРОВЕРКА И РЕСТАРТ
