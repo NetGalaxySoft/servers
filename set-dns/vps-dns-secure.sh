@@ -308,23 +308,6 @@ echo ""
 echo ""
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-exit 0
-
 # =====================================================================
 # [МОДУЛ 3] ACL И ОГРАНИЧЕНИЯ ПО IP
 # =====================================================================
@@ -347,7 +330,7 @@ else
   # СЕКЦИЯ 1: Извличане на данни
   # -------------------------------------------------------------------------------------
   if [[ ! -f "$MODULES_FILE" ]]; then
-    echo "❌ Липсва $MODULES_FILE. Скриптът не може да продължи."
+    echo "❌ Липсва $MODULES_FILE. Стартирайте Модул 1."
     exit 1
   fi
 
@@ -360,23 +343,6 @@ else
   SERVER_FQDN=$(grep '^SERVER_FQDN=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
   DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
 
-  if [[ -z "$SERVER_FQDN" ]]; then
-    SERVER_FQDN=$(hostname -f 2>/dev/null || echo "")
-  fi
-
-  if [[ -z "$DNS_ROLE" ]]; then
-    if [[ "$SERVER_FQDN" =~ ^ns1\. ]]; then
-      DNS_ROLE="primary"
-    elif [[ "$SERVER_FQDN" =~ ^ns[23]\. ]]; then
-      DNS_ROLE="secondary"
-    fi
-  fi
-
-  if [[ -z "$SERVER_FQDN" || -z "$DNS_ROLE" ]]; then
-    echo "❌ Липсват SERVER_FQDN или DNS_ROLE и не могат да се определят автоматично."
-    exit 1
-  fi
-
   DOMAIN=$(echo "$SERVER_FQDN" | cut -d '.' -f2-)
   SECOND_DNS_IP=$(dig +short ns2.$DOMAIN A | tail -n 1)
 
@@ -384,15 +350,6 @@ else
     echo "❌ Не може да се извлече IP за ns2.$DOMAIN."
     echo "➡ Добавете го ръчно в $MODULES_FILE:"
     echo "SECOND_DNS_IP=\"xxx.xxx.xxx.xxx\""
-    exit 1
-  fi
-
-  if ! [[ "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "❌ SERVER_IP ($SERVER_IP) не е валиден IPv4."
-    exit 1
-  fi
-  if ! [[ "$SECOND_DNS_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "❌ SECOND_DNS_IP ($SECOND_DNS_IP) не е валиден IPv4."
     exit 1
   fi
 
@@ -404,7 +361,7 @@ else
   echo ""
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 2: Обновяване на named.conf.options
+  # СЕКЦИЯ 2: ACL и allow-transfer
   # -------------------------------------------------------------------------------------
   if [[ ! -f "$OPTIONS_FILE" ]]; then
     echo "❌ Липсва $OPTIONS_FILE. Скриптът не може да продължи."
@@ -450,7 +407,7 @@ else
   echo ""
 
   # -------------------------------------------------------------------------------------
-  # СЕКЦИЯ 4: Запис в todo.modules
+  # СЕКЦИЯ 4: Запис на данни
   # -------------------------------------------------------------------------------------
   touch "$MODULES_FILE"
   for VAR in SERVER_IP SECOND_DNS_IP SERVER_FQDN DNS_ROLE; do
@@ -472,6 +429,19 @@ echo ""
 echo ""
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+exit 0
 # =====================================================================
 # [МОДУЛ 4] ГЕНЕРИРАНЕ НА TSIG КЛЮЧ
 # =====================================================================
