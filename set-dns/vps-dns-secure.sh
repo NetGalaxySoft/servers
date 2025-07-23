@@ -453,7 +453,7 @@ CONF_LOCAL="/etc/bind/named.conf.local"
 if grep -q '^SECURE_DNS_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
   echo ""
-fi
+else
 
 # Зареждане на ролята и данни
 DNS_ROLE=$(grep '^DNS_ROLE=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
