@@ -534,7 +534,6 @@ if sudo grep -q '^BASE_RESULT_MODULE7=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 7 вече е изпълнен успешно. Пропускане..."
 else
 
-echo "🔐 По съображения за сигурност, root достъпът чрез SSH ще бъде забранен."
 echo "✅ Ще бъде създаден таен потребител с root права за администриране на сървъра."
 echo ""
 
@@ -639,16 +638,6 @@ if ! id "$ADMIN_USER" &>/dev/null; then
     exit 1
   fi
 fi
-
-# === Забрана за root вход чрез SSH ===
-echo "🔒 Root достъпът чрез SSH ще бъде забранен..."
-if sudo grep -q "^PermitRootLogin" /etc/ssh/sshd_config; then
-  sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-else
-  echo "PermitRootLogin no" | sudo tee -a /etc/ssh/sshd_config > /dev/null
-fi
-sudo systemctl restart ssh
-echo "✅ Root достъпът чрез SSH е забранен."
 
 # ✅ Запис или обновяване на ADMIN_USER в todo.modules
 if sudo grep -q '^ADMIN_USER=' "$MODULES_FILE" 2>/dev/null; then
