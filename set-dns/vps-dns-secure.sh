@@ -716,6 +716,7 @@ else
 
   echo "✅ Модул 6 завърши успешно."
 fi
+fi
 echo ""
 echo ""
 
