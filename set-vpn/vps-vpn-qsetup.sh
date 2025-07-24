@@ -169,7 +169,6 @@ else
     echo "VPN_RESULT_MODULE1=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
   fi
 fi
-
 echo ""
 echo ""
 
@@ -225,7 +224,90 @@ else
 
   echo "✅ Модул 2 завърши успешно."
 fi
+echo ""
+echo ""
 
+
+# =====================================================================
+# [МОДУЛ 3] СЪЗДАВАНЕ НА ОСНОВЕН VPN ИНТЕРФЕЙС (wg0)
+# =====================================================================
+echo "[3] СЪЗДАВАНЕ НА ОСНОВЕН VPN ИНТЕРФЕЙС (wg0)..."
+echo "-----------------------------------------------------------"
+echo ""
+
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+WG_CONF="/etc/wireguard/wg0.conf"
+WG_PORT=51820
+WG_NETWORK="10.20.0.0/24"
+WG_SERVER_IP="10.20.0.1"
+
+# ✅ Проверка дали модулът вече е изпълнен
+if sudo grep -q '^VPN_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
+else
+  echo "▶ Започва изпълнение на Модул 3..."
+  echo ""
+
+  # ✅ Проверка дали интерфейсът вече съществува
+  if [[ -f "$WG_CONF" ]]; then
+    echo "ℹ️ Конфигурацията $WG_CONF вече съществува. Пропускане на създаването."
+  else
+    # ✅ Генериране на ключове за сървъра
+    echo "🔑 Генериране на ключове за WireGuard..."
+    SERVER_PRIVATE_KEY=$(wg genkey)
+    SERVER_PUBLIC_KEY=$(echo "$SERVER_PRIVATE_KEY" | wg pubkey)
+
+    # ✅ Създаване на конфигурационен файл
+    echo "🔧 Създаване на $WG_CONF..."
+    sudo bash -c "cat > $WG_CONF" <<EOF
+[Interface]
+Address = $WG_SERVER_IP/24
+ListenPort = $WG_PORT
+PrivateKey = $SERVER_PRIVATE_KEY
+SaveConfig = true
+PostUp = sysctl -w net.ipv4.ip_forward=1
+PostDown = sysctl -w net.ipv4.ip_forward=0
+EOF
+
+    sudo chmod 600 "$WG_CONF"
+    echo "✅ Конфигурацията на wg0 е създадена."
+  fi
+
+  # ✅ Активиране и стартиране на WireGuard интерфейса
+  echo "🔄 Активиране на WireGuard интерфейса wg0..."
+  sudo systemctl enable wg-quick@wg0
+  if sudo systemctl start wg-quick@wg0; then
+    echo "✅ Интерфейсът wg0 е активиран и стартиран."
+  else
+    echo "❌ Грешка при стартиране на wg0."
+    exit 1
+  fi
+  echo ""
+
+  # ✅ Запис в todo.modules
+  if [[ ! -f "$MODULES_FILE" ]]; then
+    sudo touch "$MODULES_FILE"
+  fi
+
+  for VAR in WG_SERVER_IP WG_PORT WG_NETWORK SERVER_PUBLIC_KEY; do
+    VALUE=$(eval echo "\$$VAR")
+    if sudo grep -q "^$VAR=" "$MODULES_FILE" 2>/dev/null; then
+      sudo sed -i "s|^$VAR=.*|$VAR=\"$VALUE\"|" "$MODULES_FILE"
+    else
+      echo "$VAR=\"$VALUE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    fi
+  done
+
+  # ✅ Запис на резултат за Модул 3
+  if sudo grep -q '^VPN_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^VPN_RESULT_MODULE3=.*|VPN_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "VPN_RESULT_MODULE3=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  fi
+
+  echo "✅ Модул 3 завърши успешно."
+fi
 echo ""
 echo ""
 
