@@ -229,86 +229,140 @@ echo ""
 
 
 # =====================================================================
-# [МОДУЛ 3] СЪЗДАВАНЕ НА ОСНОВЕН VPN ИНТЕРФЕЙС (wg0)
+# [МОДУЛ 3] КОНФИГУРАЦИЯ НА ОСНОВНИЯ VPN ИНТЕРФЕЙС (WG0)
 # =====================================================================
-echo "[3] СЪЗДАВАНЕ НА ОСНОВЕН VPN ИНТЕРФЕЙС (wg0)..."
+echo "[3] КОНФИГУРАЦИЯ НА ОСНОВНИЯ VPN ИНТЕРФЕЙС..."
 echo "-----------------------------------------------------------"
 echo ""
 
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
 WG_CONF="/etc/wireguard/wg0.conf"
-WG_PORT=51820
-WG_NETWORK="10.20.0.0/24"
-WG_SERVER_IP="10.20.0.1"
 
-# ✅ Проверка дали модулът вече е изпълнен
-if sudo grep -q '^VPN_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+# --- Проверка дали модулът вече е изпълнен ---
+if grep -q '^VPN_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
+  echo ""
 else
   echo "▶ Започва изпълнение на Модул 3..."
   echo ""
 
-  # ✅ Проверка дали интерфейсът вече съществува
-  if [[ -f "$WG_CONF" ]]; then
-    echo "ℹ️ Конфигурацията $WG_CONF вече съществува. Пропускане на създаването."
-  else
-    # ✅ Генериране на ключове за сървъра
-    echo "🔑 Генериране на ключове за WireGuard..."
-    SERVER_PRIVATE_KEY=$(wg genkey)
-    SERVER_PUBLIC_KEY=$(echo "$SERVER_PRIVATE_KEY" | wg pubkey)
-
-    # ✅ Създаване на конфигурационен файл
-    echo "🔧 Създаване на $WG_CONF..."
-    sudo bash -c "cat > $WG_CONF" <<EOF
-[Interface]
-Address = $WG_SERVER_IP/24
-ListenPort = $WG_PORT
-PrivateKey = $SERVER_PRIVATE_KEY
-SaveConfig = true
-PostUp = sysctl -w net.ipv4.ip_forward=1
-PostDown = sysctl -w net.ipv4.ip_forward=0
-EOF
-
-    sudo chmod 600 "$WG_CONF"
-    echo "✅ Конфигурацията на wg0 е създадена."
-  fi
-
-  # ✅ Активиране и стартиране на WireGuard интерфейса
-  echo "🔄 Активиране на WireGuard интерфейса wg0..."
-  sudo systemctl enable wg-quick@wg0
-  if sudo systemctl start wg-quick@wg0; then
-    echo "✅ Интерфейсът wg0 е активиран и стартиран."
-  else
-    echo "❌ Грешка при стартиране на wg0."
-    exit 1
-  fi
+  # ===========================================================
+  # СЕКЦИЯ 1: ДИАЛОГ С ОПЕРАТОРА (СЪБИРАНЕ НА ДАННИ)
+  # ===========================================================
+  # Извличане на IP на сървъра от todo.modules
+  SERVER_IP=$(grep '^SERVER_IP=' "$MODULES_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+  echo "ℹ️ Засечен IP на сървъра: $SERVER_IP"
   echo ""
 
-  # ✅ Запис в todo.modules
-  if [[ ! -f "$MODULES_FILE" ]]; then
-    sudo touch "$MODULES_FILE"
-  fi
-
-  for VAR in WG_SERVER_IP WG_PORT WG_NETWORK SERVER_PUBLIC_KEY; do
-    VALUE=$(eval echo "\$$VAR")
-    if sudo grep -q "^$VAR=" "$MODULES_FILE" 2>/dev/null; then
-      sudo sed -i "s|^$VAR=.*|$VAR=\"$VALUE\"|" "$MODULES_FILE"
+  # Въвеждане на VPN подмрежа
+  while true; do
+    read -p "🌐 Въведете VPN подмрежа (по подразбиране 10.20.0.0/24): " VPN_SUBNET
+    VPN_SUBNET=${VPN_SUBNET:-10.20.0.0/24}
+    if [[ "$VPN_SUBNET" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
+      break
     else
-      echo "$VAR=\"$VALUE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+      echo "❌ Невалиден формат. Използвайте CIDR, напр. 10.20.0.0/24."
     fi
   done
 
-  # ✅ Запис на резултат за Модул 3
-  if sudo grep -q '^VPN_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^VPN_RESULT_MODULE3=.*|VPN_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"
+  # Въвеждане на VPN адрес на сървъра
+  while true; do
+    read -p "🔑 Въведете VPN IP на сървъра (по подразбиране 10.20.0.1): " VPN_SERVER_IP
+    VPN_SERVER_IP=${VPN_SERVER_IP:-10.20.0.1}
+    if [[ "$VPN_SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+.[0-9]+$ ]]; then
+      break
+    else
+      echo "❌ Невалиден IP адрес. Пример: 10.20.0.1"
+    fi
+  done
+
+  # Въвеждане на порт
+  while true; do
+    read -p "📡 Въведете порт за WireGuard (по подразбиране 51820): " WG_PORT
+    WG_PORT=${WG_PORT:-51820}
+    if [[ "$WG_PORT" =~ ^[0-9]+$ && "$WG_PORT" -ge 1024 && "$WG_PORT" -le 65535 ]]; then
+      break
+    else
+      echo "❌ Невалиден порт. Допустим диапазон: 1024-65535."
+    fi
+  done
+
+  # Потвърждение
+  echo ""
+  echo "Проверете въведените данни:"
+  echo "---------------------------------"
+  echo "Публичен IP на сървъра: $SERVER_IP"
+  echo "VPN подмрежа:          $VPN_SUBNET"
+  echo "VPN IP на сървъра:     $VPN_SERVER_IP"
+  echo "WireGuard порт:        $WG_PORT"
+  echo "---------------------------------"
+  read -p "✅ Потвърждавате ли? (y/n): " confirm
+  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    echo "❎ Скриптът е прекратен от потребителя."
+    exit 0
+  fi
+
+  # Запис на данните в todo.modules
+  for VAR in VPN_SUBNET VPN_SERVER_IP WG_PORT; do
+    VALUE=$(eval echo "\$$VAR")
+    if grep -q "^$VAR=" "$MODULES_FILE" 2>/dev/null; then
+      sed -i "s|^$VAR=.*|$VAR=\"$VALUE\"|" "$MODULES_FILE"
+    else
+      echo "$VAR=\"$VALUE\"" >> "$MODULES_FILE"
+    fi
+  done
+
+  # ===========================================================
+  # СЕКЦИЯ 2: ИЗПЪЛНЕНИЕ
+  # ===========================================================
+  echo ""
+  echo "🔍 Инсталация и конфигурация на WireGuard..."
+  
+  # Инсталация
+  if ! command -v wg &>/dev/null; then
+    apt update && apt install -y wireguard wireguard-tools
+  fi
+
+  # Генериране на ключове
+  SERVER_PRIVATE_KEY=$(wg genkey)
+  SERVER_PUBLIC_KEY=$(echo "$SERVER_PRIVATE_KEY" | wg pubkey)
+
+  # Създаване на конфигурация
+  cat <<EOF > "$WG_CONF"
+[Interface]
+Address = $VPN_SERVER_IP/24
+ListenPort = $WG_PORT
+PrivateKey = $SERVER_PRIVATE_KEY
+
+PostUp = sysctl -w net.ipv4.ip_forward=1
+PostDown = sysctl -w net.ipv4.ip_forward=0
+SaveConfig = true
+EOF
+
+  chmod 600 "$WG_CONF"
+
+  # Активиране
+  systemctl enable --now wg-quick@wg0
+
+  if systemctl is-active --quiet wg-quick@wg0; then
+    echo "✅ WireGuard е активен."
   else
-    echo "VPN_RESULT_MODULE3=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "❌ Грешка при стартиране на WireGuard."
+    exit 1
+  fi
+
+  # Запис в setup.env
+  if grep -q '^VPN_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sed -i 's|^VPN_RESULT_MODULE3=.*|VPN_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "VPN_RESULT_MODULE3=✅" >> "$SETUP_ENV_FILE"
   fi
 
   echo "✅ Модул 3 завърши успешно."
 fi
 echo ""
 echo ""
+
 
 exit 0
