@@ -467,6 +467,13 @@ else
   echo "scp root@$SERVER_IP:$CLIENT_CONF ."
 fi
 echo ""
+echo "▶ Алтернативен вариант с SSH alias:"
+if [[ -f "$CLIENTS_DIR/$CLIENT_NAME.png" ]]; then
+  echo "scp <alias>:$CLIENT_CONF . && scp <alias>:$CLIENTS_DIR/$CLIENT_NAME.png ."
+else
+  echo "scp <alias>:$CLIENT_CONF ."
+fi
+echo ""
 echo "📌 Използвайте .conf файла за WireGuard клиент или импортирайте QR кода."
 echo ""
 
