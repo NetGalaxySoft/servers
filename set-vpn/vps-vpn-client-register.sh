@@ -219,7 +219,6 @@ for i in {1..5}; do
   echo -n "."
   sleep 0.3
 done
-echo ""
 
 # ✅ Функция за проверка дали IP е в подмрежата
 function ip_in_subnet() {
