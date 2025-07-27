@@ -194,6 +194,16 @@ echo ""
 
 WG_CONF="/etc/wireguard/wg0.conf"
 
+# ✅ Функция за анимация с точки (добавена тук за да няма грешка)
+animate_dots() {
+  local speed=$1
+  while true; do
+    printf "."
+    sleep "$speed"
+    printf "" >&2
+  done
+}
+
 # ✅ Определяне на публичния IP на сървъра
 SERVER_IP=$(curl -s -4 ifconfig.me)
 if [[ -z "$SERVER_IP" ]]; then
