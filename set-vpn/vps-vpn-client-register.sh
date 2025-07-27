@@ -452,7 +452,7 @@ echo -e "👤 \e[1;36mИме на клиента:\e[0m       $CLIENT_NAME"
 echo -e "🌐 \e[1;36mVPN IP адрес:\e[0m         $CLIENT_IP"
 echo -e "📄 \e[1;36mКонфигурация:\e[0m         $CLIENT_CONF"
 if command -v qrencode >/dev/null 2>&1; then
-  echo -e "📱 \e[1;36mQR код:\e[0m                $CLIENTS_DIR/$CLIENT_NAME.png"
+  echo -e "📱 \e[1;36mQR код:\e[0m               $CLIENTS_DIR/$CLIENT_NAME.png"
 else
   echo -e "📱 \e[1;36mQR код:\e[0m                (Не е генериран)"
 fi
