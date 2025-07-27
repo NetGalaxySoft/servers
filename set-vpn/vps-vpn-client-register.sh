@@ -83,13 +83,13 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # ✅ Проверка за успешна инсталация на VPN (setup.env)
-if ! grep -q '^SETUP_VPS_VPN_STATUS=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+if ! sudo grep -q '^SETUP_VPS_VPN_STATUS=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "❌ VPN сървърът не е конфигуриран напълно. Стартирайте vps-vpn-qsetup.sh преди този скрипт."
   exit 1
 fi
 
 # ✅ Проверка за активен WireGuard интерфейс
-if ! systemctl is-active --quiet "wg-quick@$WG_INTERFACE"; then
+if ! sudo systemctl is-active --quiet "wg-quick@$WG_INTERFACE"; then
   echo "❌ WireGuard интерфейсът ($WG_INTERFACE) не е активен. Стартирайте го ръчно или проверете конфигурацията."
   exit 1
 fi
@@ -107,12 +107,12 @@ if [[ ! -f "$WG_CONF" ]]; then
 fi
 
 # ✅ Създаване на директория за клиенти, ако липсва
-mkdir -p "$CLIENTS_DIR"
-chmod 700 "$CLIENTS_DIR"
+sudo mkdir -p "$CLIENTS_DIR"
+sudo chmod 700 "$CLIENTS_DIR"
 
 echo "✅ Проверките са завършени успешно."
 echo ""
-echo ""
+
 
 # =====================================================================
 # [2] Въвеждане на данни за клиента
