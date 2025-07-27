@@ -215,7 +215,7 @@ SUBNET_MASK=$(echo "$VPN_SUBNET" | cut -d'/' -f2)
 echo "ℹ️ VPN подмрежа: $VPN_SUBNET"
 
 # ✅ Допълнителна анимация: точки (имитация на обработка)
-for i in {1..16}; do
+for i in {1..40}; do
   echo -n "."
   sleep 0.3
 done
