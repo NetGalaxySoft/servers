@@ -198,13 +198,27 @@ WG_CONF="/etc/wireguard/wg0.conf"
 # ✅ Извличане на IP на сървъра
 SERVER_IP=$(sudo grep '^SERVER_IP=' "$SETUP_ENV_FILE" | awk -F'=' '{print $2}' | tr -d '"')
 
-# ✅ Извличане на VPN подмрежа от wg0.conf (пример: 10.20.0.1/24)
+# ✅ Извличане на VPN подмрежата от wg0.conf (пример: 10.20.0.1/24)
 VPN_SUBNET=$(sudo grep '^Address' "$WG_CONF" | awk '{print $3}' | head -n 1)
 SUBNET_IP=$(echo "$VPN_SUBNET" | cut -d'/' -f1)
 SUBNET_MASK=$(echo "$VPN_SUBNET" | cut -d'/' -f2)
 
 echo "ℹ️ VPN подмрежа: $VPN_SUBNET"
 echo ""
+
+# ✅ Функция за проверка дали IP е в подмрежата
+function ip_in_subnet() {
+    local ip=$1
+    local network=$2
+    local maskbits=$3
+    local IFS=.
+    read -r i1 i2 i3 i4 <<< "$ip"
+    read -r n1 n2 n3 n4 <<< "$network"
+    local ip_dec=$(( (i1<<24) + (i2<<16) + (i3<<8) + i4 ))
+    local net_dec=$(( (n1<<24) + (n2<<16) + (n3<<8) + n4 ))
+    local mask=$(( 0xFFFFFFFF << (32 - maskbits) & 0xFFFFFFFF ))
+    [[ $((ip_dec & mask)) -eq $((net_dec & mask)) ]]
+}
 
 # ✅ Функция за конвертиране IP -> число
 function ip_to_dec() {
