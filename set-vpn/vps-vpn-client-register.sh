@@ -134,8 +134,8 @@ while true; do
   fi
 
   # ✅ Проверка за дължина
-  if (( ${#CLIENT_NAME} < 3 || ${#CLIENT_NAME} > 32 )); then
-    echo "❌ Дължината трябва да е между 3 и 32 символа."
+  if (( ${#CLIENT_NAME} < 3 || ${#CLIENT_NAME} > 15 )); then
+    echo "❌ Дължината трябва да е между 3 и 15 символа."
     continue
   fi
 
