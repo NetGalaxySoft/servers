@@ -198,6 +198,21 @@ WG_CONF="/etc/wireguard/wg0.conf"
 # ✅ Извличане на IP на сървъра
 SERVER_IP=$(sudo grep '^SERVER_IP=' "$SETUP_ENV_FILE" | awk -F'=' '{print $2}' | tr -d '"')
 
+# ✅ Симулирано търсене на VPN подмрежата с анимация
+spinner="/-\|"
+echo -n "🔍 Откриване на VPN подмрежата "
+for i in {1..8}; do
+  printf "\b${spinner:i%4:1}"
+  sleep 0.2
+done
+
+echo -ne "\b" # изтрива курсора
+for i in {1..5}; do
+  echo -n "."
+  sleep 0.3
+done
+echo ""
+
 # ✅ Извличане на VPN подмрежата от wg0.conf (пример: 10.20.0.1/24)
 VPN_SUBNET=$(sudo grep '^Address' "$WG_CONF" | awk '{print $3}' | head -n 1)
 SUBNET_IP=$(echo "$VPN_SUBNET" | cut -d'/' -f1)
