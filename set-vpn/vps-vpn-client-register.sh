@@ -209,9 +209,9 @@ animate_dots() {
   done
 }
 
-# ===============================
+# ----------------------------------------
 # 🔍 АНИМАЦИЯ: Извличане на VPN подмрежата
-# ===============================
+# ----------------------------------------
 echo -ne "\e[36m🔍 Извличане на VPN подмрежата\e[0m"
 animate_dots 0.3 &
 ANIM_PID=$!
@@ -260,9 +260,9 @@ NET_DEC=$(ip_to_dec "$SUBNET_IP")
 START_IP=$((NET_DEC + 2))  # Прескачаме мрежовия адрес и IP на сървъра
 END_IP=$((NET_DEC + (1 << (32 - SUBNET_MASK)) - 2))
 
-# ===============================
+# ---------------------------------
 # 🎯 АНИМАЦИЯ: Избор на свободен IP
-# ===============================
+# ---------------------------------
 echo -n "🎯 Избор на свободен IP"
 animate_dots 0.2 &
 ANIM_PID=$!
@@ -334,22 +334,53 @@ echo ""
 echo ""
 
 
-exit 0
 # =====================================================================
-# [3] Генериране на ключове и конфигурация
+# [МОДУЛ 4] ГЕНЕРИРАНЕ НА КЛЮЧОВЕ И КОНФИГУРАЦИЯ ЗА КЛИЕНТА
 # =====================================================================
 
-echo "🔐 Генериране на ключове..."
+CLIENTS_DIR="/etc/wireguard/clients"
+CLIENT_CONF="$CLIENTS_DIR/$CLIENT_NAME.conf"
+
+# ✅ Проверка дали клиентът вече съществува
+if [[ -f "$CLIENT_CONF" ]]; then
+  echo "⚠️ Клиент с име '$CLIENT_NAME' вече съществува."
+  read -p "Искате ли да го презапишете? (y/n): " overwrite
+  if [[ ! "$overwrite" =~ ^[Yy]$ ]]; then
+    echo "❌ Операцията е прекратена."
+    exit 0
+  fi
+
+  echo "ℹ️ Изтриване на старата конфигурация..."
+  sudo rm -f "$CLIENT_CONF"
+fi
+
+# ✅ Премахване на стария блок от wg0.conf (ако съществува)
+if sudo grep -q "# $CLIENT_NAME START" "$WG_CONF"; then
+  echo "ℹ️ Премахване на стария запис от wg0.conf..."
+  sudo sed -i "/# $CLIENT_NAME START/,/# $CLIENT_NAME END/d" "$WG_CONF"
+fi
+
+# ✅ Генериране на ключове за клиента
+echo -n "🔑 Генериране на ключове"
+animate_dots 0.2 &
+ANIM_PID=$!
+
 CLIENT_PRIVATE_KEY=$(wg genkey)
 CLIENT_PUBLIC_KEY=$(echo "$CLIENT_PRIVATE_KEY" | wg pubkey)
-SERVER_PUBLIC_KEY=$(grep -m 1 'PrivateKey' "$WG_CONF" | awk '{print $3}' | wg pubkey)
 
-SERVER_IP=$(grep '^Address' "$WG_CONF" | awk '{print $3}' | cut -d'/' -f1)
-WG_PORT=$(grep '^ListenPort' "$WG_CONF" | awk '{print $3}')
-ENDPOINT=$(grep '^SERVER_IP=' "$SETUP_ENV_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+kill $ANIM_PID 2>/dev/null
+wait $ANIM_PID 2>/dev/null
+echo ""
 
-# ✅ Създаване на клиентската конфигурация
-cat <<EOF > "$CLIENT_CONF"
+# ✅ Извличане на сървърния публичен ключ и порт
+SERVER_PRIVATE_KEY=$(sudo grep '^PrivateKey' "$WG_CONF" | awk '{print $3}')
+SERVER_PUBLIC_KEY=$(echo "$SERVER_PRIVATE_KEY" | wg pubkey)
+WG_PORT=$(sudo grep '^ListenPort' "$WG_CONF" | awk '{print $3}')
+
+# ✅ Създаване на клиентска конфигурация
+echo "📄 Създаване на конфигурация за клиента: $CLIENT_NAME"
+
+cat <<EOF | sudo tee "$CLIENT_CONF" > /dev/null
 [Interface]
 PrivateKey = $CLIENT_PRIVATE_KEY
 Address = $CLIENT_IP/32
@@ -357,13 +388,51 @@ DNS = 1.1.1.1
 
 [Peer]
 PublicKey = $SERVER_PUBLIC_KEY
-Endpoint = $ENDPOINT:$WG_PORT
+Endpoint = $SERVER_IP:$WG_PORT
 AllowedIPs = $ALLOWED_IPS
+PersistentKeepalive = 25
 EOF
 
-chmod 600 "$CLIENT_CONF"
-echo "✅ Конфигурацията на клиента е създадена: $CLIENT_CONF"
+sudo chmod 600 "$CLIENT_CONF"
+
+# ✅ Добавяне на клиента в сървърната конфигурация (с маркери)
+{
+  echo "# $CLIENT_NAME START"
+  echo "[Peer]"
+  echo "PublicKey = $CLIENT_PUBLIC_KEY"
+  echo "AllowedIPs = $CLIENT_IP/32"
+  echo "# $CLIENT_NAME END"
+} | sudo tee -a "$WG_CONF" > /dev/null
+
+# ✅ Потвърждение за рестартиране
+read -p "✅ Клиентът е добавен. Рестартираме ли WireGuard сега? (y/n): " confirm
+if [[ "$confirm" =~ ^[Yy]$ ]]; then
+  sudo systemctl restart wg-quick@wg0
+  echo "✅ WireGuard е рестартиран успешно."
+else
+  echo "ℹ️ WireGuard не е рестартиран. Направете го ръчно по-късно."
+fi
+
+# ✅ Генериране на QR код
+if command -v qrencode >/dev/null 2>&1; then
+  echo "📱 Генериране на QR код за мобилен импорт..."
+  qrencode -t ansiutf8 < "$CLIENT_CONF"
+
+  # ✅ Запис и като PNG файл
+  sudo qrencode -o "$CLIENTS_DIR/$CLIENT_NAME.png" < "$CLIENT_CONF"
+  echo "✅ QR кодът е записан в $CLIENTS_DIR/$CLIENT_NAME.png"
+else
+  echo "⚠️ qrencode не е наличен. Пропускане на QR код."
+fi
+
 echo ""
+echo "✅ Конфигурацията е готова: $CLIENT_CONF"
+
+echo ""
+echo ""
+
+
+exit 0
 
 # =====================================================================
 # [4] Добавяне на клиента в wg0.conf
