@@ -398,12 +398,12 @@ sudo chmod 600 "$CLIENT_CONF"
   echo "# $CLIENT_NAME END"
 } | sudo tee -a "$WG_CONF" > /dev/null
 
-# ✅ Проверка за валидност на конфигурацията и рестарт
+# ✅ Проверка на конфигурацията чрез wg-quick strip (валидира синтаксиса)
 echo -n "🔍 Проверка на конфигурацията"
 animate_dots 0.3 &
 ANIM_PID=$!
 
-if sudo wg-quick check wg0; then
+if sudo wg-quick strip wg0 >/dev/null 2>&1; then
   kill $ANIM_PID 2>/dev/null
   wait $ANIM_PID 2>/dev/null
   echo ""
