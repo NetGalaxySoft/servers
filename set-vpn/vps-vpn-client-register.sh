@@ -177,6 +177,79 @@ sudo chmod 700 "$CLIENT_DIR"
 echo "✅ Името е валидирано: $CLIENT_NAME"
 echo ""
 
+
+# =====================================================================
+# [МОДУЛ 3] ВЪВЕЖДАНЕ НА IP АДРЕС ЗА КЛИЕНТА
+# =====================================================================
+
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+WG_CONF="/etc/wireguard/wg0.conf"
+
+# ✅ Извличане на IP на сървъра
+SERVER_IP=$(sudo grep '^SERVER_IP=' "$SETUP_ENV_FILE" | awk -F'=' '{print $2}' | tr -d '"')
+
+# ✅ Извличане на подмрежата от wg0.conf
+VPN_SUBNET=$(sudo grep '^Address' "$WG_CONF" | awk '{print $3}' | head -n 1)
+SUBNET_IP=$(echo "$VPN_SUBNET" | cut -d'/' -f1)
+SUBNET_MASK=$(echo "$VPN_SUBNET" | cut -d'/' -f2)
+
+echo "ℹ️ VPN подмрежа: $VPN_SUBNET"
+echo ""
+
+# ✅ Функция за проверка дали IP е в подмрежата
+function ip_in_subnet() {
+    local ip=$1
+    local network=$2
+    local maskbits=$3
+    local IFS=.
+    read -r i1 i2 i3 i4 <<< "$ip"
+    read -r n1 n2 n3 n4 <<< "$network"
+    local ip_dec=$(( (i1<<24) + (i2<<16) + (i3<<8) + i4 ))
+    local net_dec=$(( (n1<<24) + (n2<<16) + (n3<<8) + n4 ))
+    local mask=$(( 0xFFFFFFFF << (32 - maskbits) & 0xFFFFFFFF ))
+    [[ $((ip_dec & mask)) -eq $((net_dec & mask)) ]]
+}
+
+# ✅ Въвеждане и проверка на IP адреса на клиента
+while true; do
+  read -p "🌐 Въведете VPN IP за клиента (пример: 10.20.0.2): " CLIENT_IP
+
+  # Проверка за валиден IPv4 формат
+  if [[ ! "$CLIENT_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "❌ Невалиден IP адрес. Формат: 10.20.0.X"
+    continue
+  fi
+
+  # Проверка дали не е IP на сървъра
+  if [[ "$CLIENT_IP" == "$SERVER_IP" || "$CLIENT_IP" == "$SUBNET_IP" ]]; then
+    echo "❌ Този IP съвпада с IP на сървъра. Изберете друг."
+    continue
+  fi
+
+  # Проверка дали IP е в мрежата
+  if ! ip_in_subnet "$CLIENT_IP" "$SUBNET_IP" "$SUBNET_MASK"; then
+    echo "❌ IP адресът не е в подмрежата $VPN_SUBNET."
+    continue
+  fi
+
+  # Проверка дали IP вече се използва (в wg0.conf)
+  if sudo grep -q "$CLIENT_IP/32" "$WG_CONF"; then
+    echo "❌ IP адресът вече се използва от друг клиент."
+    continue
+  fi
+
+  break
+done
+
+# ✅ Въвеждане на Allowed IPs
+read -p "📡 Въведете Allowed IPs (по подразбиране 0.0.0.0/0): " ALLOWED_IPS
+ALLOWED_IPS=${ALLOWED_IPS:-0.0.0.0/0}
+
+echo ""
+echo "✅ IP адресът е валидиран: $CLIENT_IP"
+echo "✅ Allowed IPs: $ALLOWED_IPS"
+echo ""
+
 exit 0
 # =====================================================================
 # [3] Генериране на ключове и конфигурация
