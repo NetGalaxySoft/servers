@@ -1024,6 +1024,25 @@ while true; do
           sudo rm -- "$0"
         fi
 
+        # --- ЗАЩИТА: НЕ ИЗТРИВАЙ /etc/netgalaxy И setup.env ---
+        # Създаване на маркер и резервно копие; фиксиране на права и собственик.
+        sudo mkdir -p /etc/netgalaxy /var/backups/netgalaxy
+        sudo touch /etc/netgalaxy/.nodelete
+
+        # Резервно копие на setup.env (само ако има промяна)
+        if ! cmp -s /etc/netgalaxy/setup.env /var/backups/netgalaxy/setup.env 2>/dev/null; then
+          sudo cp -a /etc/netgalaxy/setup.env /var/backups/netgalaxy/setup.env
+        fi
+
+        # Коректни права и собственост
+        sudo chown root:root /etc/netgalaxy /etc/netgalaxy/setup.env /etc/netgalaxy/.nodelete
+        sudo chmod 755 /etc/netgalaxy
+        sudo chmod 644 /etc/netgalaxy/setup.env
+        sudo chmod 444 /etc/netgalaxy/.nodelete
+
+        # ВАЖНО: Скриптът не трябва никога да изтрива /etc/netgalaxy или setup.env.
+        # Изтрива се само за todo.modules и самия скрипт.
+        
         echo "🔄 Рестартиране на системата след 3 секунди..."
         sleep 3
         sudo reboot
