@@ -155,6 +155,16 @@ else
     fi
   done
 
+  # ✅ Временно премахване на забраната за промяна/изтриване
+  if [[ -d "$NETGALAXY_DIR" ]]; then
+    sudo chown root:root "$NETGALAXY_DIR" "$SETUP_ENV_FILE" "$NETGALAXY_DIR/.nodelete" 2>/dev/null
+    sudo chmod 755 "$NETGALAXY_DIR" 2>/dev/null
+    sudo chmod 644 "$SETUP_ENV_FILE" 2>/dev/null
+    sudo chmod 644 "$NETGALAXY_DIR/.nodelete" 2>/dev/null
+    sudo chattr -i "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true
+    sudo chattr -i "$MODULES_FILE" 2>/dev/null || true
+  fi
+
   # ✅ Запис или обновяване на SERVER_IP в todo.modules
   if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
     sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
