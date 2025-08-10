@@ -1040,6 +1040,12 @@ while true; do
         sudo chmod 644 /etc/netgalaxy/setup.env
         sudo chmod 444 /etc/netgalaxy/.nodelete
 
+        # Реална защита от триене/редакция (ако е наличен chattr)
+        if command -v chattr >/dev/null 2>&1; then
+          sudo chattr +i /etc/netgalaxy/setup.env 2>/dev/null || true
+          sudo chattr +i /etc/netgalaxy/.nodelete 2>/dev/null || true
+        fi
+
         # ВАЖНО: Скриптът не трябва никога да изтрива /etc/netgalaxy или setup.env.
         # Изтрива се само за todo.modules и самия скрипт.
         
