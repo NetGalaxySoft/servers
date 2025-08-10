@@ -155,15 +155,18 @@ else
     fi
   done
 
-  # ✅ Временно премахване на забраната за промяна/изтриване
-  if [[ -d "$NETGALAXY_DIR" ]]; then
-    sudo chown root:root "$NETGALAXY_DIR" "$SETUP_ENV_FILE" "$NETGALAXY_DIR/.nodelete" 2>/dev/null
-    sudo chmod 755 "$NETGALAXY_DIR" 2>/dev/null
-    sudo chmod 644 "$SETUP_ENV_FILE" 2>/dev/null
-    sudo chmod 644 "$NETGALAXY_DIR/.nodelete" 2>/dev/null
-    sudo chattr -i "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true
-    sudo chattr -i "$MODULES_FILE" 2>/dev/null || true
+  # ✅ Временно премахване на immutable
+  if command -v chattr >/dev/null 2>&1; then
+    [ -f "$SETUP_ENV_FILE" ] && sudo chattr -i "$SETUP_ENV_FILE" 2>/dev/null || true
+    [ -f "$NETGALAXY_DIR/.nodelete" ] && sudo chattr -i "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true
+    # ако някога си слагал +i и на директорията:
+    [ -d "$NETGALAXY_DIR" ] && sudo chattr -i "$NETGALAXY_DIR" 2>/dev/null || true
   fi
+
+  # (по желание) възстанови права/собственост след сваляне на immutable
+  [ -d "$NETGALAXY_DIR" ] && sudo chmod 755 "$NETGALAXY_DIR" && sudo chown root:root "$NETGALAXY_DIR"
+  [ -f "$SETUP_ENV_FILE" ] && sudo chmod 644 "$SETUP_ENV_FILE" && sudo chown root:root "$SETUP_ENV_FILE"
+  [ -f "$NETGALAXY_DIR/.nodelete" ] && sudo chmod 444 "$NETGALAXY_DIR/.nodelete" && sudo chown root:root "$NETGALAXY_DIR/.nodelete"
 
   # ✅ Запис или обновяване на SERVER_IP в todo.modules
   if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
@@ -471,6 +474,21 @@ sudo touch /etc/netgalaxy/.nodelete
 if ! cmp -s /etc/netgalaxy/setup.env /var/backups/netgalaxy/setup.env 2>/dev/null; then
   sudo cp -a /etc/netgalaxy/setup.env /var/backups/netgalaxy/setup.env
 fi
+
+# Коректни права и собственост
+sudo chown root:root /etc/netgalaxy /etc/netgalaxy/setup.env /etc/netgalaxy/.nodelete
+sudo chmod 755 /etc/netgalaxy
+sudo chmod 644 /etc/netgalaxy/setup.env
+sudo chmod 444 /etc/netgalaxy/.nodelete
+
+# Реална защита от триене/редакция (ако е наличен chattr)
+if command -v chattr >/dev/null 2>&1; then
+  sudo chattr +i /etc/netgalaxy/setup.env 2>/dev/null || true
+  sudo chattr +i /etc/netgalaxy/.nodelete 2>/dev/null || true
+fi
+
+# ВАЖНО: Скриптът не трябва никога да изтрива /etc/netgalaxy или setup.env.
+# Изтрива се само за todo.modules и самия скрипт.
 
 if [[ -f "$0" ]]; then
   echo "🗑️ Премахване на скрипта..."
