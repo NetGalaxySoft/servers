@@ -348,21 +348,22 @@ echo ""
     echo "MON_RESULT_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
 fi
-
 echo ""
 echo ""
 
 
 # =====================================================================
-# [МОДУЛ 3] Системни ъпдейти, ssh твърдяване, UFW
+# [МОДУЛ 3] Системни ъпдейти, SSH твърдяване, UFW
 # =====================================================================
-log ""
-log "=============================================="
 log "[3] СИСТЕМНИ НАСТРОЙКИ: ъпдейти, SSH, UFW..."
 log "=============================================="
 log ""
 
-if ! already_done "M2.sys"; then
+# Проверка дали модулът вече е изпълнен
+if sudo grep -q '^MON_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
   # Ъпдейти
   sudo apt-get update -y
   sudo DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y
@@ -391,15 +392,18 @@ if ! already_done "M2.sys"; then
   sudo ufw allow 9115/tcp    # blackbox_exporter
   sudo ufw --force enable
 
-  stamp "M2.sys"
-  mark_success "MONHUB_MODULE2"
-  ok "Модул 2 завърши."
-else
-  warn "Модул 2 вече е изпълнен. Пропускане."
+  # ✅ Запис на резултат само при успешен запис + показване в терминала
+  if sudo grep -q '^MON_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    if sudo sed -i 's|^MON_RESULT_MODULE3=.*|MON_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"; then
+      echo "MON_RESULT_MODULE3=✅"
+    fi
+  else
+    echo "MON_RESULT_MODULE3=✅" | sudo tee -a "$SETUP_ENV_FILE"
+  fi
+
 fi
-
-
-
+echo ""
+echo ""
 
 
 
