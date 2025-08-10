@@ -174,10 +174,14 @@ else
 
   # ✅ Запис на резултат за Модул 1
   if sudo grep -q '^VPN_RESULT_MODULE1=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^VPN_RESULT_MODULE1=.*|VPN_RESULT_MODULE1=✅|' "$SETUP_ENV_FILE"
+    if sudo sed -i 's|^VPN_RESULT_MODULE1=.*|VPN_RESULT_MODULE1=✅|' "$SETUP_ENV_FILE"; then
+      echo "VPN_RESULT_MODULE1=✅"
+    fi
   else
-    echo "VPN_RESULT_MODULE1=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "VPN_RESULT_MODULE1=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
+  echo "✅ Модул 1 завърши успешно."
+  
 fi
 echo ""
 echo ""
@@ -236,12 +240,14 @@ else
 
   # ✅ Запис на резултат за Модул 2
   if sudo grep -q '^VPN_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^VPN_RESULT_MODULE2=.*|VPN_RESULT_MODULE2=✅|' "$SETUP_ENV_FILE"
+    if sudo sed -i 's|^VPN_RESULT_MODULE2=.*|VPN_RESULT_MODULE2=✅|' "$SETUP_ENV_FILE"; then
+      echo "VPN_RESULT_MODULE2=✅"
+    fi
   else
-    echo "VPN_RESULT_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "VPN_RESULT_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
-
   echo "✅ Модул 2 завърши успешно."
+
 fi
 echo ""
 echo ""
@@ -374,13 +380,15 @@ EOF
   fi
 
   # --- Запис в setup.env ---
-  if grep -q '^VPN_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sed -i 's|^VPN_RESULT_MODULE3=.*|VPN_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"
+  if sudo grep -q '^VPN_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    if sudo sed -i 's|^VPN_RESULT_MODULE3=.*|VPN_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"; then
+      echo "VPN_RESULT_MODULE3=✅"
+    fi
   else
-    echo "VPN_RESULT_MODULE3=✅" >> "$SETUP_ENV_FILE"
+    echo "VPN_RESULT_MODULE3=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
-
   echo "✅ Модул 3 завърши успешно."
+  
 fi
 echo ""
 echo ""
