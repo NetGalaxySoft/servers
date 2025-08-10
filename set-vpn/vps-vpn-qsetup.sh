@@ -454,6 +454,16 @@ if [[ -f "$MODULES_FILE" ]]; then
   echo "🗑️ Временният файл todo.modules беше изтрит."
 fi
 
+# --- ЗАЩИТА: НЕ ИЗТРИВАЙ /etc/netgalaxy И setup.env ---
+# Създаване на маркер и резервно копие; фиксиране на права и собственик.
+sudo mkdir -p /etc/netgalaxy /var/backups/netgalaxy
+sudo touch /etc/netgalaxy/.nodelete
+
+# Резервно копие на setup.env (само ако има промяна)
+if ! cmp -s /etc/netgalaxy/setup.env /var/backups/netgalaxy/setup.env 2>/dev/null; then
+  sudo cp -a /etc/netgalaxy/setup.env /var/backups/netgalaxy/setup.env
+fi
+
 if [[ -f "$0" ]]; then
   echo "🗑️ Премахване на скрипта..."
   rm -- "$0"
