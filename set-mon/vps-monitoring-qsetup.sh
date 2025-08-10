@@ -421,6 +421,102 @@ echo ""
 echo ""
 
 
+# =====================================================================
+# [МОДУЛ 5] DOCKER ENGINE + DOCKER COMPOSE V2 (официално Docker repo)
+# =====================================================================
+echo "[5] ИНСТАЛАЦИЯ НА DOCKER ENGINE + COMPOSE V2..."
+echo "-----------------------------------------------------------"
+echo ""
+
+RESULT_KEY="MON_RESULT_MODULE5"
+
+# ✅ Проверка дали модулът вече е изпълнен
+if sudo grep -q "^${RESULT_KEY}=✅" "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
+  # 🔎 Засичане на ОС
+  if [[ -f /etc/os-release ]]; then
+    source /etc/os-release
+    OS_NAME="$ID"
+    OS_VERSION_CODENAME="$VERSION_CODENAME"
+  else
+    echo "❌ Неуспешно откриване на ОС (липсва /etc/os-release)."
+    exit 1
+  fi
+
+  # ✅ Предварителни пакети
+  if ! sudo apt-get update -y; then
+    echo "❌ apt-get update неуспешно."
+    exit 1
+  fi
+  if ! sudo apt-get install -y ca-certificates curl gnupg; then
+    echo "❌ Неуспешна инсталация на зависимости (ca-certificates, curl, gnupg)."
+    exit 1
+  fi
+
+  # ✅ Docker GPG ключ и keyring
+  sudo install -m 0755 -d /etc/apt/keyrings
+  if ! curl -fsSL https://download.docker.com/linux/${OS_NAME}/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
+    echo "❌ Неуспешно изтегляне/инсталиране на Docker GPG ключ."
+    exit 1
+  fi
+  sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+  # ✅ Docker репо (официално стабилно)
+  case "$OS_NAME" in
+    ubuntu|debian)
+      echo \
+"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${OS_NAME} ${OS_VERSION_CODENAME} stable" \
+      | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+      ;;
+    *)
+      echo "❌ Неподдържана ОС: $OS_NAME"
+      exit 1
+      ;;
+  esac
+
+  # ✅ Инсталация на Docker Engine и Compose v2
+  if ! sudo apt-get update -y; then
+    echo "❌ apt-get update (Docker repo) неуспешно."
+    exit 1
+  fi
+  if ! sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+    echo "❌ Неуспешна инсталация на Docker пакети."
+    exit 1
+  fi
+
+  # ✅ Стартиране и активиране на Docker
+  if ! sudo systemctl enable --now docker; then
+    echo "❌ Неуспешно стартиране/активиране на docker.service."
+    exit 1
+  fi
+
+  # ✅ Проверки на версии
+  if ! sudo docker --version >/dev/null 2>&1; then
+    echo "❌ docker --version неуспешно."
+    exit 1
+  fi
+  if ! sudo docker compose version >/dev/null 2>&1; then
+    echo "❌ docker compose version неуспешно."
+    exit 1
+  fi
+
+  # ✅ Запис на резултат за Модул 5 + показване САМО при успешен запис
+  if sudo grep -q "^${RESULT_KEY}=" "$SETUP_ENV_FILE" 2>/dev/null; then
+    if sudo sed -i "s|^${RESULT_KEY}=.*|${RESULT_KEY}=✅|" "$SETUP_ENV_FILE"; then
+      echo -e "\033[92m${RESULT_KEY}=✅\033[0m"
+    fi
+  else
+    echo "${RESULT_KEY}=✅" | sudo tee -a "$SETUP_ENV_FILE" >/dev/null
+    echo -e "\033[92m${RESULT_KEY}=✅\033[0m"
+  fi
+fi
+
+echo ""
+echo ""
+
+
 
 
 
