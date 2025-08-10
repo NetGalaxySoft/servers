@@ -61,68 +61,15 @@ fi
 # Лиценз: NetGalaxySoft internal
 # =====================================================================
 
-# -------------------- Общи променливи --------------------
 SETUP_DIR="/etc/netgalaxy"
 SETUP_ENV_FILE="$SETUP_DIR/setup.env"
 MODULES_FILE="$SETUP_DIR/todo.modules"
-STAMP_DIR="$SETUP_DIR/stamps"
+
 COMPOSE_DIR="/opt/netgalaxy/monhub"
 PROM_DIR="$COMPOSE_DIR/prometheus"
 ALERT_DIR="$COMPOSE_DIR/alertmanager"
 LOKI_DIR="$COMPOSE_DIR/loki"
 GRAFANA_DIR="$COMPOSE_DIR/grafana"
-LOG_DIR="/var/log/netgalaxy"
-DOMAIN_EXPECTED="${DOMAIN_EXPECTED:-}"     # Позволяваме подаване отвън: DOMAIN_EXPECTED=ns-monitor.netgalaxy.eu bash ...
-IP_EXPECTED="${IP_EXPECTED:-}"             # Позволяваме подаване отвън: IP_EXPECTED=203.0.113.10 bash ...
-
-# -------------------- Помощни функции --------------------
-WRITES_ENABLED=0
-
-log()  { echo -e "$*"; }
-ok()   { echo -e "✅ $*"; }
-warn() { echo -e "⚠️  $*"; }
-err()  { echo -e "❌ $*" >&2; }
-
-die()  { err "$*"; exit 1; }
-
-# Разрешава записи ЕДВА след като Модул 1 потвърди, че може.
-# Тази функция НЕ създава setup.env и НЕ пипа /etc/netgalaxy — само включва флага.
-enable_writes() {
-  WRITES_ENABLED=1
-}
-
-# Проверка дали даден „stamp“ файл съществува (без да създаваме нищо)
-already_done() {
-  local stamp="$1"
-  [[ -f "$STAMP_DIR/$stamp" ]]
-}
-
-# Слага „stamp“ само ако е разрешен запис и базовата папка съществува.
-stamp() {
-  local stamp="$1"
-  [[ "$WRITES_ENABLED" -eq 1 ]] || die "Забранен запис (stamp): опитай след Модул 1."
-  [[ -d "$SETUP_DIR" ]] || die "Липсва $SETUP_DIR; базовият скрипт не е завършил коректно."
-  # Създаваме само поддиректорията за stamps, но НЕ пипаме setup.env
-  sudo mkdir -p "$STAMP_DIR"
-  sudo touch "$STAMP_DIR/$stamp"
-}
-
-# Маркира успех в setup.env, без да го създава. Грешка, ако файлът липсва.
-mark_success() {
-  local key="$1"
-  [[ "$WRITES_ENABLED" -eq 1 ]] || die "Забранен запис (mark_success): опитай след Модул 1."
-  [[ -f "$SETUP_ENV_FILE" ]] || die "Липсва $SETUP_ENV_FILE; базовият скрипт не е завършил коректно."
-  if sudo grep -q "^$key=" "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i "s|^$key=.*|$key=✅|" "$SETUP_ENV_FILE"
-  else
-    echo "$key=✅" | sudo tee -a "$SETUP_ENV_FILE" >/dev/null
-  fi
-}
-
-
-NETGALAXY_DIR="/etc/netgalaxy"
-MODULES_FILE="$NETGALAXY_DIR/todo.modules"
-SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 
 # =====================================================================
 # [МОДУЛ 1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ И ИНИЦИАЛИЗАЦИЯ
@@ -256,10 +203,6 @@ echo ""
 echo "[2] ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИИ (FQDN/IP, системни директории)"
 echo "-------------------------------------------------------------------------"
 echo ""
-
-MODULE_NAME="mod_02_fqdn_config"
-MODULES_FILE="/etc/netgalaxy/todo.modules"
-SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
