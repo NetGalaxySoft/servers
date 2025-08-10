@@ -259,41 +259,45 @@ if sudo grep -q '^MON_RESULT_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 2 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  # --- 2.1 Въвеждане/четене на FQDN -----------------------------------------
+  # --- 2.1 FQDN: автоматично извличане (с възможност за override през DOMAIN_EXPECTED) -----
+  FQDN_CANDIDATE=""
   if [[ -n "${DOMAIN_EXPECTED:-}" ]]; then
-    FQDN="$DOMAIN_EXPECTED"
-    echo "ℹ️ Използвам DOMAIN_EXPECTED от средата: $FQDN"
+    FQDN_CANDIDATE="$DOMAIN_EXPECTED"
+    echo "ℹ️ DOMAIN_EXPECTED е подаден: $FQDN_CANDIDATE"
   else
-    while true; do
-      read -rp "👉 Въведете FQDN на сървъра (например monhub.netgalaxy.eu) или 'q' за изход: " FQDN
-      [[ "$FQDN" =~ ^[Qq]$ ]] && { echo "❎ Прекратено от оператора."; exit 0; }
-      [[ -n "$FQDN" ]] || { echo "❌ FQDN не може да е празен."; continue; }
-      [[ "$FQDN" =~ ^([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}$ ]] || { echo "❌ Невалиден формат на домейн."; continue; }
-      break
-    done
+    # Опит 1: hostname --fqdn; Опит 2: hostname -f; Опит 3: hostname
+    FQDN_CANDIDATE="$(hostname --fqdn 2>/dev/null || hostname -f 2>/dev/null || hostname 2>/dev/null || true)"
+    FQDN_CANDIDATE="$(printf '%s' "$FQDN_CANDIDATE" | tr -d '[:space:]')"
   fi
 
-  # --- 2.2 Валидиране на резолв и съвпадение с публичния IP -----------------
-  echo "🔍 Проверка на DNS резолв за $FQDN ..."
-  FQDN_IPS=$(dig +short "$FQDN" A 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')
-  if [[ -z "$FQDN_IPS" ]]; then
-    echo "⚠️  Внимание: $FQDN не резолвира към A запис в момента."
+  FQDN_REGEX='^([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}$'
+  if [[ -n "$FQDN_CANDIDATE" && "$FQDN_CANDIDATE" =~ $FQDN_REGEX ]]; then
+    FQDN="$FQDN_CANDIDATE"
+    echo "✅ Засечен FQDN: $FQDN"
   else
-    echo "ℹ️ Резолвнати A записи: $FQDN_IPS"
+    echo "⚠️  Неуспешно извличане на валиден FQDN от системата."
+    FQDN=""
   fi
 
-  ACTUAL_IP=$(curl -s -4 ifconfig.me || true)
-  if [[ -n "$ACTUAL_IP" ]] && [[ -n "$FQDN_IPS" ]]; then
-    if grep -qw "$ACTUAL_IP" <<<"$FQDN_IPS"; then
-      echo "✅ $FQDN сочи към публичния IP на този сървър: $ACTUAL_IP"
+  # --- 2.2 IP валидирации (информативни, без интеракция) -----------------------------------
+  ACTUAL_IP="$(curl -s -4 ifconfig.me || true)"
+  [[ -n "$ACTUAL_IP" ]] && echo "ℹ️ Публичен IP (засечен): $ACTUAL_IP"
+
+  if [[ -n "$FQDN" ]]; then
+    FQDN_IPS="$(dig +short "$FQDN" A 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')"
+    if [[ -n "$FQDN_IPS" ]]; then
+      echo "ℹ️ DNS A записи за $FQDN: $FQDN_IPS"
+      if [[ -n "$ACTUAL_IP" ]] && grep -qw "$ACTUAL_IP" <<< "$FQDN_IPS"; then
+        echo "✅ $FQDN резолвира към публичния IP на машината."
+      else
+        echo "⚠️  Несъответствие или липса на публичен IP ↔ DNS A записите."
+      fi
     else
-      echo "⚠️  Несъответствие: публичният IP е $ACTUAL_IP, а DNS A записите са: $FQDN_IPS"
-      read -rp "Продължаваме ли въпреки това? (y/n): " ans
-      [[ "$ans" =~ ^[Yy]$ ]] || { echo "❎ Прекратено от оператора."; exit 0; }
+      echo "⚠️  $FQDN не резолвира към A запис в момента."
     fi
   fi
 
-  # --- 2.3 Подготовка на системни директории за мониторинга -----------------
+  # --- 2.3 Подготовка на системни директории за мониторинга --------------------------------
   COMPOSE_DIR="/opt/netgalaxy/monhub"
   PROM_DIR="$COMPOSE_DIR/prometheus"
   ALERT_DIR="$COMPOSE_DIR/alertmanager"
@@ -307,23 +311,26 @@ else
   sudo chmod -R 755 "$COMPOSE_DIR"
   sudo chmod 755 "$LOG_DIR"
 
-  # --- 2.4 Временен деблок на /etc/netgalaxy за запис -----------------------
+  # --- 2.4 Временен деблок за запис в /etc/netgalaxy (по стандарт) -------------------------
   if [[ -d "/etc/netgalaxy" ]]; then
-    # .nodelete е маркер по стандарт – временно снижаваме рестрикцията, за да пишем
-    if [[ -f "/etc/netgalaxy/.nodelete" ]]; then
-      sudo chmod 644 /etc/netgalaxy/.nodelete 2>/dev/null || true
-    fi
+    # Маркерът .nodelete е само индикатор – сваляме рестрикцията, за да можем да пишем
+    [[ -f "/etc/netgalaxy/.nodelete" ]] && sudo chmod 644 /etc/netgalaxy/.nodelete 2>/dev/null || true
+    sudo chmod 755 /etc/netgalaxy 2>/dev/null || true
     sudo chmod 644 "$SETUP_ENV_FILE" 2>/dev/null || true
   fi
 
-  # ✅ Запис или обновяване на FQDN в todo.modules (ако трябва да се прави такъв запис)
-  if sudo grep -q '^FQDN=' "$MODULES_FILE" 2>/dev/null; then
-    sudo sed -i "s|^FQDN=.*|FQDN=\"$FQDN\"|" "$MODULES_FILE"
+  # ✅ Запис или обновяване на FQDN в todo.modules (ако имаме валиден FQDN)
+  if [[ -n "$FQDN" ]]; then
+    if sudo grep -q '^FQDN=' "$MODULES_FILE" 2>/dev/null; then
+      sudo sed -i "s|^FQDN=.*|FQDN=\"$FQDN\"|" "$MODULES_FILE"
+    else
+      echo "FQDN=\"$FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    fi
   else
-    echo "FQDN=\"$FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+    echo "⚠️  Пропускам запис на FQDN в $MODULES_FILE (липсва валиден FQDN)."
   fi
 
-  # ✅ Записване на резултат от модула
+  # ✅ Записване на резултат от модула (коректният ключ за мониторинг)
   if sudo grep -q '^MON_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
     sudo sed -i 's|^MON_RESULT_MODULE2=.*|MON_RESULT_MODULE2=✅|' "$SETUP_ENV_FILE"
   else
@@ -332,6 +339,7 @@ else
 fi
 echo ""
 echo ""
+
 
 
 exit 0
