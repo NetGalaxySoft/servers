@@ -234,6 +234,8 @@ else
     echo "SERVER_IP=\"$SERVER_IP\"" | sudo tee -a "$MODULES_FILE" > /dev/null
   fi
 
+echo ""
+
   # ✅ Запис на резултат за Модул 1
   if sudo grep -q '^MON_RESULT_MODULE1=' "$SETUP_ENV_FILE" 2>/dev/null; then
     if sudo sed -i 's|^MON_RESULT_MODULE1=.*|MON_RESULT_MODULE1=✅|' "$SETUP_ENV_FILE"; then
@@ -286,12 +288,12 @@ else
 
   # --- 2.2 IP валидирации (информативни, без интеракция) -----------------------------------
   ACTUAL_IP="$(curl -s -4 ifconfig.me || true)"
-  [[ -n "$ACTUAL_IP" ]] && echo "ℹ️ Публичен IP (засечен): $ACTUAL_IP"
+  [[ -n "$ACTUAL_IP" ]] && echo "ℹ️  Засечен публичен IP адрес: $ACTUAL_IP"
 
   if [[ -n "$FQDN" ]]; then
     FQDN_IPS="$(dig +short "$FQDN" A 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')"
     if [[ -n "$FQDN_IPS" ]]; then
-      echo "ℹ️ DNS A записи за $FQDN: $FQDN_IPS"
+      echo "ℹ️  DNS A записи за $FQDN: $FQDN_IPS"
       if [[ -n "$ACTUAL_IP" ]] && grep -qw "$ACTUAL_IP" <<< "$FQDN_IPS"; then
         echo "✅ $FQDN резолвира към публичния IP на машината."
       else
@@ -336,6 +338,8 @@ echo "✅ Права/собственост са настроени."
     echo "⚠️  Пропускам запис на FQDN в $MODULES_FILE (липсва валиден FQDN)."
   fi
 
+echo ""
+
   # ✅ Записване на резултат от модула (коректният ключ за мониторинг)
   if sudo grep -q '^MON_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
     sudo sed -i 's|^MON_RESULT_MODULE2=.*|MON_RESULT_MODULE2=✅|' "$SETUP_ENV_FILE"
@@ -349,17 +353,12 @@ echo ""
 echo ""
 
 
-
-exit 0
-
-
-
 # =====================================================================
-# [МОДУЛ 2] Системни ъпдейти, ssh твърдяване, UFW
+# [МОДУЛ 3] Системни ъпдейти, ssh твърдяване, UFW
 # =====================================================================
 log ""
 log "=============================================="
-log "[2] СИСТЕМНИ НАСТРОЙКИ: ъпдейти, SSH, UFW..."
+log "[3] СИСТЕМНИ НАСТРОЙКИ: ъпдейти, SSH, UFW..."
 log "=============================================="
 log ""
 
@@ -398,6 +397,15 @@ if ! already_done "M2.sys"; then
 else
   warn "Модул 2 вече е изпълнен. Пропускане."
 fi
+
+
+
+
+
+
+
+exit 0
+
 
 # =====================================================================
 # [МОДУЛ 3] Инсталация на Docker Engine + Compose (LTS)
