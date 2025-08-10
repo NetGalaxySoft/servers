@@ -165,12 +165,12 @@ else
   done
 
   # ✅ Временно премахване на забраната за промяна/изтриване
-  if [[ -d "$NETGALAXY_DIR" ]]; then
-    sudo chown root:root "$NETGALAXY_DIR" "$SETUP_ENV_FILE" "$NETGALAXY_DIR/.nodelete" 2>/dev/null
-    sudo chmod 755 "$NETGALAXY_DIR" 2>/dev/null
+  if [[ -d "$SETUP_DIR" ]]; then
+    sudo chown root:root "$SETUP_DIR" "$SETUP_ENV_FILE" "$SETUP_DIR/.nodelete" 2>/dev/null
+    sudo chmod 755 "$SETUP_DIR" 2>/dev/null
     sudo chmod 644 "$SETUP_ENV_FILE" 2>/dev/null
-    sudo chmod 644 "$NETGALAXY_DIR/.nodelete" 2>/dev/null
-    sudo chattr -i "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true
+    sudo chmod 644 "$SETUP_DIR/.nodelete" 2>/dev/null
+    sudo chattr -i "$SETUP_DIR/.nodelete" 2>/dev/null || true
     sudo chattr -i "$MODULES_FILE" 2>/dev/null || true
   fi
 
