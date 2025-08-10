@@ -756,14 +756,8 @@ YAML
 
   echo ""
 
-  # ✅ Запис на резултат + показване САМО при успешен запис
-  if sudo grep -q "^${RESULT_KEY}=" "$SETUP_ENV_FILE" 2>/dev/null; then
-    if sudo sed -i "s|^${RESULT_KEY}=.*|${RESULT_KEY}=✅|" "$SETUP_ENV_FILE"; then
-      echo "${RESULT_KEY}=✅"
-    fi
-  else
-    echo "${RESULT_KEY}=✅" | sudo tee -a "$SETUP_ENV_FILE"
-  fi
+echo "✅ Модул 3 завърши успешно."
+fi
 
 fi
 echo ""
