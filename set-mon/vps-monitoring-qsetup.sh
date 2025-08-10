@@ -257,9 +257,9 @@ echo "[2] ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИИ (FQDN/IP, систе�
 echo "-------------------------------------------------------------------------"
 echo ""
 
-MODULE_NAME="mod_02_fqdn_config"
-MODULES_FILE="/etc/netgalaxy/todo.modules"
-SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+NETGALAXY_DIR="/etc/netgalaxy"
+MODULES_FILE="$NETGALAXY_DIR/todo.modules"
+SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 
 # Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
@@ -359,6 +359,10 @@ log "[3] СИСТЕМНИ НАСТРОЙКИ: ъпдейти, SSH, UFW..."
 log "=============================================="
 log ""
 
+NETGALAXY_DIR="/etc/netgalaxy"
+MODULES_FILE="$NETGALAXY_DIR/todo.modules"
+SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
+
 # Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
@@ -406,14 +410,33 @@ echo ""
 echo ""
 
 
-# ======================================================
+# =====================================================================
 # [МОДУЛ 4] Инсталация на Docker Engine + Compose (LTS)
-# ======================================================
+# =====================================================================
+log ""
+log "=============================================="
 log "[4] DOCKER ENGINE + COMPOSE..."
-log "==================================================="
+log "=============================================="
 log ""
 
-# --- Задължителна начална проверка за вече изпълнен модул -----------------
+# --- Преамбюл за Модул 4: пътища + зареждане на флагове -------------------
+NETGALAXY_DIR="/etc/netgalaxy"
+MODULES_FILE="$NETGALAXY_DIR/todo.modules"
+SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
+SETUP_DIR="$NETGALAXY_DIR"
+STAMP_DIR="$SETUP_DIR/stamps"
+
+[ -f "$MODULES_FILE" ] && . "$MODULES_FILE"
+
+: "${WRITES_ENABLED:=0}"
+if [ "$WRITES_ENABLED" -ne 1 ]; then
+  if sudo test -w "$SETUP_DIR" && sudo test -w "$SETUP_ENV_FILE"; then
+    export WRITES_ENABLED=1
+  fi
+fi
+# --------------------------------------------------------------------------
+
+# --- Задължителна начална проверка ----------------------------------------
 if sudo grep -q '^MON_RESULT_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
   echo ""
@@ -425,7 +448,6 @@ else
   sudo apt-get update -y
   sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
 
-  # Ключодържател за Docker (идемпотентно)
   sudo install -m 0755 -d /etc/apt/keyrings
   if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
@@ -433,7 +455,6 @@ else
     sudo chmod 0644 /etc/apt/keyrings/docker.gpg
   fi
 
-  # Репо файл (идемпотентно)
   UBUNTU_CODENAME="$(. /etc/os-release && echo "$UBUNTU_CODENAME")"
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${UBUNTU_CODENAME} stable" \
     | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
@@ -444,10 +465,10 @@ else
   # Разрешаваме и стартираме Docker service
   sudo systemctl enable --now docker
 
-  # Вътрешен маркер за модула
+  # Маркер на модула
   stamp "$MODULE_MARK"
 
-  # ✅ Запис на резултат за Модул 4 + показване САМО при успешен запис
+  # ✅ Запис на резултат + показване САМО при успешен запис
   if sudo grep -q "^${RESULT_KEY}=" "$SETUP_ENV_FILE" 2>/dev/null; then
     if sudo sed -i "s|^${RESULT_KEY}=.*|${RESULT_KEY}=✅|" "$SETUP_ENV_FILE"; then
       echo "${RESULT_KEY}=✅"
