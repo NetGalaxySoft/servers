@@ -236,10 +236,13 @@ else
 
   # ✅ Запис на резултат за Модул 1
   if sudo grep -q '^MON_RESULT_MODULE1=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^MON_RESULT_MODULE1=.*|MON_RESULT_MODULE1=✅|' "$SETUP_ENV_FILE"
+    if sudo sed -i 's|^MON_RESULT_MODULE1=.*|MON_RESULT_MODULE1=✅|' "$SETUP_ENV_FILE"; then
+        echo "MON_RESULT_MODULE1=✅"
+    fi
   else
-    echo "MON_RESULT_MODULE1=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "MON_RESULT_MODULE1=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
+
 fi
 echo ""
 echo ""
@@ -322,14 +325,6 @@ sudo chmod 755 "$COMPOSE_DIR" "$LOG_DIR"
 sudo find "$COMPOSE_DIR" -type d -exec chmod 755 {} \;
 echo "✅ Права/собственост са настроени."
 
-  # --- 2.4 Временен деблок за запис в /etc/netgalaxy (по стандарт) -------------------------
-  if [[ -d "/etc/netgalaxy" ]]; then
-    # Маркерът .nodelete е само индикатор – сваляме рестрикцията, за да можем да пишем
-    [[ -f "/etc/netgalaxy/.nodelete" ]] && sudo chmod 644 /etc/netgalaxy/.nodelete 2>/dev/null || true
-    sudo chmod 755 /etc/netgalaxy 2>/dev/null || true
-    sudo chmod 644 "$SETUP_ENV_FILE" 2>/dev/null || true
-  fi
-
   # ✅ Запис или обновяване на FQDN в todo.modules (ако имаме валиден FQDN)
   if [[ -n "$FQDN" ]]; then
     if sudo grep -q '^FQDN=' "$MODULES_FILE" 2>/dev/null; then
@@ -344,10 +339,12 @@ echo "✅ Права/собственост са настроени."
   # ✅ Записване на резултат от модула (коректният ключ за мониторинг)
   if sudo grep -q '^MON_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
     sudo sed -i 's|^MON_RESULT_MODULE2=.*|MON_RESULT_MODULE2=✅|' "$SETUP_ENV_FILE"
+    echo "MON_RESULT_MODULE2=✅"
   else
-    echo "MON_RESULT_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+    echo "MON_RESULT_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
 fi
+
 echo ""
 echo ""
 
