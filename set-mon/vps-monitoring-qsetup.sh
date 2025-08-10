@@ -55,11 +55,17 @@ if [[ $# -gt 0 ]]; then
   esac
 fi
 
-# =====================================================================
-# vps-monhub-qsetup.sh — Централен сървър за наблюдение и логове
-# Версия: 1.0 (Ubuntu 24.04 amd64)
-# Лиценз: NetGalaxySoft internal
-# =====================================================================
+# Изчистване на терминала за по-ясен старт
+command -v clear >/dev/null && clear || printf "\033c"
+
+# Зелен банер за заглавие
+echo -e "\033[32m====================================================================="
+echo    "vps-monhub-qsetup.sh — Централен сървър за наблюдение и логове"
+echo    "Версия: 1.0 (Ubuntu 24.04 amd64)"
+echo    "Лиценз: NetGalaxySoft internal"
+echo -e "=====================================================================\033[0m"
+echo ""
+echo ""
 
 SETUP_DIR="/etc/netgalaxy"
 SETUP_ENV_FILE="$SETUP_DIR/setup.env"
@@ -167,6 +173,7 @@ else
       echo ""
     else
       echo "✅ Потвърдено: скриптът е стартиран на сървъра с IP $SERVER_IP."
+      echo ""
       break
     fi
   done
@@ -399,9 +406,6 @@ else
 
   # Разрешаваме и стартираме Docker service
   sudo systemctl enable --now docker
-
-  # Вътрешен маркер за модула
-  stamp "$MODULE_MARK"
 
   # ✅ Запис на резултат за Модул 4 + показване САМО при успешен запис
   if sudo grep -q "^${RESULT_KEY}=" "$SETUP_ENV_FILE" 2>/dev/null; then
