@@ -21,6 +21,8 @@
 # ==========================================================================
 
 set -euo pipefail
+set -o errtrace
+trap 'echo "❌ Грешка на ред $LINENO: ${BASH_COMMAND} (код $?)" >&2' ERR
 
 # === ПОМОЩНА ИНФОРМАЦИЯ ===================================================
 show_help() {
@@ -297,19 +299,28 @@ else
     fi
   fi
 
-  # --- 2.3 Подготовка на системни директории за мониторинга --------------------------------
-  COMPOSE_DIR="/opt/netgalaxy/monhub"
-  PROM_DIR="$COMPOSE_DIR/prometheus"
-  ALERT_DIR="$COMPOSE_DIR/alertmanager"
-  LOKI_DIR="$COMPOSE_DIR/loki"
-  GRAFANA_DIR="$COMPOSE_DIR/grafana"
-  LOG_DIR="/var/log/netgalaxy"
+  # --- 2.3 Подготовка на системни директории за мониторинга -----------------
+COMPOSE_DIR="/opt/netgalaxy/monhub"
+PROM_DIR="$COMPOSE_DIR/prometheus"
+ALERT_DIR="$COMPOSE_DIR/alertmanager"
+LOKI_DIR="$COMPOSE_DIR/loki"
+GRAFANA_DIR="$COMPOSE_DIR/grafana"
+LOG_DIR="/var/log/netgalaxy"
 
-  echo "📁 Подготовка на директории под $COMPOSE_DIR ..."
-  sudo mkdir -p "$PROM_DIR" "$ALERT_DIR" "$LOKI_DIR" "$GRAFANA_DIR" "$LOG_DIR"
-  sudo chown -R root:root "$COMPOSE_DIR" "$LOG_DIR"
-  sudo chmod -R 755 "$COMPOSE_DIR"
-  sudo chmod 755 "$LOG_DIR"
+echo "📁 Създавам директории..."
+sudo mkdir -p "$COMPOSE_DIR" || exit 1
+sudo mkdir -p "$PROM_DIR" || exit 1
+sudo mkdir -p "$ALERT_DIR" || exit 1
+sudo mkdir -p "$LOKI_DIR" || exit 1
+sudo mkdir -p "$GRAFANA_DIR" || exit 1
+sudo mkdir -p "$LOG_DIR" || exit 1
+echo "✅ Директориите са създадени."
+
+echo "🔧 Настройвам права/собственост..."
+sudo chown -R root:root "$COMPOSE_DIR" "$LOG_DIR"
+sudo chmod 755 "$COMPOSE_DIR" "$LOG_DIR"
+sudo find "$COMPOSE_DIR" -type d -exec chmod 755 {} \;
+echo "✅ Права/собственост са настроени."
 
   # --- 2.4 Временен деблок за запис в /etc/netgalaxy (по стандарт) -------------------------
   if [[ -d "/etc/netgalaxy" ]]; then
