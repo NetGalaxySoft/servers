@@ -243,70 +243,100 @@ echo ""
 echo ""
 
 
+# ===================================================================
+# [МОДУЛ 2] ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИИ (FQDN/IP, системни директории)
+# ===================================================================
+echo "[2] ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИИ (FQDN/IP, системни директории)"
+echo "-------------------------------------------------------------------------"
+echo ""
+
+MODULE_NAME="mod_02_fqdn_config"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+
+# Проверка дали модулът вече е изпълнен
+if sudo grep -q '^BASE_RESULT_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 2 вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
+  # --- 2.1 Въвеждане/четене на FQDN -----------------------------------------
+  if [[ -n "${DOMAIN_EXPECTED:-}" ]]; then
+    FQDN="$DOMAIN_EXPECTED"
+    echo "ℹ️ Използвам DOMAIN_EXPECTED от средата: $FQDN"
+  else
+    while true; do
+      read -rp "👉 Въведете FQDN на сървъра (например monhub.netgalaxy.eu) или 'q' за изход: " FQDN
+      [[ "$FQDN" =~ ^[Qq]$ ]] && { echo "❎ Прекратено от оператора."; exit 0; }
+      [[ -n "$FQDN" ]] || { echo "❌ FQDN не може да е празен."; continue; }
+      [[ "$FQDN" =~ ^([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}$ ]] || { echo "❌ Невалиден формат на домейн."; continue; }
+      break
+    done
+  fi
+
+  # --- 2.2 Валидиране на резолв и съвпадение с публичния IP -----------------
+  echo "🔍 Проверка на DNS резолв за $FQDN ..."
+  FQDN_IPS=$(dig +short "$FQDN" A 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')
+  if [[ -z "$FQDN_IPS" ]]; then
+    echo "⚠️  Внимание: $FQDN не резолвира към A запис в момента."
+  else
+    echo "ℹ️ Резолвнати A записи: $FQDN_IPS"
+  fi
+
+  ACTUAL_IP=$(curl -s -4 ifconfig.me || true)
+  if [[ -n "$ACTUAL_IP" ]] && [[ -n "$FQDN_IPS" ]]; then
+    if grep -qw "$ACTUAL_IP" <<<"$FQDN_IPS"; then
+      echo "✅ $FQDN сочи към публичния IP на този сървър: $ACTUAL_IP"
+    else
+      echo "⚠️  Несъответствие: публичният IP е $ACTUAL_IP, а DNS A записите са: $FQDN_IPS"
+      read -rp "Продължаваме ли въпреки това? (y/n): " ans
+      [[ "$ans" =~ ^[Yy]$ ]] || { echo "❎ Прекратено от оператора."; exit 0; }
+    fi
+  fi
+
+  # --- 2.3 Подготовка на системни директории за мониторинга -----------------
+  COMPOSE_DIR="/opt/netgalaxy/monhub"
+  PROM_DIR="$COMPOSE_DIR/prometheus"
+  ALERT_DIR="$COMPOSE_DIR/alertmanager"
+  LOKI_DIR="$COMPOSE_DIR/loki"
+  GRAFANA_DIR="$COMPOSE_DIR/grafana"
+  LOG_DIR="/var/log/netgalaxy"
+
+  echo "📁 Подготовка на директории под $COMPOSE_DIR ..."
+  sudo mkdir -p "$PROM_DIR" "$ALERT_DIR" "$LOKI_DIR" "$GRAFANA_DIR" "$LOG_DIR"
+  sudo chown -R root:root "$COMPOSE_DIR" "$LOG_DIR"
+  sudo chmod -R 755 "$COMPOSE_DIR"
+  sudo chmod 755 "$LOG_DIR"
+
+  # --- 2.4 Временен деблок на /etc/netgalaxy за запис -----------------------
+  if [[ -d "/etc/netgalaxy" ]]; then
+    # .nodelete е маркер по стандарт – временно снижаваме рестрикцията, за да пишем
+    if [[ -f "/etc/netgalaxy/.nodelete" ]]; then
+      sudo chmod 644 /etc/netgalaxy/.nodelete 2>/dev/null || true
+    fi
+    sudo chmod 644 "$SETUP_ENV_FILE" 2>/dev/null || true
+  fi
+
+  # ✅ Запис или обновяване на FQDN в todo.modules (ако трябва да се прави такъв запис)
+  if sudo grep -q '^FQDN=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i "s|^FQDN=.*|FQDN=\"$FQDN\"|" "$MODULES_FILE"
+  else
+    echo "FQDN=\"$FQDN\"" | sudo tee -a "$MODULES_FILE" > /dev/null
+  fi
+
+  # ✅ Записване на резултат от модула
+  if sudo grep -q '^BASE_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^BASE_RESULT_MODULE2=.*|BASE_RESULT_MODULE2=✅|' "$SETUP_ENV_FILE"
+  else
+    echo "BASE_RESULT_MODULE2=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  fi
+fi
+echo ""
+echo ""
+
+
 exit 0
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# =====================================================================
-# [МОДУЛ 1] Инициализация и валидации (FQDN/IP, системни директории)
-# =====================================================================
-log ""
-log "=============================================="
-log "[1] ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИИ..."
-log "=============================================="
-log ""
-
-if ! already_done "M1.init"; then
-  ensure_env_files
-
-  HOST_FQDN="$(hostname -f 2>/dev/null || hostname)"
-  HOST_IPv4="$(curl -fsS http://checkip.amazonaws.com 2>/dev/null || true)"
-  [[ -z "$HOST_IPv4" ]] && HOST_IPv4="$(dig +short myip.opendns.com @resolver1.opendns.com 2>/dev/null || true)"
-
-  # Записваме каквото знаем
-  if ! sudo grep -q '^MONHUB_HOST_FQDN=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    echo "MONHUB_HOST_FQDN=${HOST_FQDN}" | sudo tee -a "$SETUP_ENV_FILE" >/dev/null
-  else
-    sudo sed -i "s|^MONHUB_HOST_FQDN=.*|MONHUB_HOST_FQDN=${HOST_FQDN}|" "$SETUP_ENV_FILE"
-  fi
-  if ! sudo grep -q '^MONHUB_HOST_IP=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    echo "MONHUB_HOST_IP=${HOST_IPv4}" | sudo tee -a "$SETUP_ENV_FILE" >/dev/null
-  else
-    sudo sed -i "s|^MONHUB_HOST_IP=.*|MONHUB_HOST_IP=${HOST_IPv4}|" "$SETUP_ENV_FILE"
-  fi
-
-  # Задължителни твърдения, ако са подадени
-  if [[ -n "$DOMAIN_EXPECTED" ]] && [[ "$HOST_FQDN" != "$DOMAIN_EXPECTED" ]]; then
-    err "FQDN не съвпада. Очакван: $DOMAIN_EXPECTED, реален: $HOST_FQDN"
-    exit 10
-  fi
-  if [[ -n "$IP_EXPECTED" ]] && [[ "$HOST_IPv4" != "$IP_EXPECTED" ]]; then
-    err "Публичният IP не съвпада. Очакван: $IP_EXPECTED, реален: $HOST_IPv4"
-    exit 11
-  fi
-
-  # Създаваме директории за стековете
-  sudo mkdir -p "$COMPOSE_DIR" "$PROM_DIR" "$ALERT_DIR" "$LOKI_DIR" "$GRAFANA_DIR" "$LOG_DIR"
-
-  stamp "M1.init"
-  mark_success "MONHUB_MODULE1"
-  ok "Модул 1 завърши."
-else
-  warn "Модул 1 вече е изпълнен. Пропускане."
-fi
 
 # =====================================================================
 # [МОДУЛ 2] Системни ъпдейти, ssh твърдяване, UFW
