@@ -128,7 +128,7 @@ SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 # [МОДУЛ 1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ И ИНИЦИАЛИЗАЦИЯ
 # =====================================================================
 echo "[1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ НА СИСТЕМА..."
-echo "========================================="
+echo "-----------------------------------------------------------"
 echo ""
 
 # ✅ Проверка за root права
@@ -183,7 +183,6 @@ echo ""
 # ✅ Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE1=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 1 вече е изпълнен успешно. Пропускане..."
-  echo ""
 else
   # ✅ Потвърждение на IP адрес
   while true; do
@@ -255,12 +254,12 @@ echo ""
 # [МОДУЛ 2] ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИИ (FQDN/IP, системни директории)
 # ===================================================================
 echo "[2] ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИИ (FQDN/IP, системни директории)"
-echo "============================================================="
+echo "-------------------------------------------------------------------------"
 echo ""
 
-NETGALAXY_DIR="/etc/netgalaxy"
-MODULES_FILE="$NETGALAXY_DIR/todo.modules"
-SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
+MODULE_NAME="mod_02_fqdn_config"
+MODULES_FILE="/etc/netgalaxy/todo.modules"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 
 # Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE2=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
@@ -339,7 +338,7 @@ echo "✅ Права/собственост са настроени."
     echo "⚠️  Пропускам запис на FQDN в $MODULES_FILE (липсва валиден FQDN)."
   fi
 
-  echo ""
+echo ""
 
   # ✅ Записване на резултат от модула (коректният ключ за мониторинг)
   if sudo grep -q '^MON_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
@@ -357,12 +356,8 @@ echo ""
 # [МОДУЛ 3] Системни ъпдейти, SSH твърдяване, UFW
 # =====================================================================
 log "[3] СИСТЕМНИ НАСТРОЙКИ: ъпдейти, SSH, UFW..."
-log "============================================="
+log "=============================================="
 log ""
-
-NETGALAXY_DIR="/etc/netgalaxy"
-MODULES_FILE="$NETGALAXY_DIR/todo.modules"
-SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 
 # Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
@@ -397,8 +392,6 @@ else
   sudo ufw allow 9115/tcp    # blackbox_exporter
   sudo ufw --force enable
 
-  echo ""
-
   # ✅ Запис на резултат само при успешен запис + показване в терминала
   if sudo grep -q '^MON_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
     if sudo sed -i 's|^MON_RESULT_MODULE3=.*|MON_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"; then
@@ -413,62 +406,17 @@ echo ""
 echo ""
 
 
-# =======================================================
+# ======================================================
 # [МОДУЛ 4] Инсталация на Docker Engine + Compose (LTS)
 # ======================================================
 log "[4] DOCKER ENGINE + COMPOSE..."
-log "================================"
+log "==================================================="
 log ""
 
-# --- Преамбюл за Модул 4: пътища + зареждане на флагове -------------------
-NETGALAXY_DIR="/etc/netgalaxy"
-MODULES_FILE="$NETGALAXY_DIR/todo.modules"
-SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
-SETUP_DIR="$NETGALAXY_DIR"
-STAMP_DIR="$SETUP_DIR/stamps"
-
-[ -f "$MODULES_FILE" ] && . "$MODULES_FILE"
-
-: "${WRITES_ENABLED:=0}"
-if [ "$WRITES_ENABLED" -ne 1 ]; then
-  if sudo test -w "$SETUP_DIR" && sudo test -w "$SETUP_ENV_FILE"; then
-    export WRITES_ENABLED=1
-  fi
-fi
-# --------------------------------------------------------------------------
-
-# --- Задължителна начална проверка ----------------------------------------
+# --- Задължителна начална проверка за вече изпълнен модул -----------------
 if sudo grep -q '^MON_RESULT_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
-  echo ""# ==========================================
-# [МОДУЛ 6] Стартиране на стека и обобщение
-# ==========================================
-log "[6] СТАРТИРАНЕ НА STACK-A..."
-log "============================="
-log ""
-
-# --- Минимален преамбюл (самодостатъчен за изолиран тест) ---------------
-NETGALAXY_DIR="/etc/netgalaxy"
-MODULES_FILE="$NETGALAXY_DIR/todo.modules"
-SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
-[ -f "$MODULES_FILE" ] && . "$MODULES_FILE"
-
-: "${COMPOSE_DIR:=/opt/netgalaxy/monhub/compose}"   # дефолт при изолиран тест
-
-# --- Стартиране + твърда грешкообработка ---------------------------------
-pushd "$COMPOSE_DIR" >/dev/null || die "Липсва COMPOSE_DIR: $COMPOSE_DIR"
-if sudo docker compose up -d; then
-  popd >/dev/null
-  stamp "M6.up"
-  mark_success "MON_RESULT_MODULE6"
-  ok "Стекът е стартиран."
-else
-  err "Неуспешно стартиране на стека."
-  sudo docker compose ps || true
-  sudo docker compose logs --no-color --tail=120 || true
-  popd >/dev/null
-  exit 1
-fi
+  echo ""
 else
   MODULE_MARK="M4.docker"
   RESULT_KEY="MON_RESULT_MODULE4"
@@ -477,6 +425,7 @@ else
   sudo apt-get update -y
   sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
 
+  # Ключодържател за Docker (идемпотентно)
   sudo install -m 0755 -d /etc/apt/keyrings
   if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
@@ -484,6 +433,7 @@ else
     sudo chmod 0644 /etc/apt/keyrings/docker.gpg
   fi
 
+  # Репо файл (идемпотентно)
   UBUNTU_CODENAME="$(. /etc/os-release && echo "$UBUNTU_CODENAME")"
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${UBUNTU_CODENAME} stable" \
     | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
@@ -494,12 +444,10 @@ else
   # Разрешаваме и стартираме Docker service
   sudo systemctl enable --now docker
 
-  # Маркер на модула
+  # Вътрешен маркер за модула
   stamp "$MODULE_MARK"
 
-  echo ""
-
-  # ✅ Запис на резултат + показване САМО при успешен запис
+  # ✅ Запис на резултат за Модул 4 + показване САМО при успешен запис
   if sudo grep -q "^${RESULT_KEY}=" "$SETUP_ENV_FILE" 2>/dev/null; then
     if sudo sed -i "s|^${RESULT_KEY}=.*|${RESULT_KEY}=✅|" "$SETUP_ENV_FILE"; then
       echo "${RESULT_KEY}=✅"
@@ -513,55 +461,24 @@ echo ""
 echo ""
 
 
-# ==================================================================================
-# [МОДУЛ 5] Конфигурации за Prometheus/Alertmanager/Grafana/Loki/Promtail/Exporters
-# ==================================================================================
+
+
+
+
+exit 0
+
+
+# =====================================================================
+# [МОДУЛ 4] Конфигурации за Prometheus/Alertmanager/Grafana/Loki/Promtail/Exporters
+# =====================================================================
 log ""
-log "================================="
-log "[5] КОНФИГУРАЦИИ НА MON STACK..."
-log "================================="
+log "=============================================="
+log "[4] КОНФИГУРАЦИИ НА MON STACK..."
+log "=============================================="
 log ""
 
-# --- Преамбюл за Модул 5: пътища + флагове --------------------------------
-NETGALAXY_DIR="/etc/netgalaxy"
-MODULES_FILE="$NETGALAXY_DIR/todo.modules"
-SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
-SETUP_DIR="$NETGALAXY_DIR"
-STAMP_DIR="$SETUP_DIR/stamps"
-
-# Зареждане на персистентни стойности (ако ги има от предни модули)
-[ -f "$MODULES_FILE" ] && . "$MODULES_FILE"
-
-# Разрешаване на запис, ако реално имаме права (тестов режим: изпълнява се само М5)
-: "${WRITES_ENABLED:=0}"
-if [ "$WRITES_ENABLED" -ne 1 ]; then
-  if sudo test -w "$SETUP_DIR" && sudo test -w "$SETUP_ENV_FILE"; then
-    export WRITES_ENABLED=1
-  fi
-fi
-# --------------------------------------------------------------------------
-
-# --- Задължителна начална проверка ----------------------------------------
-if sudo grep -q '^MON_RESULT_MODULE5=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
-  echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
-  echo ""
-else
-  MODULE_MARK="M5.cfg"
-  RESULT_KEY="MON_RESULT_MODULE5"
-
-  # --- Зареждане/дефиниране на директории за MON стека --------------------
-  # Ако предишни модули са записали стойности в todo.modules — ползваме тях,
-  # иначе дефинираме безопасни дефолтни пътища под /opt/netgalaxy/monhub.
-  : "${BASE_MON_DIR:=/opt/netgalaxy/monhub}"
-  : "${COMPOSE_DIR:=$BASE_MON_DIR/compose}"
-  : "${PROM_DIR:=$COMPOSE_DIR/prometheus}"
-  : "${ALERT_DIR:=$COMPOSE_DIR/alertmanager}"
-  : "${LOKI_DIR:=$COMPOSE_DIR/loki}"
-
-  # Създаване на нужните директории (идемпотентно)
-  sudo mkdir -p "$PROM_DIR" "$ALERT_DIR" "$LOKI_DIR" "$COMPOSE_DIR"
-
-  # --- Prometheus config ---------------------------------------------------
+if ! already_done "M4.cfg"; then
+  # --- Prometheus config ---
   sudo tee "$PROM_DIR/prometheus.yml" >/dev/null <<'YAML'
 global:
   scrape_interval: 15s
@@ -598,7 +515,7 @@ alerting:
         - targets: ['alertmanager:9093']
 YAML
 
-  # --- Alertmanager config (dummy) ----------------------------------------
+  # --- Alertmanager config (dummy, без SMTP за сега) ---
   sudo tee "$ALERT_DIR/alertmanager.yml" >/dev/null <<'YAML'
 route:
   receiver: 'dev-null'
@@ -611,7 +528,7 @@ receivers:
   - name: 'dev-null'
 YAML
 
-  # --- Loki config ---------------------------------------------------------
+  # --- Loki config ---
   sudo tee "$LOKI_DIR/loki-config.yml" >/dev/null <<'YAML'
 auth_enabled: false
 server:
@@ -636,7 +553,7 @@ ruler:
   alertmanager_url: http://alertmanager:9093
 YAML
 
-  # --- Promtail config (системни логове) ----------------------------------
+  # --- Promtail config (системни логове) ---
   sudo tee "$COMPOSE_DIR/promtail-config.yml" >/dev/null <<'YAML'
 server:
   http_listen_port: 9080
@@ -665,7 +582,7 @@ scrape_configs:
         target_label: 'unit'
 YAML
 
-  # --- docker-compose.yml --------------------------------------------------
+  # --- docker-compose.yml ---
   sudo tee "$COMPOSE_DIR/docker-compose.yml" >/dev/null <<'YAML'
 services:
   prometheus:
@@ -747,114 +664,61 @@ networks:
     driver: bridge
 YAML
 
-  # --- Права ---------------------------------------------------------------
+  # Права
   sudo chown -R root:root "$COMPOSE_DIR"
   sudo chmod -R 755 "$COMPOSE_DIR"
 
-  # --- Маркер и резултат ---------------------------------------------------
-  stamp "$MODULE_MARK"
-
-  echo ""
-
-echo "✅ Модул 3 завърши успешно."
-fi
-
-fi
-echo ""
-echo ""
-
-
-# ================================
-# [МОДУЛ 6] Стартиране на стека
-# ================================
-log "[6] СТАРТИРАНЕ НА STACK-A..."
-log "============================="
-log ""
-
-# --- Преамбюл ---------------
-NETGALAXY_DIR="/etc/netgalaxy"
-MODULES_FILE="$NETGALAXY_DIR/todo.modules"
-SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
-[ -f "$MODULES_FILE" ] && . "$MODULES_FILE"
-
-# --- Стартиране на стека ---
-pushd "$COMPOSE_DIR" >/dev/null || die "Липсва COMPOSE_DIR: $COMPOSE_DIR"
-if sudo docker compose up -d; then
-  popd >/dev/null
-  stamp "M6.up"
-  mark_success "MON_RESULT_MODULE6"
-  echo "MON_RESULT_MODULE6=✅"
-  ok "Стекът е стартиран."
+  stamp "M4.cfg"
+  mark_success "MONHUB_MODULE4"
+  ok "Модул 4 завърши."
 else
-  popd >/dev/null
-  err "Неуспешно стартиране на стека."
-  exit 1
+  warn "Модул 4 вече е изпълнен. Пропускане."
 fi
 
+# =====================================================================
+# [МОДУЛ 5] Стартиране на стека
+# =====================================================================
 log ""
 log "=============================================="
-log "ОБОБЩЕНИЕ"
+log "[5] СТАРТИРАНЕ НА STACK-A..."
+log "=============================================="
+log ""
+
+if ! already_done "M5.up"; then
+  pushd "$COMPOSE_DIR" >/dev/null
+  sudo docker compose up -d
+  popd >/dev/null
+
+  stamp "M5.up"
+  mark_success "MONHUB_MODULE5"
+  ok "Модул 5 завърши. Стекът е стартиран."
+else
+  warn "Модул 5 вече е изпълнен. Пропускане."
+fi
+
+# =====================================================================
+# [МОДУЛ 6] Обобщение
+# =====================================================================
+log ""
+log "=============================================="
+log "[6] ОБОБЩЕНИЕ"
 log "=============================================="
 log ""
 
 GRAFANA_URL="http://$(hostname -I | awk '{print $1}'):3000"
 PROM_URL="http://$(hostname -I | awk '{print $1}'):9090"
 
-log ""
-printf "Мониторинг стек:\n"
+printf "\n"
+printf "Мониторинг стек: \n"
 printf "  • Grafana:        %s (admin / admin)\n" "$GRAFANA_URL"
 printf "  • Prometheus:     %s\n" "$PROM_URL"
 printf "  • Alertmanager:   http://<IP>:9093\n"
 printf "  • Loki API:       http://<IP>:3100\n"
 printf "  • node_exporter:  http://<IP>:9100/metrics\n"
 printf "  • blackbox:       http://<IP>:9115/probe?target=https://example.org\n"
-printf "\n"
-# ------------------------------------------------------------------------
+printf "\nЛог директория: %s\n" "$LOG_DIR"
+printf "Compose папка:  %s\n" "$COMPOSE_DIR"
+printf "\nUFW: отворени портове 22, 3000, 9090, 9093, 3100, 9100, 9115\n"
 
-# === Финален диалог с оператор =========================================
-while true; do
-  echo "📋 Приемате ли конфигурацията за завършена?"
-  echo "[y] Да. Финализиране."
-  echo "[n] Не. Изход без промени."
-  read -rp "Вашият избор (y/n): " final_confirm
-
-  case "$final_confirm" in
-    [Yy])
-      # ✅ Запис на глобалния статус
-      if sudo grep -q '^SETUP_VPS_MONITORING_STATUS=' "$SETUP_ENV_FILE" 2>/dev/null; then
-        sudo sed -i 's|^SETUP_VPS_MONITORING_STATUS=.*|SETUP_VPS_MONITORING_STATUS=✅|' "$SETUP_ENV_FILE"
-        echo "SETUP_VPS_MONITORING_STATUS=✅"
-      else
-        echo "SETUP_VPS_MONITORING_STATUS=✅" | sudo tee -a "$SETUP_ENV_FILE"
-      fi
-
-      # 🧹 Изчистване на временни файлове (без /etc/netgalaxy и setup.env)
-      [ -n "$MODULES_FILE" ] && sudo rm -f "$MODULES_FILE"
-
-      # 🔐 Защита и архив
-      sudo mkdir -p "$NETGALAXY_DIR" /var/backups/netgalaxy
-      sudo touch "$NETGALAXY_DIR/.nodelete"
-
-      if ! sudo cmp -s "$SETUP_ENV_FILE" /var/backups/netgalaxy/setup.env 2>/dev/null; then
-        sudo cp -a "$SETUP_ENV_FILE" /var/backups/netgalaxy/setup.env
-      fi
-
-      sudo chown root:root "$NETGALAXY_DIR" "$SETUP_ENV_FILE" "$NETGALAXY_DIR/.nodelete"
-      sudo chmod 755 "$NETGALAXY_DIR"
-      sudo chmod 644 "$SETUP_ENV_FILE"
-      sudo chmod 444 "$NETGALAXY_DIR/.nodelete"
-
-      ok "Изпълнението на скрипта завърши. Конфигурацията е финализирана."
-      break
-      ;;
-    [Nn])
-      warn "Скриптът приключи без финализиране."
-      break
-      ;;
-    *)
-      err "Невалиден избор. Въведете 'y' или 'n'."
-      ;;
-  esac
-done
-
-# --------- Край на скрипта ---------
+mark_success "MONHUB_MODULE6"
+ok "Готово."
