@@ -128,7 +128,7 @@ SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 # [МОДУЛ 1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ И ИНИЦИАЛИЗАЦИЯ
 # =====================================================================
 echo "[1] ПРЕДВАРИТЕЛНИ ПРОВЕРКИ НА СИСТЕМА..."
-echo "-----------------------------------------------------------"
+echo "========================================="
 echo ""
 
 # ✅ Проверка за root права
@@ -183,6 +183,7 @@ echo ""
 # ✅ Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE1=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 1 вече е изпълнен успешно. Пропускане..."
+  echo ""
 else
   # ✅ Потвърждение на IP адрес
   while true; do
@@ -254,7 +255,7 @@ echo ""
 # [МОДУЛ 2] ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИИ (FQDN/IP, системни директории)
 # ===================================================================
 echo "[2] ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИИ (FQDN/IP, системни директории)"
-echo "-------------------------------------------------------------------------"
+echo "============================================================="
 echo ""
 
 NETGALAXY_DIR="/etc/netgalaxy"
@@ -338,7 +339,7 @@ echo "✅ Права/собственост са настроени."
     echo "⚠️  Пропускам запис на FQDN в $MODULES_FILE (липсва валиден FQDN)."
   fi
 
-echo ""
+  echo ""
 
   # ✅ Записване на резултат от модула (коректният ключ за мониторинг)
   if sudo grep -q '^MON_RESULT_MODULE2=' "$SETUP_ENV_FILE" 2>/dev/null; then
@@ -356,7 +357,7 @@ echo ""
 # [МОДУЛ 3] Системни ъпдейти, SSH твърдяване, UFW
 # =====================================================================
 log "[3] СИСТЕМНИ НАСТРОЙКИ: ъпдейти, SSH, UFW..."
-log "=============================================="
+log "============================================="
 log ""
 
 NETGALAXY_DIR="/etc/netgalaxy"
@@ -396,6 +397,8 @@ else
   sudo ufw allow 9115/tcp    # blackbox_exporter
   sudo ufw --force enable
 
+  echo ""
+
   # ✅ Запис на резултат само при успешен запис + показване в терминала
   if sudo grep -q '^MON_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
     if sudo sed -i 's|^MON_RESULT_MODULE3=.*|MON_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"; then
@@ -410,13 +413,11 @@ echo ""
 echo ""
 
 
-# =====================================================================
+# =======================================================
 # [МОДУЛ 4] Инсталация на Docker Engine + Compose (LTS)
-# =====================================================================
-log ""
-log "=============================================="
+# ======================================================
 log "[4] DOCKER ENGINE + COMPOSE..."
-log "=============================================="
+log "================================"
 log ""
 
 # --- Преамбюл за Модул 4: пътища + зареждане на флагове -------------------
@@ -468,6 +469,8 @@ else
   # Маркер на модула
   stamp "$MODULE_MARK"
 
+  echo ""
+
   # ✅ Запис на резултат + показване САМО при успешен запис
   if sudo grep -q "^${RESULT_KEY}=" "$SETUP_ENV_FILE" 2>/dev/null; then
     if sudo sed -i "s|^${RESULT_KEY}=.*|${RESULT_KEY}=✅|" "$SETUP_ENV_FILE"; then
@@ -482,24 +485,55 @@ echo ""
 echo ""
 
 
-
-
-
-
-exit 0
-
-
-# =====================================================================
-# [МОДУЛ 4] Конфигурации за Prometheus/Alertmanager/Grafana/Loki/Promtail/Exporters
-# =====================================================================
+# ==================================================================================
+# [МОДУЛ 5] Конфигурации за Prometheus/Alertmanager/Grafana/Loki/Promtail/Exporters
+# ==================================================================================
 log ""
-log "=============================================="
-log "[4] КОНФИГУРАЦИИ НА MON STACK..."
-log "=============================================="
+log "================================="
+log "[5] КОНФИГУРАЦИИ НА MON STACK..."
+log "================================="
 log ""
 
-if ! already_done "M4.cfg"; then
-  # --- Prometheus config ---
+# --- Преамбюл за Модул 5: пътища + флагове --------------------------------
+NETGALAXY_DIR="/etc/netgalaxy"
+MODULES_FILE="$NETGALAXY_DIR/todo.modules"
+SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
+SETUP_DIR="$NETGALAXY_DIR"
+STAMP_DIR="$SETUP_DIR/stamps"
+
+# Зареждане на персистентни стойности (ако ги има от предни модули)
+[ -f "$MODULES_FILE" ] && . "$MODULES_FILE"
+
+# Разрешаване на запис, ако реално имаме права (тестов режим: изпълнява се само М5)
+: "${WRITES_ENABLED:=0}"
+if [ "$WRITES_ENABLED" -ne 1 ]; then
+  if sudo test -w "$SETUP_DIR" && sudo test -w "$SETUP_ENV_FILE"; then
+    export WRITES_ENABLED=1
+  fi
+fi
+# --------------------------------------------------------------------------
+
+# --- Задължителна начална проверка ----------------------------------------
+if sudo grep -q '^MON_RESULT_MODULE5=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
+  MODULE_MARK="M5.cfg"
+  RESULT_KEY="MON_RESULT_MODULE5"
+
+  # --- Зареждане/дефиниране на директории за MON стека --------------------
+  # Ако предишни модули са записали стойности в todo.modules — ползваме тях,
+  # иначе дефинираме безопасни дефолтни пътища под /opt/netgalaxy/monhub.
+  : "${BASE_MON_DIR:=/opt/netgalaxy/monhub}"
+  : "${COMPOSE_DIR:=$BASE_MON_DIR/compose}"
+  : "${PROM_DIR:=$COMPOSE_DIR/prometheus}"
+  : "${ALERT_DIR:=$COMPOSE_DIR/alertmanager}"
+  : "${LOKI_DIR:=$COMPOSE_DIR/loki}"
+
+  # Създаване на нужните директории (идемпотентно)
+  sudo mkdir -p "$PROM_DIR" "$ALERT_DIR" "$LOKI_DIR" "$COMPOSE_DIR"
+
+  # --- Prometheus config ---------------------------------------------------
   sudo tee "$PROM_DIR/prometheus.yml" >/dev/null <<'YAML'
 global:
   scrape_interval: 15s
@@ -536,7 +570,7 @@ alerting:
         - targets: ['alertmanager:9093']
 YAML
 
-  # --- Alertmanager config (dummy, без SMTP за сега) ---
+  # --- Alertmanager config (dummy) ----------------------------------------
   sudo tee "$ALERT_DIR/alertmanager.yml" >/dev/null <<'YAML'
 route:
   receiver: 'dev-null'
@@ -549,7 +583,7 @@ receivers:
   - name: 'dev-null'
 YAML
 
-  # --- Loki config ---
+  # --- Loki config ---------------------------------------------------------
   sudo tee "$LOKI_DIR/loki-config.yml" >/dev/null <<'YAML'
 auth_enabled: false
 server:
@@ -574,7 +608,7 @@ ruler:
   alertmanager_url: http://alertmanager:9093
 YAML
 
-  # --- Promtail config (системни логове) ---
+  # --- Promtail config (системни логове) ----------------------------------
   sudo tee "$COMPOSE_DIR/promtail-config.yml" >/dev/null <<'YAML'
 server:
   http_listen_port: 9080
@@ -603,7 +637,7 @@ scrape_configs:
         target_label: 'unit'
 YAML
 
-  # --- docker-compose.yml ---
+  # --- docker-compose.yml --------------------------------------------------
   sudo tee "$COMPOSE_DIR/docker-compose.yml" >/dev/null <<'YAML'
 services:
   prometheus:
@@ -685,16 +719,31 @@ networks:
     driver: bridge
 YAML
 
-  # Права
+  # --- Права ---------------------------------------------------------------
   sudo chown -R root:root "$COMPOSE_DIR"
   sudo chmod -R 755 "$COMPOSE_DIR"
 
-  stamp "M4.cfg"
-  mark_success "MONHUB_MODULE4"
-  ok "Модул 4 завърши."
-else
-  warn "Модул 4 вече е изпълнен. Пропускане."
+  # --- Маркер и резултат ---------------------------------------------------
+  stamp "$MODULE_MARK"
+
+  echo ""
+
+  # ✅ Запис на резултат + показване САМО при успешен запис
+  if sudo grep -q "^${RESULT_KEY}=" "$SETUP_ENV_FILE" 2>/dev/null; then
+    if sudo sed -i "s|^${RESULT_KEY}=.*|${RESULT_KEY}=✅|" "$SETUP_ENV_FILE"; then
+      echo "${RESULT_KEY}=✅"
+    fi
+  else
+    echo "${RESULT_KEY}=✅" | sudo tee -a "$SETUP_ENV_FILE"
+  fi
+
 fi
+echo ""
+echo ""
+
+
+exit 0
+
 
 # =====================================================================
 # [МОДУЛ 5] Стартиране на стека
