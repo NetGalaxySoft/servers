@@ -406,42 +406,67 @@ echo ""
 echo ""
 
 
-
-
-exit 0
-
-
-# =====================================================================
-# [МОДУЛ 3] Инсталация на Docker Engine + Compose (LTS)
-# =====================================================================
-log ""
-log "=============================================="
-log "[3] DOCKER ENGINE + COMPOSE..."
-log "=============================================="
+# ======================================================
+# [МОДУЛ 4] Инсталация на Docker Engine + Compose (LTS)
+# ======================================================
+log "[4] DOCKER ENGINE + COMPOSE..."
+log "==================================================="
 log ""
 
-if ! already_done "M3.docker"; then
+# --- Задължителна начална проверка за вече изпълнен модул -----------------
+if sudo grep -q '^MON_RESULT_MODULE4=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 4 вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
+  MODULE_MARK="M4.docker"
+  RESULT_KEY="MON_RESULT_MODULE4"
+
   # Официално хранилище на Docker
+  sudo apt-get update -y
   sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+
+  # Ключодържател за Docker (идемпотентно)
   sudo install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  echo \
-"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) stable" \
-  | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+  if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+      | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    sudo chmod 0644 /etc/apt/keyrings/docker.gpg
+  fi
+
+  # Репо файл (идемпотентно)
+  UBUNTU_CODENAME="$(. /etc/os-release && echo "$UBUNTU_CODENAME")"
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${UBUNTU_CODENAME} stable" \
+    | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
   sudo apt-get update -y
   sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-  # Разрешаваме docker срвс
+  # Разрешаваме и стартираме Docker service
   sudo systemctl enable --now docker
 
-  stamp "M3.docker"
-  mark_success "MONHUB_MODULE3"
-  ok "Модул 3 завърши."
-else
-  warn "Модул 3 вече е изпълнен. Пропускане."
+  # Вътрешен маркер за модула
+  stamp "$MODULE_MARK"
+
+  # ✅ Запис на резултат за Модул 4 + показване САМО при успешен запис
+  if sudo grep -q "^${RESULT_KEY}=" "$SETUP_ENV_FILE" 2>/dev/null; then
+    if sudo sed -i "s|^${RESULT_KEY}=.*|${RESULT_KEY}=✅|" "$SETUP_ENV_FILE"; then
+      echo "${RESULT_KEY}=✅"
+    fi
+  else
+    echo "${RESULT_KEY}=✅" | sudo tee -a "$SETUP_ENV_FILE"
+  fi
+
 fi
+echo ""
+echo ""
+
+
+
+
+
+
+exit 0
+
 
 # =====================================================================
 # [МОДУЛ 4] Конфигурации за Prometheus/Alertmanager/Grafana/Loki/Promtail/Exporters
