@@ -1025,37 +1025,40 @@ fi
 echo ""
 echo ""
 
+
 # =====================================================================
-# [МОДУЛ 10] Alertmanager → Telegram известия (устойчив на липса на todo.modules)
+# [МОДУЛ 10] Alertmanager → Telegram известия (пропуск при липса на креденшъли)
 # =====================================================================
 log "[10] ALERTMANAGER: Telegram известия..."
 log "======================================="
 log ""
 
+# Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE10=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 10 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  # 0) Ако alertmanager.yml вече има telegram_configs → приемаме за конфигуриран
+  # Ако вече има telegram_configs в alertmanager.yml → приемаме за конфигуриран
   if [[ -f "$ALERT_DIR/alertmanager.yml" ]] && sudo grep -q 'telegram_configs:' "$ALERT_DIR/alertmanager.yml" 2>/dev/null; then
-    ok "Alertmanager вече е конфигуриран за Telegram. Пропускане на повторна настройка."
+    ok "Alertmanager вече е конфигуриран за Telegram."
+    if sudo grep -q '^MON_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
+      sudo sed -i 's|^MON_RESULT_MODULE10=.*|MON_RESULT_MODULE10=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE10=✅"
+    else
+      echo "MON_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE"
+    fi
+
   else
-    # 1) Прочети креденшъли (еднократно) от todo.modules
+    # Прочит от todo.modules (ако липсват ключове → пропускаме модула без грешка)
     get_kv() { sudo awk -F= -v key="$1" '$1==key {gsub(/^"/,"",$2); gsub(/"$/,"",$2); print $2}' "$MODULES_FILE" 2>/dev/null | tail -n1; }
     TELEGRAM_BOT_TOKEN="$(get_kv TELEGRAM_BOT_TOKEN)"
     TELEGRAM_CHAT_ID="$(get_kv TELEGRAM_CHAT_ID)"
 
     if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
-      err "Липсва TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID."
-      echo "Добави ги и пусни скрипта отново:"
-      echo "  echo 'TELEGRAM_BOT_TOKEN=\"123456789:ABCDEF...\"' | sudo tee -a \"$MODULES_FILE\" > /dev/null"
-      echo "  echo 'TELEGRAM_CHAT_ID=\"-1001234567890\"'     | sudo tee -a \"$MODULES_FILE\" > /dev/null"
-      exit 1
-    fi
-
-    # 2) Запиши alertmanager.yml с Telegram получател
-    sudo mkdir -p "$ALERT_DIR"
-    sudo tee "$ALERT_DIR/alertmanager.yml" >/dev/null <<EOF
+      warn "Пропускам Модул 10: липсва TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID. Системата е готова за последваща конфигурация."
+    else
+      # Генериране на alertmanager.yml с Telegram получател
+      sudo mkdir -p "$ALERT_DIR"
+      sudo tee "$ALERT_DIR/alertmanager.yml" >/dev/null <<EOF
 route:
   receiver: 'telegram'
   group_wait: 30s
@@ -1070,30 +1073,26 @@ receivers:
         api_url: 'https://api.telegram.org'
         send_resolved: true
 EOF
+      sudo chown root:root "$ALERT_DIR/alertmanager.yml"
+      sudo chmod 640 "$ALERT_DIR/alertmanager.yml"
 
-    # 3) Стегни права и (по желание) изчисти тайните от todo.modules
-    sudo chown root:root "$ALERT_DIR/alertmanager.yml"
-    sudo chmod 640 "$ALERT_DIR/alertmanager.yml"
-    # Ако искаш да чисти тайните веднага, махни коментара на следния ред:
-    # sudo sed -i '/^TELEGRAM_BOT_TOKEN=/d;/^TELEGRAM_CHAT_ID=/d' "$MODULES_FILE"
+      # Презареждане само на Alertmanager
+      if [[ -d "$COMPOSE_DIR" ]]; then
+        (cd "$COMPOSE_DIR" && sudo docker compose up -d alertmanager)
+        ok "Alertmanager е презареден с Telegram конфигурация."
+      else
+        err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
+        exit 1
+      fi
+
+      # Маркиране на резултат
+      if sudo grep -q '^MON_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
+        sudo sed -i 's|^MON_RESULT_MODULE10=.*|MON_RESULT_MODULE10=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE10=✅"
+      else
+        echo "MON_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE"
+      fi
+    fi
   fi
-
-  # 4) Презареди само Alertmanager
-  if [[ -d "$COMPOSE_DIR" ]]; then
-    (cd "$COMPOSE_DIR" && sudo docker compose up -d alertmanager)
-    ok "Alertmanager е презареден."
-  else
-    err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
-    exit 1
-  fi
-
-  # 5) Маркиране на резултат
-  if sudo grep -q '^MON_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^MON_RESULT_MODULE10=.*|MON_RESULT_MODULE10=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE10=✅"
-  else
-    echo "MON_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE"
-  fi
-
 fi
 echo ""
 echo ""
