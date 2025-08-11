@@ -1116,23 +1116,22 @@ EOF
   fi
 
   # Хидратиране на BOT_TOKEN/CHAT_ID (без awk/pipe; работи при set -e -u)
-  # 1) monitoring.env, 2) fallback към todo.modules
-  [ -z "${BOT_TOKEN+x}" ] || [ -z "${CHAT_ID+x}" ] || true
+  # 1) monitoring.env; 2) fallback към todo.modules (ако липсва поне едната стойност)
+  [ -r "$MON_ENV_FILE" ] && . "$MON_ENV_FILE"
   if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
-    [ -r "$MON_ENV_FILE" ]  && . "$MON_ENV_FILE"
-    [ -z "${BOT_TOKEN:-}" ] && [ -r "$MODULES_FILE" ] && . "$MODULES_FILE"
-  fi
-  if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
-    echo "❌ Липсват BOT_TOKEN/CHAT_ID (Модул 9 — запис на секретите не е наличен)."
-    exit 1
+    [ -r "$MODULES_FILE" ] && . "$MODULES_FILE"
   fi
 
-  # Твърда проверка
+  # Премахване на евентуални CRLF
+  BOT_TOKEN="${BOT_TOKEN%$'\r'}"
+  CHAT_ID="${CHAT_ID%$'\r'}"
+
+  # Твърда проверка – единствена
   if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
     echo "❌ Липсват BOT_TOKEN/CHAT_ID (Модул 9 не е завършен)."
     exit 1
   fi
-
+  
   # BOT_TOKEN
   if sudo grep -q '^BOT_TOKEN=' "$MODULES_FILE" 2>/dev/null; then
     sudo sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=${BOT_TOKEN}|" "$MODULES_FILE"
