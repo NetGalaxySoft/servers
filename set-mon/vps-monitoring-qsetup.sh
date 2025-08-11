@@ -1025,6 +1025,75 @@ fi
 echo ""
 echo ""
 
+# =====================================================================
+# [МОДУЛ 10] Alertmanager → Telegram известия
+# =====================================================================
+log "[10] ALERTMANAGER: Telegram известия..."
+log "======================================="
+log ""
+
+# Проверка дали модулът вече е изпълнен
+if sudo grep -q '^MON_RESULT_MODULE10=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 10 вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
+  # --- 1) Четене на креденшъли от todo.modules ---
+  get_kv() {
+    local k="$1"
+    sudo awk -F= -v key="$k" '$1==key {gsub(/^"/,"",$2); gsub(/"$/,"",$2); print $2}' "$MODULES_FILE" 2>/dev/null | tail -n1
+  }
+  TELEGRAM_BOT_TOKEN="$(get_kv TELEGRAM_BOT_TOKEN)"
+  TELEGRAM_CHAT_ID="$(get_kv TELEGRAM_CHAT_ID)"
+
+  if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
+    err "Липсва TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID в $MODULES_FILE."
+    echo "Добави ги с:"
+    echo "  echo 'TELEGRAM_BOT_TOKEN=\"123456789:ABCDEF...\"' | sudo tee -a \"$MODULES_FILE\" > /dev/null"
+    echo "  echo 'TELEGRAM_CHAT_ID=\"-1001234567890\"'     | sudo tee -a \"$MODULES_FILE\" > /dev/null"
+    echo "После стартирай скрипта отново."
+    exit 1
+  fi
+
+  # --- 2) Генериране на alertmanager.yml с Telegram получател ---
+  sudo tee "$ALERT_DIR/alertmanager.yml" >/dev/null <<EOF
+route:
+  receiver: 'telegram'
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+
+receivers:
+  - name: 'telegram'
+    telegram_configs:
+      - bot_token: '${TELEGRAM_BOT_TOKEN}'
+        chat_id: '${TELEGRAM_CHAT_ID}'
+        api_url: 'https://api.telegram.org'
+        send_resolved: true
+        parse_mode: ''
+        message: |-
+          [{{ .Status | toUpper }}] {{ range .Alerts }}{{ .Labels.alertname }} on {{ .Labels.instance }} ({{ .Labels.severity }}) — {{ .Annotations.summary }}
+          {{ end }}
+EOF
+
+  # --- 3) Презареждане само на Alertmanager ---
+  if [[ -d "$COMPOSE_DIR" ]]; then
+    (cd "$COMPOSE_DIR" && sudo docker compose up -d alertmanager)
+    ok "Alertmanager е презареден с Telegram конфигурация."
+  else
+    err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
+    exit 1
+  fi
+
+  # --- 4) Маркиране на резултат ---
+  if sudo grep -q '^MON_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^MON_RESULT_MODULE10=.*|MON_RESULT_MODULE10=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE10=✅"
+  else
+    echo "MON_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE"
+  fi
+fi
+
+echo ""
+echo ""
 
 
 
