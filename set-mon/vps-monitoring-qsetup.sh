@@ -1157,7 +1157,11 @@ printf "\nДиректории:\n"
 printf "  • Логове ............ %s\n" "${LOG_DIR:-<не е зададено>}"
 printf "  • Compose ........... %s\n" "${COMPOSE_DIR:-<не е зададено>}"
 
-printf "\nUFW: отворени портове → 22, 3000, 9090, 9093, 3100, 9100, 9115\n"
+# Откриване на SSH порта (от sshd_config; fallback 22)
+SSH_PORT="$(sudo awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2; exit}' /etc/ssh/sshd_config 2>/dev/null)"
+SSH_PORT="${SSH_PORT:-22}"
+
+printf "\nUFW: отворени портове → %s, 3000, 9090, 9093, 3100, 9100, 9115\n" "$SSH_PORT"
 
 printf "\nTelegram Alerts:\n"
 printf "  • Бот ............... @netgalaxy_alerts_bot\n"
@@ -1165,6 +1169,8 @@ printf "  • CHAT_ID ........... %s\n" "${CHAT_ID:-<не е открит>}"
 
 printf "\nБърз тест (през браузър):\n"
 printf "  https://api.telegram.org/bot<ТОКЕН>/sendMessage?chat_id=%s&text=NetGalaxy%%20Monitoring%%20test\n" "${CHAT_ID:-<CHAT_ID>}"
+echo ""
+echo ""
 
 # --- Потвърждение от оператора ---
 while true; do
