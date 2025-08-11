@@ -884,7 +884,7 @@ printf "[5] Локализации:                  %s\n" "${status_module5:-�
 printf "[6] Времева зона и NTP:           %s\n" "${status_module6:-❔}"
 printf "[7] Администраторски профил:      %-15s (%s)\n" "$ADMIN_USER" "${status_module7:-❔}"
 printf "[8] Настройка на UFW:             %s\n" "${status_module8:-❔}"
-printf "[9] SSH порт:                    %-15s (%s)\n" "$SSH_PORT" "${status_module10:-❔}"
+printf "[9] SSH порт:                     %-15s (%s)\n" "$SSH_PORT" "${status_module9:-❔}"
 echo ""
 echo ""
 
