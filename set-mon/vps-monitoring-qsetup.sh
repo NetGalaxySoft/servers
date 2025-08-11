@@ -319,61 +319,105 @@ echo ""
 
 
 # =====================================================================
-# [МОДУЛ 3] Системни ъпдейти, SSH твърдяване, UFW
+# [МОДУЛ 3] Системни ъпдейти, SSH (без промяна на root/пароли), UFW
 # =====================================================================
 log "[3] СИСТЕМНИ НАСТРОЙКИ: ъпдейти, SSH, UFW..."
 log "=============================================="
 log ""
 
-# Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE3=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 3 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  # Ъпдейти
+  # --- Ъпдейти (noninteractive) ---
   sudo apt-get update -y
   sudo DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y
 
-  # Минимални инструменти
+  # --- Минимални инструменти ---
   sudo apt-get install -y curl wget gnupg2 ca-certificates jq unzip software-properties-common ufw
 
-  # Откриване на реалния SSH порт от конфигурацията
+  # --- Откриване на реалните SSH портове ---
   SSHD="/etc/ssh/sshd_config"
   SSHD_BIN="$(command -v sshd || echo /usr/sbin/sshd)"
-  SSH_PORT="$(sudo awk '/^\s*Port\s+[0-9]+/ {print $2}' "$SSHD" | tail -n1)"
-  [[ -z "$SSH_PORT" ]] && SSH_PORT=22
 
-  # SSH твърдяване (без да пречим на текущата сесия)
-  sudo cp -a "$SSHD" "${SSHD}.bak.$(date +%F-%H%M%S)"
-  sudo sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/' "$SSHD"
-  sudo sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin no/' "$SSHD"
-  sudo sed -i 's/^#\?X11Forwarding .*/X11Forwarding no/' "$SSHD"
+  # 1) слушащи портове на sshd (live)
+  mapfile -t SSH_PORTS < <(ss -ltnp 2>/dev/null | awk '/sshd/ {split($4,a,":"); print a[length(a)]}' | sort -u)
 
-  # Тест на SSH конфигурацията преди reload
+  # 2) fallback: от конфигурацията (вкл. включени *.conf)
+  if [[ ${#SSH_PORTS[@]} -eq 0 ]]; then
+    mapfile -t SSH_PORTS < <(
+      { awk '/^\s*Port\s+[0-9]+/ {print $2}' "$SSHD" 2>/dev/null; \
+        awk '/^\s*Port\s+[0-9]+/ {print $2}' /etc/ssh/sshd_config.d/*.conf 2>/dev/null; } \
+      | awk 'NF' | sort -u
+    )
+  fi
+
+  # 3) финален fallback
+  [[ ${#SSH_PORTS[@]} -eq 0 ]] && SSH_PORTS=(22)
+
+  # --- SSH настройка (без да забраняваме root/пароли на този етап) ---
+  sudo cp -a "$SSHD" "${SSHD}.bak.$(date +%F-%H%M%S)" 2>/dev/null || true
+  sudo sed -i 's/^#\?X1\?1Forwarding .*/X11Forwarding no/' "$SSHD" 2>/dev/null || true
+
+  # Тест и безопасен reload (никога restart)
   if sudo "$SSHD_BIN" -t; then
-    sudo systemctl reload ssh || sudo systemctl restart ssh
+    sudo systemctl reload ssh || sudo systemctl reload sshd || true
   else
-    warn "SSH конфигурацията е невалидна. Връщам backup."
+    warn "Невалиден sshd_config. Връщам backup."
     sudo cp -a "${SSHD}.bak."* "$SSHD" 2>/dev/null || true
   fi
 
-  # UFW — позволяваме само нужното (включително реалния SSH порт)
+  # --- Подготовка на UFW правилата (преглед преди прилагане) ---
+  # Списък с портове, които ще бъдат разрешени (TCP)
+  ALLOW_PORTS=( "${SSH_PORTS[@]}" 22 3000 9090 9093 3100 9100 9115 )
+
+  # Премахване на дублирани/празни стойности
+  declare -A _seen; UNIQUE_PORTS=()
+  for p in "${ALLOW_PORTS[@]}"; do
+    [[ -n "$p" ]] || continue
+    if [[ -z "${_seen[$p]}" ]]; then
+      UNIQUE_PORTS+=("$p")
+      _seen[$p]=1
+    fi
+  done
+
+  echo ""
+  echo "🛡️  Предварителен преглед на UFW правилата:"
+  echo "    Политики: incoming=DENY, outgoing=ALLOW"
+  echo "    Ще бъдат разрешени следните входящи TCP портове:"
+  for p in "${UNIQUE_PORTS[@]}"; do
+    echo "      • allow ${p}/tcp"
+  done
+  echo ""
+  read -r -p "▶ Продължавам ли с прилагането и активирането на UFW? [Enter=ДА / 'q'=ОТКАЗ]: " _ans
+  # --- Потвърждение от оператора преди активиране на UFW ---
+  while true; do
+    echo ""
+    read -r -p "▶ Потвърждавам прилагането и активирането на UFW? [Enter=ДА / y / yes / д / да] | [n / no / не / q=ОТКАЗ]: " _ans
+    _ans_lc="$(echo "$_ans" | tr '[:upper:]' '[:lower:]')"
+
+    if [[ -z "$_ans_lc" || "$_ans_lc" == "y" || "$_ans_lc" == "yes" || "$_ans_lc" == "д" || "$_ans_lc" == "да" ]]; then
+      # Продължаваме
+      break
+    elif [[ "$_ans_lc" == "n" || "$_ans_lc" == "no" || "$_ans_lc" == "не" || "$_ans_lc" == "q" ]]; then
+      warn "Операторът прекрати изпълнението преди активиране на UFW."
+      echo ""
+      exit 0
+    else
+      echo "❌ Невалиден отговор. Моля, натиснете Enter (ДА) или въведете n/no/не/q (ОТКАЗ)."
+    fi
+  done
+
+  # --- UFW политика и прилагане на правила ---
   sudo ufw --force reset
   sudo ufw default deny incoming
   sudo ufw default allow outgoing
-  sudo ufw allow ${SSH_PORT}/tcp    # SSH действителен порт
-  # по желание може да оставиш и профила:
-  # sudo ufw allow OpenSSH
-
-  sudo ufw allow 3000/tcp    # Grafana
-  sudo ufw allow 9090/tcp    # Prometheus
-  sudo ufw allow 9093/tcp    # Alertmanager
-  sudo ufw allow 3100/tcp    # Loki
-  sudo ufw allow 9100/tcp    # node_exporter
-  sudo ufw allow 9115/tcp    # blackbox_exporter
+  for p in "${UNIQUE_PORTS[@]}"; do
+    sudo ufw allow "${p}/tcp"
+  done
   sudo ufw --force enable
 
-  # ✅ Запис на резултат само при успешен запис + показване в терминала
+  # ✅ Запис на резултат
   if sudo grep -q '^MON_RESULT_MODULE3=' "$SETUP_ENV_FILE" 2>/dev/null; then
     if sudo sed -i 's|^MON_RESULT_MODULE3=.*|MON_RESULT_MODULE3=✅|' "$SETUP_ENV_FILE"; then
       echo "MON_RESULT_MODULE3=✅"
@@ -381,10 +425,11 @@ else
   else
     echo "MON_RESULT_MODULE3=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
-
+  
 fi
 echo ""
 echo ""
+
 
 
 
