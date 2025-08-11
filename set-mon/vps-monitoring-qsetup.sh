@@ -1125,18 +1125,26 @@ log "[10] ОБОБЩЕНИЕ – Telegram Alerts"
 log "=============================================="
 log ""
 
-SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
-MON_ENV_FILE="/etc/netgalaxy/monitoring.env"
+# Пътища по подразбиране (защитено срещу set -u)
+NETGALAXY_DIR="${NETGALAXY_DIR:-/etc/netgalaxy}"
+SETUP_ENV_FILE="${SETUP_ENV_FILE:-$NETGALAXY_DIR/setup.env}"
+MON_ENV_FILE="${MON_ENV_FILE:-$NETGALAXY_DIR/monitoring.env}"
+MODULES_FILE="${MODULES_FILE:-$NETGALAXY_DIR/todo.modules}"
 
-# Опит за извличане на стойности (без да печатаме токена)
+# Зареждане на стойности от monitoring.env (без source; безопасно при set -u)
+CHAT_ID=""
+BOT_TOKEN=""
 if sudo test -f "$MON_ENV_FILE"; then
-  CHAT_ID="$(sudo awk -F= '/^CHAT_ID=/{print $2}' "$MON_ENV_FILE" 2>/devnull || true)"
+  CHAT_ID="$(sudo awk -F= '/^CHAT_ID=/{print $2}' "$MON_ENV_FILE" 2>/dev/null | tr -d '\r' || true)"
+  BOT_TOKEN="$(sudo awk -F= '/^BOT_TOKEN=/{print $2}' "$MON_ENV_FILE" 2>/dev/null | tr -d '\r' || true)"
 fi
 
-# Ако има наличен BOT_TOKEN в текущата сесия, извлечи имената за контекст
-if [ -n "$BOT_TOKEN" ]; then
-  BOT_USERNAME="${BOT_USERNAME:-$(curl -fsS "https://api.telegram.org/bot${BOT_TOKEN}/getMe" | sed -n 's/.*\"username\":\"\([^\"]*\)\".*/\1/p')}"
-  GROUP_TITLE="${GROUP_TITLE:-$(curl -fsS "https://api.telegram.org/bot${BOT_TOKEN}/getChat?chat_id=${CHAT_ID}" | sed -n 's/.*\"title\":\"\([^\"]*\)\".*/\1/p')}"
+# Извеждане на имена (само ако имаме и токен, и chat_id)
+BOT_USERNAME=""
+GROUP_TITLE=""
+if [ -n "${BOT_TOKEN:-}" ] && [ -n "${CHAT_ID:-}" ]; then
+  BOT_USERNAME="$(curl -fsS "https://api.telegram.org/bot${BOT_TOKEN}/getMe" | sed -n 's/.*"username":"\([^"]*\)".*/\1/p')"
+  GROUP_TITLE="$(curl -fsS "https://api.telegram.org/bot${BOT_TOKEN}/getChat?chat_id=${CHAT_ID}" | sed -n 's/.*"title":"\([^"]*\)".*/\1/p')"
 fi
 
 printf "\n"
@@ -1148,15 +1156,6 @@ printf "  • Secrets file:  %s\n" "$MON_ENV_FILE"
 
 printf "\nБърз тест (през браузър):\n"
 printf "  https://api.telegram.org/bot<ТОКЕН>/sendMessage?chat_id=%s&text=NetGalaxy%%20Monitoring%%20test\n" "${CHAT_ID:-<CHAT_ID>}"
-
-# Статус от setup.env
-MOD9_STATUS="$(sudo awk -F= '/^MON_RESULT_MODULE9=/{print $2}' "$SETUP_ENV_FILE" 2>/dev/null || true)"
-printf "\nСтатус в setup.env: MON_RESULT_MODULE9=%s\n" "${MOD9_STATUS:-❔}"
-
-printf "\n❓ Приемате ли резултата от Модул 9?\n"
-printf "   • Ако ДА — продължете със следващия модул.\n"
-printf "   • Ако НЕ — опишете проблема и стартирайте процедурата за отстраняване на неизправности.\n"
-
 
 # --- Потвърждение от оператора ---
 while true; do
