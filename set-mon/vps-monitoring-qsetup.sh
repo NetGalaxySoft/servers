@@ -67,9 +67,9 @@ echo -e "=====================================================================\0
 echo ""
 echo ""
 
-SETUP_DIR="/etc/netgalaxy"
-SETUP_ENV_FILE="$SETUP_DIR/setup.env"
-MODULES_FILE="$SETUP_DIR/todo.modules"
+NETGALAXY_DIR="/etc/netgalaxy"
+MODULES_FILE="$NETGALAXY_DIR/todo.modules"
+SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
 
 COMPOSE_DIR="/opt/netgalaxy/monhub"
 PROM_DIR="$COMPOSE_DIR/prometheus"
