@@ -70,6 +70,7 @@ echo ""
 NETGALAXY_DIR="/etc/netgalaxy"
 MODULES_FILE="$NETGALAXY_DIR/todo.modules"
 SETUP_ENV_FILE="$NETGALAXY_DIR/setup.env"
+MON_ENV_FILE="$NETGALAXY_DIR/monitoring.env"
 
 COMPOSE_DIR="/opt/netgalaxy/monhub"
 PROM_DIR="$COMPOSE_DIR/prometheus"
@@ -1104,6 +1105,30 @@ EOF
     fi
   fi
 
+  # --- Запис в todo.modules за следващите модули (без промяна на права/owner) ---
+if ! sudo test -f "$MODULES_FILE"; then
+  echo "❌ Липсва $MODULES_FILE (изпълнете Модул 1 преди Модул 9)."
+  exit 1
+fi
+if ! sudo test -w "$MODULES_FILE"; then
+  echo "❌ Нямам права за запис в $MODULES_FILE (immutable/readonly)."
+  exit 1
+fi
+
+# BOT_TOKEN
+if sudo grep -q '^BOT_TOKEN=' "$MODULES_FILE" 2>/dev/null; then
+  sudo sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=${BOT_TOKEN}|" "$MODULES_FILE"
+else
+  echo "BOT_TOKEN=${BOT_TOKEN}" | sudo tee -a "$MODULES_FILE" >/dev/null
+fi
+
+# CHAT_ID
+if sudo grep -q '^CHAT_ID=' "$MODULES_FILE" 2>/dev/null; then
+  sudo sed -i "s|^CHAT_ID=.*|CHAT_ID=${CHAT_ID}|" "$MODULES_FILE"
+else
+  echo "CHAT_ID=${CHAT_ID}" | sudo tee -a "$MODULES_FILE" >/dev/null
+fi
+
   # --- 5) Маркиране на резултат ---
   if sudo grep -q '^MON_RESULT_MODULE9=' "$SETUP_ENV_FILE" 2>/dev/null; then
     sudo sed -i 's|^MON_RESULT_MODULE9=.*|MON_RESULT_MODULE9=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE9=✅"
@@ -1116,13 +1141,11 @@ echo ""
 echo ""
 
 
-# =====================================================================
+# ==========================================================
 # [МОДУЛ 10] Обобщение – Monitoring Stack + Telegram Alerts
-# =====================================================================
-log ""
-log "=============================================="
+# ==========================================================
 log "[10] ОБОБЩЕНИЕ – Monitoring Stack + Telegram Alerts"
-log "=============================================="
+log "===================================================="
 log ""
 
 NETGALAXY_DIR="${NETGALAXY_DIR:-/etc/netgalaxy}"
@@ -1140,8 +1163,17 @@ BLACKBOX_PROBE="http://${IP4}:9115/probe?target=https://example.org"
 
 # Telegram (само четене на CHAT_ID; без токен)
 CHAT_ID=""
-if sudo test -f "$MON_ENV_FILE"; then
-  CHAT_ID="$(sudo awk -F= '/^CHAT_ID=/{print $2}' "$MON_ENV_FILE" 2>/dev/null | tr -d '\r')"
+
+# 1) Опит от monitoring.env
+CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE" 2>/dev/null)"
+
+# 2) Fallback към todo.modules
+[ -z "$CHAT_ID" ] && CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MODULES_FILE" 2>/dev/null)"
+
+# 3) Твърда проверка
+if [ -z "$CHAT_ID" ]; then
+  echo "❌ CHAT_ID липсва. Модул 9 (Telegram Alerts) не е завършен."
+  exit 1
 fi
 
 printf "\n"
