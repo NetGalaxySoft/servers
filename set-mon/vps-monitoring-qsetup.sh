@@ -179,19 +179,22 @@ else
   done
 
   # ✅ Временно премахване на забраната за промяна/изтриване
-  if [[ -d "$SETUP_DIR" ]]; then
+  if [[ -d "$NETGALAXY_DIR" ]]; then
+    # 0) Сваляме immutable флага и за директорията
+    sudo chattr -i "$NETGALAXY_DIR" 2>/dev/null || true
+
     # 1) Първо сваляме immutable флага (ако е зададен)
     [[ -f "$SETUP_ENV_FILE"      ]] && sudo chattr -i "$SETUP_ENV_FILE"       2>/dev/null || true
     [[ -f "$MODULES_FILE"        ]] && sudo chattr -i "$MODULES_FILE"         2>/dev/null || true
-    [[ -f "$SETUP_DIR/.nodelete" ]] && sudo chattr -i "$SETUP_DIR/.nodelete"  2>/dev/null || true
+    [[ -f "$NETGALAXY_DIR/.nodelete" ]] && sudo chattr -i "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true
 
     # 2) После коригираме собственост и права поотделно (само ако съществуват)
-    sudo chown root:root "$SETUP_DIR" 2>/dev/null || true
-    sudo chmod 755 "$SETUP_DIR"       2>/dev/null || true
+    sudo chown root:root "$NETGALAXY_DIR" 2>/dev/null || true
+    sudo chmod 755 "$NETGALAXY_DIR"       2>/dev/null || true
 
     [[ -f "$SETUP_ENV_FILE"      ]] && { sudo chown root:root "$SETUP_ENV_FILE"      2>/dev/null || true; sudo chmod 644 "$SETUP_ENV_FILE"      2>/dev/null || true; }
     [[ -f "$MODULES_FILE"        ]] && { sudo chown root:root "$MODULES_FILE"        2>/dev/null || true; sudo chmod 644 "$MODULES_FILE"        2>/dev/null || true; }
-    [[ -f "$SETUP_DIR/.nodelete" ]] && { sudo chown root:root "$SETUP_DIR/.nodelete" 2>/dev/null || true; sudo chmod 644 "$SETUP_DIR/.nodelete" 2>/dev/null || true; }
+    [[ -f "$NETGALAXY_DIR/.nodelete" ]] && { sudo chown root:root "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true; sudo chmod 644 "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true; }
   fi
 
   # ✅ Запис или обновяване на SERVER_IP в todo.modules
