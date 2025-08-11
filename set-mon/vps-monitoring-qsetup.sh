@@ -837,12 +837,97 @@ else
   else
     echo "MON_RESULT_MODULE6=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
+
 fi
-
 echo ""
 echo ""
 
 
+# =====================================================================
+# [МОДУЛ 7] Blackbox targets (file_sd) + промени в Prometheus/Compose
+# =====================================================================
+log "[7] BLACKBOX TARGETS: динамични цели през file_sd..."
+log "===================================================="
+log ""
+
+# Проверка дали модулът вече е изпълнен
+if [[ -f "$SETUP_ENV_FILE" ]] && sudo grep -Fxq 'MON_RESULT_MODULE7=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 7 вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
+  # --- 1) Директория и targets файл за Blackbox ---
+  sudo mkdir -p "$PROM_DIR/targets"
+
+  # Създай дефолтен списък с цели, ако липсва файлът
+  if [[ ! -f "$PROM_DIR/targets/blackbox_http.yml" ]]; then
+    sudo tee "$PROM_DIR/targets/blackbox_http.yml" >/dev/null <<'EOF'
+- targets:
+    # Вътрешни цели (контейнери в мрежата "monhub")
+    - http://prometheus:9090
+    - http://alertmanager:9093
+    - http://grafana:3000
+    # Примерна външна цел
+    - https://www.debian.org
+EOF
+  fi
+
+  # --- 2) Увери се, че Prometheus има монтиран /etc/prometheus/targets ---
+  if ! grep -Fq '/etc/prometheus/targets' "$COMPOSE_DIR/docker-compose.yml"; then
+    tmp_comp="/tmp/dc.$$"
+    sudo awk -v ins="      - ${PROM_DIR}/targets:/etc/prometheus/targets:ro" '
+      BEGIN{inprom=0; done=0}
+      # начало на секцията за prometheus
+      /^[[:space:]]{2}prometheus:/ {inprom=1}
+      # ако сме в prometheus и видим ред "    volumes:", вмъкваме bind-а точно отдолу (ако не е правено)
+      inprom==1 && /^[[:space:]]{4}volumes:[[:space:]]*$/ && done==0 { print; print ins; done=1; next }
+      # излизаме от секцията на prometheus при следващ top-level service (две водещи интервала и име:)
+      inprom==1 && /^[[:space:]]{2}[a-zA-Z0-9_-]+:/ && $0 !~ /^[[:space:]]{2}prometheus:/ { inprom=0 }
+      { print }
+    ' "$COMPOSE_DIR/docker-compose.yml" > "$tmp_comp" && sudo mv "$tmp_comp" "$COMPOSE_DIR/docker-compose.yml"
+  fi
+
+  # --- 3) Инжектиране на file_sd_configs в prometheus.yml (ако липсва) ---
+  if ! grep -q 'file_sd_configs:' "$PROM_DIR/prometheus.yml"; then
+    tmp_prom="/tmp/prom.$$"
+    sudo cp -a "$PROM_DIR/prometheus.yml" "${PROM_DIR}/prometheus.yml.bak.$(date +%F-%H%M%S)"
+    sudo awk '
+      BEGIN{injob=0; done=0}
+      # засичаме начало на job-а blackbox_http
+      /^\s*-\s*job_name:\s*'\''blackbox_http'\''\s*$/ {injob=1}
+      # след реда с module: [http_2xx] инжектираме file_sd_configs (само веднъж)
+      injob==1 && /^\s*module:\s*\[http_2xx\]\s*$/ && done==0 {
+        print
+        print "    file_sd_configs:"
+        print "      - files:"
+        print "        - /etc/prometheus/targets/blackbox_http.yml"
+        done=1
+        next
+      }
+      # излизаме от job секцията при следващ job_name: или края на файла
+      injob==1 && /^\s*-\s*job_name:\s*'\''/ && $0 !~ /blackbox_http/ {injob=0}
+      {print}
+    ' "$PROM_DIR/prometheus.yml" > "$tmp_prom" && sudo mv "$tmp_prom" "$PROM_DIR/prometheus.yml"
+  fi
+
+  # --- 4) Презареди само Prometheus, за да вземе новите настройки/targets ---
+  if [[ -d "$COMPOSE_DIR" ]]; then
+    (cd "$COMPOSE_DIR" && sudo docker compose up -d prometheus)
+    ok "Prometheus е презареден с file_sd targets."
+  else
+    err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
+    exit 1
+  fi
+
+  # --- 5) Маркиране на резултат ---
+  if sudo grep -q '^MON_RESULT_MODULE7=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^MON_RESULT_MODULE7=.*|MON_RESULT_MODULE7=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE7=✅"
+  else
+    echo "MON_RESULT_MODULE7=✅" | sudo tee -a "$SETUP_ENV_FILE"
+  fi
+
+fi
+echo ""
+echo ""
 
 
 
