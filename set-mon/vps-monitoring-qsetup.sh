@@ -1027,7 +1027,7 @@ echo ""
 
 
 # =====================================================================
-# [МОДУЛ 10] Alertmanager → Telegram известия (пропуск при липса на креденшъли)
+# [МОДУЛ 10] Alertmanager → Telegram известия (интерактивен с валидиране)
 # =====================================================================
 log "[10] ALERTMANAGER: Telegram известия..."
 log "======================================="
@@ -1041,24 +1041,42 @@ else
   # Ако вече има telegram_configs в alertmanager.yml → приемаме за конфигуриран
   if [[ -f "$ALERT_DIR/alertmanager.yml" ]] && sudo grep -q 'telegram_configs:' "$ALERT_DIR/alertmanager.yml" 2>/dev/null; then
     ok "Alertmanager вече е конфигуриран за Telegram."
-    if sudo grep -q '^MON_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
-      sudo sed -i 's|^MON_RESULT_MODULE10=.*|MON_RESULT_MODULE10=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE10=✅"
-    else
-      echo "MON_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE"
-    fi
-
   else
-    # Прочит от todo.modules (ако липсват ключове → пропускаме модула без грешка)
-    get_kv() { sudo awk -F= -v key="$1" '$1==key {gsub(/^"/,"",$2); gsub(/"$/,"",$2); print $2}' "$MODULES_FILE" 2>/dev/null | tail -n1; }
-    TELEGRAM_BOT_TOKEN="$(get_kv TELEGRAM_BOT_TOKEN)"
-    TELEGRAM_CHAT_ID="$(get_kv TELEGRAM_CHAT_ID)"
+    # --- 1) Изискване и валидиране на токен ---
+    TELEGRAM_BOT_TOKEN=""
+    while true; do
+      echo ""
+      read -r -p "Въведете TELEGRAM_BOT_TOKEN (или 'q' за отказ): " TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN=""
+      [[ "$TELEGRAM_BOT_TOKEN" == "q" || "$TELEGRAM_BOT_TOKEN" == "Q" ]] && { warn "Отказано от оператора."; exit 0; }
+      if [[ -z "$TELEGRAM_BOT_TOKEN" ]]; then
+        echo "❌ Токенът е празен. Опитайте отново."
+        continue
+      fi
+      okflag="$(curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" | jq -r '.ok' 2>/dev/null || echo "false")"
+      [[ "$okflag" == "true" ]] && { ok "Токенът е валиден."; break; }
+      echo "❌ Невалиден токен. Проверете в @BotFather и опитайте отново."
+    done
 
-    if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
-      warn "Пропускам Модул 10: липсва TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID. Системата е готова за следващата конфигурация."
-    else
-      # Генериране на alertmanager.yml с Telegram получател
-      sudo mkdir -p "$ALERT_DIR"
-      sudo tee "$ALERT_DIR/alertmanager.yml" >/dev/null <<EOF
+    # --- 2) Въвеждане и валидиране на chat_id (с тестово съобщение) ---
+    TELEGRAM_CHAT_ID=""
+    while true; do
+      echo "Съвет: изпратете едно съобщение на бота (личен чат или група), за да има 'update'."
+      read -r -p "Въведете TELEGRAM_CHAT_ID (или 'q' за отказ): " TELEGRAM_CHAT_ID || TELEGRAM_CHAT_ID=""
+      [[ "$TELEGRAM_CHAT_ID" == "q" || "$TELEGRAM_CHAT_ID" == "Q" ]] && { warn "Отказано от оператора."; exit 0; }
+      if [[ -z "$TELEGRAM_CHAT_ID" ]]; then
+        echo "❌ CHAT_ID е празен. Опитайте отново."
+        continue
+      fi
+      test_ok="$(curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                 -d chat_id="${TELEGRAM_CHAT_ID}" \
+                 -d text="✅ MonHub тестово известие" | jq -r '.ok' 2>/dev/null || echo "false")"
+      [[ "$test_ok" == "true" ]] && { ok "Успешно изпратено тестово съобщение към chat_id=${TELEGRAM_CHAT_ID}."; break; }
+      echo "❌ Неуспешно изпращане към този chat_id. Проверете дали ботът е в чата (и не е блокиран) и опитайте пак."
+    done
+
+    # --- 3) Запис на alertmanager.yml с Telegram получател ---
+    sudo mkdir -p "$ALERT_DIR"
+    sudo tee "$ALERT_DIR/alertmanager.yml" >/dev/null <<EOF
 route:
   receiver: 'telegram'
   group_wait: 30s
@@ -1073,29 +1091,30 @@ receivers:
         api_url: 'https://api.telegram.org'
         send_resolved: true
 EOF
-      sudo chown root:root "$ALERT_DIR/alertmanager.yml"
-      sudo chmod 640 "$ALERT_DIR/alertmanager.yml"
+    sudo chown root:root "$ALERT_DIR/alertmanager.yml"
+    sudo chmod 640 "$ALERT_DIR/alertmanager.yml"
 
-      # Презареждане само на Alertmanager
-      if [[ -d "$COMPOSE_DIR" ]]; then
-        (cd "$COMPOSE_DIR" && sudo docker compose up -d alertmanager)
-        ok "Alertmanager е презареден с Telegram конфигурация."
-      else
-        err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
-        exit 1
-      fi
-
-      # Маркиране на резултат
-      if sudo grep -q '^MON_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
-        sudo sed -i 's|^MON_RESULT_MODULE10=.*|MON_RESULT_MODULE10=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE10=✅"
-      else
-        echo "MON_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE"
-      fi
+    # --- 4) Презареждане само на Alertmanager ---
+    if [[ -d "$COMPOSE_DIR" ]]; then
+      (cd "$COMPOSE_DIR" && sudo docker compose up -d alertmanager)
+      ok "Alertmanager е презареден с Telegram конфигурация."
+    else
+      err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
+      exit 1
     fi
   fi
+
+  # --- 5) Маркиране на резултат ---
+  if sudo grep -q '^MON_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^MON_RESULT_MODULE10=.*|MON_RESULT_MODULE10=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE10=✅"
+  else
+    echo "MON_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE"
+  fi
 fi
+
 echo ""
 echo ""
+
 
 
 
