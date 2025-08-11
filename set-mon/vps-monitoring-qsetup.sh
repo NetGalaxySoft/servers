@@ -1116,38 +1116,113 @@ echo ""
 echo ""
 
 
-
-
-
-
-
-
-
-
-exit 0
 # =====================================================================
-# [МОДУЛ 6] Обобщение
+# [МОДУЛ 10] Обобщение – Telegram Alerts
 # =====================================================================
 log ""
 log "=============================================="
-log "[6] ОБОБЩЕНИЕ"
+log "[10] ОБОБЩЕНИЕ – Telegram Alerts"
 log "=============================================="
 log ""
 
-GRAFANA_URL="http://$(hostname -I | awk '{print $1}'):3000"
-PROM_URL="http://$(hostname -I | awk '{print $1}'):9090"
+SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
+MON_ENV_FILE="/etc/netgalaxy/monitoring.env"
+
+# Опит за извличане на стойности (без да печатаме токена)
+if sudo test -f "$MON_ENV_FILE"; then
+  CHAT_ID="$(sudo awk -F= '/^CHAT_ID=/{print $2}' "$MON_ENV_FILE" 2>/devnull || true)"
+fi
+
+# Ако има наличен BOT_TOKEN в текущата сесия, извлечи имената за контекст
+if [ -n "$BOT_TOKEN" ]; then
+  BOT_USERNAME="${BOT_USERNAME:-$(curl -fsS "https://api.telegram.org/bot${BOT_TOKEN}/getMe" | sed -n 's/.*\"username\":\"\([^\"]*\)\".*/\1/p')}"
+  GROUP_TITLE="${GROUP_TITLE:-$(curl -fsS "https://api.telegram.org/bot${BOT_TOKEN}/getChat?chat_id=${CHAT_ID}" | sed -n 's/.*\"title\":\"\([^\"]*\)\".*/\1/p')}"
+fi
 
 printf "\n"
-printf "Мониторинг стек: \n"
-printf "  • Grafana:        %s (admin / admin)\n" "$GRAFANA_URL"
-printf "  • Prometheus:     %s\n" "$PROM_URL"
-printf "  • Alertmanager:   http://<IP>:9093\n"
-printf "  • Loki API:       http://<IP>:3100\n"
-printf "  • node_exporter:  http://<IP>:9100/metrics\n"
-printf "  • blackbox:       http://<IP>:9115/probe?target=https://example.org\n"
-printf "\nЛог директория: %s\n" "$LOG_DIR"
-printf "Compose папка:  %s\n" "$COMPOSE_DIR"
-printf "\nUFW: отворени портове 22, 3000, 9090, 9093, 3100, 9100, 9115\n"
+printf "Telegram Alerts:\n"
+printf "  • Bot:           @%s\n" "${BOT_USERNAME:-netgalaxy_alerts_bot}"
+printf "  • Group:         %s\n" "${GROUP_TITLE:-NetGalaxy Alerts}"
+printf "  • CHAT_ID:       %s\n" "${CHAT_ID:-<не е открит>}"
+printf "  • Secrets file:  %s\n" "$MON_ENV_FILE"
 
-mark_success "MONHUB_MODULE6"
-ok "Готово."
+printf "\nБърз тест (през браузър):\n"
+printf "  https://api.telegram.org/bot<ТОКЕН>/sendMessage?chat_id=%s&text=NetGalaxy%%20Monitoring%%20test\n" "${CHAT_ID:-<CHAT_ID>}"
+
+# Статус от setup.env
+MOD9_STATUS="$(sudo awk -F= '/^MON_RESULT_MODULE9=/{print $2}' "$SETUP_ENV_FILE" 2>/dev/null || true)"
+printf "\nСтатус в setup.env: MON_RESULT_MODULE9=%s\n" "${MOD9_STATUS:-❔}"
+
+printf "\n❓ Приемате ли резултата от Модул 9?\n"
+printf "   • Ако ДА — продължете със следващия модул.\n"
+printf "   • Ако НЕ — опишете проблема и стартирайте процедурата за отстраняване на неизправности.\n"
+
+
+# --- Потвърждение от оператора ---
+while true; do
+  read -p "✅ Приемате ли конфигурацията като завършена? (y/n): " confirm
+  case "$confirm" in
+    [Yy]*)
+      # ✅ Запис финален статус
+      if grep -q '^SETUP_MONITORING_STATUS=' "$SETUP_ENV_FILE" 2>/dev/null; then
+        sed -i 's|^SETUP_MONITORING_STATUS=.*|SETUP_MONITORING_STATUS=✅|' "$SETUP_ENV_FILE"
+      else
+        echo "SETUP_MONITORING_STATUS=✅" >> "$SETUP_ENV_FILE"
+      fi
+      echo "✅ Конфигурацията е приета и маркирана като завършена."
+      break
+      ;;
+    [Nn]*)
+      echo "❎ Конфигурацията НЕ е приета. Скриптът ще се прекрати без финален запис."
+      exit 0
+      ;;
+    *)
+      echo "❌ Невалиден избор! Моля, въведете 'y' или 'n'."
+      ;;
+  esac
+done
+
+# --- Почистване ---
+if [[ -f "$MODULES_FILE" ]]; then
+  rm -f "$MODULES_FILE"
+  echo "🗑️ Временният файл todo.modules беше изтрит."
+fi
+
+# --- ЗАЩИТА: НЕ ИЗТРИВАЙ /etc/netgalaxy И setup.env ---
+# Създаване на маркер и резервно копие; фиксиране на права и собственик.
+sudo mkdir -p /etc/netgalaxy /var/backups/netgalaxy
+sudo touch /etc/netgalaxy/.nodelete
+
+# Резервно копие на setup.env (само ако има промяна)
+if ! cmp -s /etc/netgalaxy/setup.env /var/backups/netgalaxy/setup.env 2>/dev/null; then
+  sudo cp -a /etc/netgalaxy/setup.env /var/backups/netgalaxy/setup.env
+fi
+
+# ✅ Възстановяване на забраната за промяна/изтриване
+if [[ -d "$NETGALAXY_DIR" ]]; then
+  # Нормализираме собственост и права
+  sudo chown root:root "$NETGALAXY_DIR" 2>/dev/null || true
+  sudo chmod 755 "$NETGALAXY_DIR"       2>/dev/null || true
+
+  [[ -f "$SETUP_ENV_FILE"      ]] && { sudo chown root:root "$SETUP_ENV_FILE"      2>/dev/null || true; sudo chmod 644 "$SETUP_ENV_FILE"      2>/dev/null || true; }
+  [[ -f "$MODULES_FILE"        ]] && { sudo chown root:root "$MODULES_FILE"        2>/dev/null || true; sudo chmod 644 "$MODULES_FILE"        2>/dev/null || true; }
+  [[ -f "$NETGALAXY_DIR/.nodelete" ]] && { sudo chown root:root "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true; sudo chmod 644 "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true; }
+
+  # Връщаме immutable флага (файлове + директория)
+  [[ -f "$SETUP_ENV_FILE"      ]] && sudo chattr +i "$SETUP_ENV_FILE"       2>/dev/null || true
+  [[ -f "$MODULES_FILE"        ]] && sudo chattr +i "$MODULES_FILE"         2>/dev/null || true
+  [[ -f "$NETGALAXY_DIR/.nodelete" ]] && sudo chattr +i "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true
+  sudo chattr +i "$NETGALAXY_DIR" 2>/dev/null || true
+fi
+
+# ВАЖНО: Скриптът не трябва никога да изтрива /etc/netgalaxy или setup.env.
+# Изтрива се само за todo.modules и самия скрипт.
+
+if [[ -f "$0" ]]; then
+  echo "🗑️ Премахване на скрипта..."
+  rm -- "$0"
+fi
+echo ""
+echo ""
+
+# ------------ Край на скрипта ------------
