@@ -372,12 +372,14 @@ else
   ALLOW_PORTS=( "${SSH_PORTS[@]}" 22 3000 9090 9093 3100 9100 9115 )
 
   # Премахване на дублирани/празни стойности
-  declare -A _seen; UNIQUE_PORTS=()
+  declare -A _seen
+  UNIQUE_PORTS=()
+
   for p in "${ALLOW_PORTS[@]}"; do
     [[ -n "$p" ]] || continue
-    if [[ -z "${_seen[$p]}" ]]; then
+    if [[ -z "${_seen["$p"]+x}" ]]; then
       UNIQUE_PORTS+=("$p")
-      _seen[$p]=1
+      _seen["$p"]=1
     fi
   done
 
