@@ -1054,7 +1054,7 @@ else
     TELEGRAM_CHAT_ID="$(get_kv TELEGRAM_CHAT_ID)"
 
     if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
-      warn "Пропускам Модул 10: липсва TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID. Системата е готова за последваща конфигурация."
+      warn "Пропускам Модул 10: липсва TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID. Системата е готова за следващата конфигурация."
     else
       # Генериране на alertmanager.yml с Telegram получател
       sudo mkdir -p "$ALERT_DIR"
