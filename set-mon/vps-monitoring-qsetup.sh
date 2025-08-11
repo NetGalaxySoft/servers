@@ -1027,15 +1027,15 @@ echo ""
 
 
 # =====================================================================
-# [МОДУЛ 10] Alertmanager → Telegram известия (интерактивен с валидиране)
+# [МОДУЛ 9] Alertmanager → Telegram известия (интерактивен с валидиране)
 # =====================================================================
-log "[10] ALERTMANAGER: Telegram известия..."
+log "[9] ALERTMANAGER: Telegram известия..."
 log "======================================="
 log ""
 
 # Проверка дали модулът вече е изпълнен
-if sudo grep -q '^MON_RESULT_MODULE10=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
-  echo "ℹ️ Модул 10 вече е изпълнен успешно. Пропускане..."
+if sudo grep -q '^MON_RESULT_MODULE9=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 9 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
   # Ако вече има telegram_configs в alertmanager.yml → приемаме за конфигуриран
@@ -1105,10 +1105,10 @@ EOF
   fi
 
   # --- 5) Маркиране на резултат ---
-  if sudo grep -q '^MON_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    sudo sed -i 's|^MON_RESULT_MODULE10=.*|MON_RESULT_MODULE10=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE10=✅"
+  if sudo grep -q '^MON_RESULT_MODULE9=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    sudo sed -i 's|^MON_RESULT_MODULE9=.*|MON_RESULT_MODULE9=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE9=✅"
   else
-    echo "MON_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE"
+    echo "MON_RESULT_MODULE9=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
 fi
 
