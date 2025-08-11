@@ -1166,7 +1166,7 @@ MON_ENV_FILE="${MON_ENV_FILE:-/etc/netgalaxy/monitoring.env}"
 if ! sudo test -f "$MON_ENV_FILE"; then echo "❌ Липсва $MON_ENV_FILE (стартирайте Модул 9 преди обобщението)."; exit 1; fi
 CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE")"
 
-if [ -z "$CHAT_ID" ]; then
+if [ -z "$CHAT_ID" ]; then 
   echo "❌ Липсва CHAT_ID в $MON_ENV_FILE. Стартирайте Модул 9 (Telegram Alerts) преди обобщението."
   exit 1
 fi
