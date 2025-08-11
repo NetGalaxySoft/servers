@@ -1161,15 +1161,7 @@ printf "  • Compose ........... %s\n" "${COMPOSE_DIR:-<не е зададен�
 SSH_PORT="$(sudo awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2; exit}' /etc/ssh/sshd_config 2>/dev/null)"
 SSH_PORT="${SSH_PORT:-22}"
 
-# Telegram (реални данни; токен НЕ се печата)
-MON_ENV_FILE="${MON_ENV_FILE:-/etc/netgalaxy/monitoring.env}"
-if ! sudo test -f "$MON_ENV_FILE"; then echo "❌ Липсва $MON_ENV_FILE (стартирайте Модул 9 преди обобщението)."; exit 1; fi
-CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE")"
 
-if [ -z "$CHAT_ID" ]; then 
-  echo "❌ Липсва CHAT_ID в $MON_ENV_FILE. Стартирайте Модул 9 (Telegram Alerts) преди обобщението."
-  exit 1
-fi
 
 printf "\nTelegram Alerts:\n"
 printf "  • Бот ............... @netgalaxy_alerts_bot\n"
