@@ -1115,14 +1115,16 @@ EOF
     exit 1
   fi
 
-  # Хидратиране на BOT_TOKEN/CHAT_ID (без awk/grep/pipe)
-  if [ -f "$MON_ENV_FILE" ]; then
-    . "$MON_ENV_FILE"
+  # Хидратиране на BOT_TOKEN/CHAT_ID (без awk/pipe; работи при set -e -u)
+  # 1) monitoring.env, 2) fallback към todo.modules
+  [ -z "${BOT_TOKEN+x}" ] || [ -z "${CHAT_ID+x}" ] || true
+  if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
+    [ -r "$MON_ENV_FILE" ]  && . "$MON_ENV_FILE"
+    [ -z "${BOT_TOKEN:-}" ] && [ -r "$MODULES_FILE" ] && . "$MODULES_FILE"
   fi
   if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
-    if [ -f "$MODULES_FILE" ]; then
-      . "$MODULES_FILE"
-    fi
+    echo "❌ Липсват BOT_TOKEN/CHAT_ID (Модул 9 — запис на секретите не е наличен)."
+    exit 1
   fi
 
   # Твърда проверка
