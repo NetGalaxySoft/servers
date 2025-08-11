@@ -1115,20 +1115,18 @@ EOF
     exit 1
   fi
 
-  # Хидратиране на BOT_TOKEN/CHAT_ID за set -u
-  # Източник 1: monitoring.env; Източник 2: todo.modules
-  if sudo test -f "$MON_ENV_FILE"; then
-    BOT_TOKEN="$(sudo awk -F= '/^[[:space:]]*BOT_TOKEN[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE" 2>/dev/null)"
+  # Хидратиране на BOT_TOKEN/CHAT_ID (без awk/grep/pipe)
+  if [ -f "$MON_ENV_FILE" ]; then
+    . "$MON_ENV_FILE"
   fi
-  [ -z "${BOT_TOKEN:-}" ] && BOT_TOKEN="$(sudo awk -F= '/^[[:space:]]*BOT_TOKEN[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MODULES_FILE" 2>/dev/null)"
-
-  if sudo test -f "$MON_ENV_FILE"; then
-    CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE" 2>/dev/null)"
-  fi
-  [ -z "${CHAT_ID:-}" ] && CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MODULES_FILE" 2>/dev/null)"
-
-  # Твърда проверка – спира, ако липсват
   if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
+    if [ -f "$MODULES_FILE" ]; then
+      . "$MODULES_FILE"
+    fi
+  fi
+
+  # Твърда проверка
+  if [ -z "${BOT_TOKEN:-}" ] || [ -з "${CHAT_ID:-}" ]; then
     echo "❌ Липсват BOT_TOKEN/CHAT_ID (Модул 9 не е завършен)."
     exit 1
   fi
