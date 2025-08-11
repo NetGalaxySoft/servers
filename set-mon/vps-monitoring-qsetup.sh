@@ -1117,42 +1117,51 @@ echo ""
 
 
 # =====================================================================
-# [МОДУЛ 10] Обобщение – Telegram Alerts
+# [МОДУЛ 10] Обобщение – Monitoring Stack + Telegram Alerts
 # =====================================================================
 log ""
 log "=============================================="
-log "[10] ОБОБЩЕНИЕ – Telegram Alerts"
+log "[10] ОБОБЩЕНИЕ – Monitoring Stack + Telegram Alerts"
 log "=============================================="
 log ""
 
-# Пътища по подразбиране (защитено срещу set -u)
 NETGALAXY_DIR="${NETGALAXY_DIR:-/etc/netgalaxy}"
 SETUP_ENV_FILE="${SETUP_ENV_FILE:-$NETGALAXY_DIR/setup.env}"
 MON_ENV_FILE="${MON_ENV_FILE:-$NETGALAXY_DIR/monitoring.env}"
-MODULES_FILE="${MODULES_FILE:-$NETGALAXY_DIR/todo.modules}"
 
-# Зареждане на стойности от monitoring.env (без source; безопасно при set -u)
+IP4="$(hostname -I | awk '{print $1}')"
+
+GRAFANA_URL="http://${IP4}:3000"
+PROM_URL="http://${IP4}:9090"
+ALERT_URL="http://${IP4}:9093"
+LOKI_URL="http://${IP4}:3100"
+NODE_URL="http://${IP4}:9100/metrics"
+BLACKBOX_PROBE="http://${IP4}:9115/probe?target=https://example.org"
+
+# Telegram (само четене на CHAT_ID; без токен)
 CHAT_ID=""
-BOT_TOKEN=""
 if sudo test -f "$MON_ENV_FILE"; then
-  CHAT_ID="$(sudo awk -F= '/^CHAT_ID=/{print $2}' "$MON_ENV_FILE" 2>/dev/null | tr -d '\r' || true)"
-  BOT_TOKEN="$(sudo awk -F= '/^BOT_TOKEN=/{print $2}' "$MON_ENV_FILE" 2>/dev/null | tr -d '\r' || true)"
-fi
-
-# Извеждане на имена (само ако имаме и токен, и chat_id)
-BOT_USERNAME=""
-GROUP_TITLE=""
-if [ -n "${BOT_TOKEN:-}" ] && [ -n "${CHAT_ID:-}" ]; then
-  BOT_USERNAME="$(curl -fsS "https://api.telegram.org/bot${BOT_TOKEN}/getMe" | sed -n 's/.*"username":"\([^"]*\)".*/\1/p')"
-  GROUP_TITLE="$(curl -fsS "https://api.telegram.org/bot${BOT_TOKEN}/getChat?chat_id=${CHAT_ID}" | sed -n 's/.*"title":"\([^"]*\)".*/\1/p')"
+  CHAT_ID="$(sudo awk -F= '/^CHAT_ID=/{print $2}' "$MON_ENV_FILE" 2>/dev/null | tr -d '\r')"
 fi
 
 printf "\n"
-printf "Telegram Alerts:\n"
-printf "  • Bot:           @%s\n" "${BOT_USERNAME:-netgalaxy_alerts_bot}"
-printf "  • Group:         %s\n" "${GROUP_TITLE:-NetGalaxy Alerts}"
-printf "  • CHAT_ID:       %s\n" "${CHAT_ID:-<не е открит>}"
-printf "  • Secrets file:  %s\n" "$MON_ENV_FILE"
+printf "Мониторинг стек (линкове по IP на този сървър):\n"
+printf "  • Grafana ........... %s  (default: admin / admin)\n" "$GRAFANA_URL"
+printf "  • Prometheus ........ %s  (UI: /, /graph, /targets)\n" "$PROM_URL"
+printf "  • Alertmanager ...... %s  (UI: /#/alerts, /#/silences)\n" "$ALERT_URL"
+printf "  • Loki API .......... %s  (API; визуализация през Grafana)\n" "$LOKI_URL"
+printf "  • node_exporter ..... %s\n" "$NODE_URL"
+printf "  • Blackbox probe .... %s\n" "$BLACKBOX_PROBE"
+
+printf "\nДиректории:\n"
+printf "  • Логове ............ %s\n" "${LOG_DIR:-<не е зададено>}"
+printf "  • Compose ........... %s\n" "${COMPOSE_DIR:-<не е зададено>}"
+
+printf "\nUFW: отворени портове → 22, 3000, 9090, 9093, 3100, 9100, 9115\n"
+
+printf "\nTelegram Alerts:\n"
+printf "  • Бот ............... @netgalaxy_alerts_bot\n"
+printf "  • CHAT_ID ........... %s\n" "${CHAT_ID:-<не е открит>}"
 
 printf "\nБърз тест (през браузър):\n"
 printf "  https://api.telegram.org/bot<ТОКЕН>/sendMessage?chat_id=%s&text=NetGalaxy%%20Monitoring%%20test\n" "${CHAT_ID:-<CHAT_ID>}"
