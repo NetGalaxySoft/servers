@@ -490,136 +490,292 @@ echo ""
 echo ""
 
 
-exit 0
-# ================================================================
-# [МОДУЛ 5] Постинсталационна конфигурация и валидация на Docker
-# ================================================================
-log "[5] DOCKER POST-INSTALL CONFIG & VALIDATION..."
-log "=============================================================="
+# =====================================================================
+# [МОДУЛ 5] Мониторинг стек (Prometheus, Alertmanager, Blackbox, Loki, Promtail, Grafana)
+# =====================================================================
+log "[5] МОНТОРИНГ СТЕК: Prometheus, Alertmanager, Blackbox, Loki, Promtail, Grafana..."
+log "===================================================================================="
 log ""
 
-# --- Задължителна начална проверка за вече изпълнен модул -----------------
+# Проверка дали модулът вече е изпълнен
 if sudo grep -q '^MON_RESULT_MODULE5=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  MODULE_MARK="M5.docker_post"
-  RESULT_KEY="MON_RESULT_MODULE5"
+  # --- 1) Директории и .env ---
+  sudo mkdir -p "$PROM_DIR" "$ALERT_DIR" "$LOKI_DIR/data" "$GRAFANA_DIR/provisioning/datasources" "$COMPOSE_DIR/blackbox" "$GRAFANA_DIR/data"
 
-  # -------------------------------
-  # 1) Идемпотентна daemon конфигурация
-  # -------------------------------
-  sudo install -d -m 0755 /etc/docker
+  # .env за docker compose (пътища и базови креденшъли)
+  sudo tee "$COMPOSE_DIR/.env" >/dev/null <<EOF
+PROM_DIR=$PROM_DIR
+ALERT_DIR=$ALERT_DIR
+LOKI_DIR=$LOKI_DIR
+GRAFANA_DIR=$GRAFANA_DIR
 
-  TMP_DAEMON="/tmp/daemon.json.$$.tmp"
-  FINAL_DAEMON="/etc/docker/daemon.json"
+# Базови Grafana креденшъли (сменете по-късно чрез security скрипта)
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=admin
+EOF
 
-  cat > "$TMP_DAEMON" <<'JSON'
-{
-  "exec-opts": ["native.cgroupdriver=systemd"],
-  "features": { "buildkit": true },
-  "live-restore": true,
-  "log-driver": "local",
-  "iptables": true
-}
-JSON
+  # --- 2) Конфигурации ---
 
-  DAEMON_CHANGED=0
-  if [[ -f "$FINAL_DAEMON" ]]; then
-    if ! sudo diff -q "$TMP_DAEMON" "$FINAL_DAEMON" >/dev/null 2>&1; then
-      DAEMON_CHANGED=1
+  # Prometheus (targets: локален node_exporter, blackbox, самия prometheus, alertmanager)
+  sudo tee "$PROM_DIR/prometheus.yml" >/dev/null <<'EOF'
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
+
+  - job_name: 'blackbox_http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://example.org
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+EOF
+
+  # Alertmanager (минимална конфигурация – без реални маршрути)
+  sudo tee "$ALERT_DIR/alertmanager.yml" >/dev/null <<'EOF'
+route:
+  receiver: 'null'
+receivers:
+  - name: 'null'
+EOF
+
+  # Blackbox Exporter
+  sudo tee "$COMPOSE_DIR/blackbox/blackbox.yml" >/dev/null <<'EOF'
+modules:
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2"]
+      preferred_ip_protocol: "ip4"
+  icmp:
+    prober: icmp
+    timeout: 5s
+EOF
+
+  # Loki
+  sudo tee "$LOKI_DIR/config.yml" >/dev/null <<'EOF'
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+auth_enabled: false
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+ruler:
+  alertmanager_url: http://alertmanager:9093
+EOF
+
+  # Promtail (събира системни логове и ги праща към Loki)
+  sudo tee "$LOKI_DIR/promtail-config.yml" >/dev/null <<'EOF'
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          __path__: /var/log/*.log
+  - job_name: journal
+    journal:
+      path: /var/log/journal
+      max_age: 12h
+      labels:
+        job: systemd-journal
+    relabel_configs:
+      - source_labels: ['__journal__systemd_unit']
+        target_label: 'unit'
+EOF
+
+  # Grafana datasource provisioning (Prometheus + Loki)
+  sudo tee "$GRAFANA_DIR/provisioning/datasources/datasource.yml" >/dev/null <<'EOF'
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+EOF
+
+  # --- 3) docker-compose.yml ---
+  sudo tee "$COMPOSE_DIR/docker-compose.yml" >/dev/null <<'EOF'
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: monhub_prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ${PROM_DIR}/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${PROM_DIR}/data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks: [monhub]
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: monhub_alertmanager
+    volumes:
+      - ${ALERT_DIR}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ${ALERT_DIR}/data:/alertmanager
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+    networks: [monhub]
+
+  blackbox:
+    image: prom/blackbox-exporter:latest
+    container_name: monhub_blackbox
+    volumes:
+      - ${PWD}/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    ports:
+      - "9115:9115"
+    restart: unless-stopped
+    networks: [monhub]
+
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: monhub_loki
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ${LOKI_DIR}/config.yml:/etc/loki/config.yml:ro
+      - ${LOKI_DIR}/data:/loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+    networks: [monhub]
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: monhub_promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/log/journal:/var/log/journal:ro
+      - ${LOKI_DIR}/promtail-config.yml:/etc/promtail/config.yml:ro
+    restart: unless-stopped
+    networks: [monhub]
+
+  grafana:
+    image: grafana/grafana:10.4.6
+    container_name: monhub_grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - ${GRAFANA_DIR}/data:/var/lib/grafana
+      - ${GRAFANA_DIR}/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    networks: [monhub]
+
+networks:
+  monhub:
+    driver: bridge
+EOF
+
+  # --- 4) Старт на стека ---
+  (cd "$COMPOSE_DIR" && sudo docker compose pull && sudo docker compose up -d)
+
+  # --- 5) systemd unit за автостарт ---
+  sudo tee /etc/systemd/system/monhub.service >/dev/null <<EOF
+[Unit]
+Description=NetGalaxy MonHub Stack (Prometheus/Alertmanager/Loki/Grafana)
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=$COMPOSE_DIR
+RemainAfterExit=true
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now monhub.service
+
+  # --- 6) Маркиране на резултат ---
+  if sudo grep -q '^MON_RESULT_MODULE5=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    if sudo sed -i 's|^MON_RESULT_MODULE5=.*|MON_RESULT_MODULE5=✅|' "$SETUP_ENV_FILE"; then
+      echo "MON_RESULT_MODULE5=✅"
     fi
   else
-    DAEMON_CHANGED=1
-  fi
-
-  if [[ "$DAEMON_CHANGED" -eq 1 ]]; then
-    # (опит за валидация, ако е налична)
-    if command -v dockerd >/dev/null 2>&1; then
-      if sudo dockerd --validate --config "$TMP_DAEMON" >/dev/null 2>&1; then
-        echo "✅ Конфигурацията мина валидация (dockerd --validate)."
-      else
-        echo "⚠️ Валидацията с dockerd неуспешна. Прекратяване за безопасност."
-        exit 1
-      fi
-    fi
-
-    sudo mv "$TMP_DAEMON" "$FINAL_DAEMON"
-    sudo chmod 0644 "$FINAL_DAEMON"
-    echo "▶ Обновен /etc/docker/daemon.json"
-    sudo systemctl daemon-reload
-    sudo systemctl restart docker
-  else
-    rm -f "$TMP_DAEMON"
-    echo "ℹ️ /etc/docker/daemon.json без промяна."
-  fi
-
-  # --------------------------------
-  # 2) (По избор) Добавяне на оператор в група docker
-  #    Задайте DOCKER_OPERATOR=<username> в /etc/netgalaxy/todo.modules
-  # --------------------------------
-  TODO_FILE="/etc/netgalaxy/todo.modules"
-  if [[ -f "$TODO_FILE" ]]; then
-    DOCKER_OPERATOR="$(grep -E '^DOCKER_OPERATOR=' "$TODO_FILE" 2>/dev/null | cut -d'=' -f2)"
-    if [[ -n "$DOCKER_OPERATOR" ]]; then
-      if id "$DOCKER_OPERATOR" >/dev/null 2>&1; then
-        if ! id -nG "$DOCKER_OPERATOR" | grep -qw docker; then
-          sudo usermod -aG docker "$DOCKER_OPERATOR"
-          echo "▶ Добавен $DOCKER_OPERATOR в група docker (изисква re-login)."
-        else
-          echo "ℹ️ $DOCKER_OPERATOR вече е в група docker."
-        fi
-      else
-        echo "⚠️ Потребителят $DOCKER_OPERATOR не съществува – пропускане."
-      fi
-    else
-      echo "ℹ️ Няма зададен DOCKER_OPERATOR – пропускане на групово добавяне."
-    fi
-  else
-    echo "ℹ️ Няма $TODO_FILE – пропускане на групово добавяне."
-  fi
-
-  # --------------------------------
-  # 3) Sanity checks и тестове
-  # --------------------------------
-  echo "▶ Проверки на Docker..."
-  if ! sudo systemctl is-active --quiet docker; then
-    echo "❌ Услугата docker не е активна."
-    exit 1
-  fi
-
-  docker --version || { echo "❌ Няма docker бинарник в PATH."; exit 1; }
-  docker compose version || { echo "❌ Няма docker compose plugin."; exit 1; }
-
-  # Проверка на cgroup драйвера = systemd
-  CGDRV="$(docker info --format '{{.CgroupDriver}}' 2>/dev/null || true)"
-  if [[ "$CGDRV" != "systemd" ]]; then
-    echo "⚠️ Очакван cgroupdriver=systemd, засечен: $CGDRV"
-  else
-    echo "✅ CgroupDriver: systemd"
-  fi
-
-  # Тестов контейнер (stateless)
-  if docker run --rm hello-world >/dev/null 2>&1; then
-    echo "✅ hello-world контейнерът стартира успешно."
-  else
-    echo "❌ Неуспешен тест с hello-world."
-    exit 1
-  fi
-
-  # ✅ Запис на резултат за Модул 5 + показване САМО при успешен запис
-  if sudo grep -q "^${RESULT_KEY}=" "$SETUP_ENV_FILE" 2>/dev/null; then
-    if sudo sed -i "s|^${RESULT_KEY}=.*|${RESULT_KEY}=✅|" "$SETUP_ENV_FILE"; then
-      echo "${RESULT_KEY}=✅"
-    fi
-  else
-    echo "${RESULT_KEY}=✅" | sudo tee -a "$SETUP_ENV_FILE" >/dev/null
-    echo "${RESULT_KEY}=✅"
+    echo "MON_RESULT_MODULE5=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
 
 fi
 echo ""
 echo ""
+
 
 
 
