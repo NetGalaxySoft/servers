@@ -784,8 +784,7 @@ log "[6] NODE EXPORTER: инсталация и интеграция с Promethe
 log "=========================================================="
 log ""
 
-# Проверка дали модулът вече е изпълнен
-if [[ -f "$SETUP_ENV_FILE" ]] && sudo grep -Fxq 'MON_RESULT_MODULE6=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+if sudo grep -q '^MON_RESULT_MODULE6=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 6 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
