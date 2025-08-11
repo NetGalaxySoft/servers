@@ -784,10 +784,10 @@ log "[6] NODE EXPORTER: инсталация и интеграция с Promethe
 log "=========================================================="
 log ""
 
-# if sudo grep -q '^MON_RESULT_MODULE6=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
-#  echo "ℹ️ Модул 6 вече е изпълнен успешно. Пропускане..."
-#  echo ""
-# else
+if sudo grep -q '^MON_RESULT_MODULE6=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 6 вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
   # --- 1) Инсталация на Node Exporter (systemd пакет) ---
   sudo apt-get update -y
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y prometheus-node-exporter
