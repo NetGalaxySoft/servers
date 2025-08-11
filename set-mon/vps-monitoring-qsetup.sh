@@ -337,19 +337,34 @@ else
   # Минимални инструменти
   sudo apt-get install -y curl wget gnupg2 ca-certificates jq unzip software-properties-common ufw
 
-  # SSH твърдяване (без да пречим на текущата сесия)
+  # Откриване на реалния SSH порт от конфигурацията
   SSHD="/etc/ssh/sshd_config"
+  SSHD_BIN="$(command -v sshd || echo /usr/sbin/sshd)"
+  SSH_PORT="$(sudo awk '/^\s*Port\s+[0-9]+/ {print $2}' "$SSHD" | tail -n1)"
+  [[ -z "$SSH_PORT" ]] && SSH_PORT=22
+
+  # SSH твърдяване (без да пречим на текущата сесия)
   sudo cp -a "$SSHD" "${SSHD}.bak.$(date +%F-%H%M%S)"
   sudo sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/' "$SSHD"
   sudo sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin no/' "$SSHD"
   sudo sed -i 's/^#\?X11Forwarding .*/X11Forwarding no/' "$SSHD"
-  sudo systemctl reload ssh || sudo systemctl restart ssh
 
-  # UFW — позволяваме само нужното
+  # Тест на SSH конфигурацията преди reload
+  if sudo "$SSHD_BIN" -t; then
+    sudo systemctl reload ssh || sudo systemctl restart ssh
+  else
+    warn "SSH конфигурацията е невалидна. Връщам backup."
+    sudo cp -a "${SSHD}.bak."* "$SSHD" 2>/dev/null || true
+  fi
+
+  # UFW — позволяваме само нужното (включително реалния SSH порт)
   sudo ufw --force reset
   sudo ufw default deny incoming
   sudo ufw default allow outgoing
-  sudo ufw allow OpenSSH
+  sudo ufw allow ${SSH_PORT}/tcp    # SSH действителен порт
+  # по желание може да оставиш и профила:
+  # sudo ufw allow OpenSSH
+
   sudo ufw allow 3000/tcp    # Grafana
   sudo ufw allow 9090/tcp    # Prometheus
   sudo ufw allow 9093/tcp    # Alertmanager
@@ -370,6 +385,8 @@ else
 fi
 echo ""
 echo ""
+
+
 
 exit 0
 # ======================================================
