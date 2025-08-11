@@ -1163,7 +1163,7 @@ SSH_PORT="${SSH_PORT:-22}"
 
 # Telegram (реални данни; токен НЕ се печата)
 MON_ENV_FILE="/etc/netgalaxy/monitoring.env"
-CHAT_ID="$(sudo awk -F= '/^CHAT_ID=/{gsub(/\r/,"",$2); print $2}' "$MON_ENV_FILE" 2>/dev/null)"
+CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/{val=$2; gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE" 2>/dev/null)"
 
 if [ -z "$CHAT_ID" ]; then
   echo "❌ Липсва CHAT_ID в $MON_ENV_FILE. Стартирайте Модул 9 (Telegram Alerts) преди обобщението."
