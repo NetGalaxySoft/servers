@@ -1128,7 +1128,7 @@ EOF
   fi
 
   # Твърда проверка
-  if [ -z "${BOT_TOKEN:-}" ] || [ -з "${CHAT_ID:-}" ]; then
+  if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
     echo "❌ Липсват BOT_TOKEN/CHAT_ID (Модул 9 не е завършен)."
     exit 1
   fi
