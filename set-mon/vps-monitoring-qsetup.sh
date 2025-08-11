@@ -1157,18 +1157,29 @@ printf "\nДиректории:\n"
 printf "  • Логове ............ %s\n" "${LOG_DIR:-<не е зададено>}"
 printf "  • Compose ........... %s\n" "${COMPOSE_DIR:-<не е зададено>}"
 
-# Откриване на SSH порта (от sshd_config; fallback 22)
+# Откриване на SSH порта (от sshd_config; по подразбиране 22)
 SSH_PORT="$(sudo awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2; exit}' /etc/ssh/sshd_config 2>/dev/null)"
 SSH_PORT="${SSH_PORT:-22}"
 
-printf "\nUFW: отворени портове → %s, 3000, 9090, 9093, 3100, 9100, 9115\n" "$SSH_PORT"
+# Telegram (реални данни; токен НЕ се печата)
+MON_ENV_FILE="/etc/netgalaxy/monitoring.env"
+CHAT_ID="$(sudo awk -F= '/^CHAT_ID=/{print $2}' "$MON_ENV_FILE" 2>/dev/null | tr -d '\r')"
+
+if [ -z "$CHAT_ID" ]; then
+  echo "❌ Липсва CHAT_ID в $MON_ENV_FILE. Стартирайте Модул 9 (Telegram Alerts) преди обобщението."
+  exit 1
+fi
 
 printf "\nTelegram Alerts:\n"
 printf "  • Бот ............... @netgalaxy_alerts_bot\n"
-printf "  • CHAT_ID ........... %s\n" "${CHAT_ID:-<не е открит>}"
+printf "  • CHAT_ID ........... %s\n" "$CHAT_ID"
 
 printf "\nБърз тест (през браузър):\n"
-printf "  https://api.telegram.org/bot<ТОКЕН>/sendMessage?chat_id=%s&text=NetGalaxy%%20Monitoring%%20test\n" "${CHAT_ID:-<CHAT_ID>}"
+printf "  https://api.telegram.org/bot<ТОКЕН>/sendMessage?chat_id=%s&text=NetGalaxy%%20Monitoring%%20test\n" "$CHAT_ID"
+
+# UFW/портове (SSH включен сред останалите)
+printf "\nUFW: отворени портове → %s, 3000, 9090, 9093, 3100, 9100, 9115\n" "$SSH_PORT"
+
 echo ""
 echo ""
 
