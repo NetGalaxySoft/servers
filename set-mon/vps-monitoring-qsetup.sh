@@ -930,6 +930,100 @@ echo ""
 echo ""
 
 
+# =====================================================================
+# [МОДУЛ 8] Базови алърти (Prometheus rules + reload)
+# =====================================================================
+log "[8] БАЗОВИ АЛЪРТИ: добавяне на rules и презареждане на Prometheus..."
+log "===================================================================="
+log ""
+
+# Проверка дали модулът вече е изпълнен
+if sudo grep -q '^MON_RESULT_MODULE8=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
+  echo "ℹ️ Модул 8 вече е изпълнен успешно. Пропускане..."
+  echo ""
+else
+  # --- 1) Директория за правила ---
+  sudo mkdir -p "$PROM_DIR/rules"
+
+  # --- 2) Базови правила (safe overwrite) ---
+  sudo tee "$PROM_DIR/rules/base.rules.yml" >/dev/null <<'EOF'
+groups:
+  - name: basic-health
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} е недостъпен"
+          description: "Поне една цел не отговаря (job={{ $labels.job }}, instance={{ $labels.instance }})"
+
+      - alert: NodeExporterMissing
+        expr: absent(up{job="node"})
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Липсва node_exporter"
+          description: "Prometheus не намира node_exporter метрики за скрапване."
+
+      - alert: HighCPULoad
+        expr: (100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Високо CPU натоварване на {{ $labels.instance }}"
+          description: "Средното CPU натоварване е >85% през последните 10 минути."
+
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|devtmpfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|devtmpfs"}) < 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Недостатъчно дисково пространство на {{ $labels.instance }}"
+          description: "Свободното пространство е под 10% (изкл. tmpfs/devtmpfs)."
+EOF
+
+  # --- 3) Увери се, че rule_files е в главния prometheus.yml (топ-ниво), ако липсва ---
+  if ! grep -q '^[[:space:]]*rule_files:' "$PROM_DIR/prometheus.yml"; then
+    tmp_prom="/tmp/prom.$$"
+    sudo cp -a "$PROM_DIR/prometheus.yml" "${PROM_DIR}/prometheus.yml.bak.$(date +%F-%H%M%S)"
+    sudo awk '
+      BEGIN{ins=0}
+      /^[[:space:]]*scrape_configs:/ && ins==0 {
+        print "rule_files:"
+        print "  - /etc/prometheus/rules/*.yml"
+        print
+        ins=1
+      }
+      { print }
+    ' "$PROM_DIR/prometheus.yml" > "$tmp_prom" && sudo mv "$tmp_prom" "$PROM_DIR/prometheus.yml"
+  fi
+
+  # --- 4) Презареди само Prometheus, за да вземе новите правила ---
+  if [[ -d "$COMPOSE_DIR" ]]; then
+    (cd "$COMPOSE_DIR" && sudo docker compose up -d prometheus)
+    ok "Prometheus е презареден с правилата за алърти."
+  else
+    err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
+    exit 1
+  fi
+
+  # --- 5) Маркиране на резултат ---
+  if sudo grep -q '^MON_RESULT_MODULE8=' "$SETUP_ENV_FILE" 2>/dev/null; then
+    if sudo sed -i 's|^MON_RESULT_MODULE8=.*|MON_RESULT_MODULE8=✅|' "$SETUP_ENV_FILE"; then
+      echo "MON_RESULT_MODULE8=✅"
+    fi
+  else
+    echo "MON_RESULT_MODULE8=✅" | sudo tee -a "$SETUP_ENV_FILE"
+  fi
+
+fi
+echo ""
+echo ""
 
 
 
