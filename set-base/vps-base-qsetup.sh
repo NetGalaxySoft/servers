@@ -745,8 +745,8 @@ echo ""
 echo ""
 
 
-# === [МОДУЛ 9] ДОБАВЯНЕ НА TRUSTED МРЕЖИ ============================
-echo "[9] ДОБАВЯНЕ НА TRUSTED МРЕЖИ..."
+# === [МОДУЛ 9] ПРОМЯНА НА SSH ПОРТА ============================================
+echo "[9] ПРОМЯНА НА SSH ПОРТА..."
 echo "-------------------------------------------------------------------------"
 echo ""
 
@@ -756,92 +756,6 @@ MODULES_FILE="/etc/netgalaxy/todo.modules"
 # ✅ Проверка дали модулът вече е изпълнен
 if sudo grep -q '^BASE_RESULT_MODULE9=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 9 вече е изпълнен успешно. Пропускане..."
-  echo ""
-else
-
-# Зареждане на UFW
-if ! command -v ufw >/dev/null 2>&1; then
-  echo "❌ Грешка: UFW не е инсталиран. Скриптът не може да продължи."
-  exit о
-fi
-
-# Въвеждане на доверени мрежи
-TRUSTED_NETS=()
-while true; do
-  printf "🌐 Ще използвате ли достъп от частна (trusted) мрежа? (y / n / q): "
-  read -r use_trust
-
-  case "$use_trust" in
-    [Qq]*) echo "❎ Скриптът беше прекратен от потребителя."
-           exit 0 ;;
-    [Nn]*) echo "🔒 Няма да се добавят доверени мрежи."
-           break ;;
-    [Yy]*)
-      echo ""
-      echo "🧩 Въвеждайте по една мрежа в CIDR формат (напр. 10.8.0.0/24)."
-      echo "👉 Натиснете Enter без въвеждане за край."
-      echo ""
-      while true; do
-        printf "➤ Мрежа: "
-        read -r net
-
-        if [[ -z "$net" ]]; then
-          break
-        elif [[ "$net" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
-          TRUSTED_NETS+=("$net")
-          echo "✅ Добавена мрежа: $net"
-        else
-          echo "❌ Невалиден формат. Използвайте CIDR, напр. 192.168.1.0/24"
-        fi
-      done
-      break ;;
-    *) echo "❌ Моля, отговорете с 'y', 'n' или 'q'." ;;
-  esac
-done
-
-# Добавяне на правилата в UFW
-if [[ ${#TRUSTED_NETS[@]} -gt 0 ]]; then
-  for net in "${TRUSTED_NETS[@]}"; do
-    sudo ufw allow from "$net"
-    echo "✅ Разрешен достъп от доверена мрежа: $net"
-  done
-fi
-
-# ✅ Запис на доверените мрежи в todo.modules (ако няма → No)
-TRUSTED_VALUE="No"
-if [[ ${#TRUSTED_NETS[@]} -gt 0 ]]; then
-  TRUSTED_VALUE="${TRUSTED_NETS[*]}"
-fi
-
-if sudo grep -q '^TRUSTED_NETS=' "$MODULES_FILE" 2>/dev/null; then
-  sudo sed -i "s|^TRUSTED_NETS=.*|TRUSTED_NETS=\"$TRUSTED_VALUE\"|" "$MODULES_FILE"
-else
-  echo "TRUSTED_NETS=\"$TRUSTED_VALUE\"" | sudo tee -a "$MODULES_FILE" > /dev/null
-fi
-
-# ✅ Записване на резултат за модула (с обновяване, ако вече съществува)
-if sudo grep -q '^BASE_RESULT_MODULE9=' "$SETUP_ENV_FILE" 2>/dev/null; then
-  sudo sed -i 's|^BASE_RESULT_MODULE9=.*|BASE_RESULT_MODULE9=✅|' "$SETUP_ENV_FILE"
-else
-  echo "BASE_RESULT_MODULE9=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-fi
-
-fi
-echo ""
-echo ""
-
-
-# === [МОДУЛ 10] ПРОМЯНА НА SSH ПОРТА ============================================
-echo "[10] ПРОМЯНА НА SSH ПОРТА..."
-echo "-------------------------------------------------------------------------"
-echo ""
-
-SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
-MODULES_FILE="/etc/netgalaxy/todo.modules"
-
-# ✅ Проверка дали модулът вече е изпълнен
-if sudo grep -q '^BASE_RESULT_MODULE10=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
-  echo "ℹ️ Модул 10 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
 
@@ -913,10 +827,10 @@ else
 fi
 
 # ✅ Запис на резултат за модула (с обновяване, ако вече съществува)
-if sudo grep -q '^BASE_RESULT_MODULE10=' "$SETUP_ENV_FILE" 2>/dev/null; then
-  sudo sed -i 's|^BASE_RESULT_MODULE10=.*|BASE_RESULT_MODULE10=✅|' "$SETUP_ENV_FILE"
+if sudo grep -q '^BASE_RESULT_MODULE9=' "$SETUP_ENV_FILE" 2>/dev/null; then
+  sudo sed -i 's|^BASE_RESULT_MODULE9=.*|BASE_RESULT_MODULE9=✅|' "$SETUP_ENV_FILE"
 else
-  echo "BASE_RESULT_MODULE10=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
+  echo "BASE_RESULT_MODULE9=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
 fi
 
 fi
@@ -924,20 +838,13 @@ echo ""
 echo ""
 
 
-# === [МОДУЛ 11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА ========================
-echo "[11] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА..."
+# === [МОДУЛ 10] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА ========================
+echo "[10] ОБОБЩЕНИЕ НА КОНФИГУРАЦИЯТА..."
 echo "-------------------------------------------------------------------------"
 echo ""
 
 SETUP_ENV_FILE="/etc/netgalaxy/setup.env"
 MODULES_FILE="/etc/netgalaxy/todo.modules"
-
-# ✅ Проверка дали модулът вече е изпълнен
-if sudo grep -q '^BASE_RESULT_MODULE11=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
-  echo "ℹ️ Модул 11 вече е изпълнен успешно. Пропускане..."
-  echo ""
-  return 0 2>/dev/null || exit 0
-fi
 
 # ✅ Проверка за съществуване на setup.env
 if [[ ! -f "$SETUP_ENV_FILE" ]]; then
@@ -953,7 +860,6 @@ fi
 [[ -z "$FQDN" ]] && FQDN="❔ не е зададен"
 [[ -z "$SSH_PORT" ]] && SSH_PORT="❔ не е зададен"
 [[ -z "$ADMIN_USER" ]] && ADMIN_USER="❔ не е зададен"
-[[ -z "$TRUSTED_NETS" ]] && TRUSTED_NETS="❔ няма въведени"
 [[ -z "$PORT_LIST" ]] && PORT_LIST="❔ няма въведени"
 
 # ✅ Четене на статуси по модули от setup.env
@@ -966,7 +872,6 @@ status_module6=$(grep '^BASE_RESULT_MODULE6=' "$SETUP_ENV_FILE" | cut -d '=' -f2
 status_module7=$(grep '^BASE_RESULT_MODULE7=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
 status_module8=$(grep '^BASE_RESULT_MODULE8=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
 status_module9=$(grep '^BASE_RESULT_MODULE9=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
-status_module10=$(grep '^BASE_RESULT_MODULE10=' "$SETUP_ENV_FILE" | cut -d '=' -f2)
 
 # ✅ Извеждане на отчет по реда на модулите
 echo "📋 СЪСТОЯНИЕ НА КОНФИГУРАЦИЯТА (ПО МОДУЛИ):"
@@ -979,14 +884,13 @@ printf "[5] Локализации:                  %s\n" "${status_module5:-�
 printf "[6] Времева зона и NTP:           %s\n" "${status_module6:-❔}"
 printf "[7] Администраторски профил:      %-15s (%s)\n" "$ADMIN_USER" "${status_module7:-❔}"
 printf "[8] Настройка на UFW:             %s\n" "${status_module8:-❔}"
-printf "[9] Trusted мрежи:                %-15s (%s)\n" "$TRUSTED_NETS" "${status_module9:-❔}"
-printf "[10] SSH порт:                    %-15s (%s)\n" "$SSH_PORT" "${status_module10:-❔}"
+printf "[9] SSH порт:                    %-15s (%s)\n" "$SSH_PORT" "${status_module10:-❔}"
 echo ""
 echo ""
 
 
-# === [МОДУЛ 12] ФИНАЛЕН ДИАЛОГ С ОПЕРАТОРА И РЕСТАРТ ========================
-echo "[12] ФИНАЛЕН ДИАЛОГ С ОПЕРАТОРА И РЕСТАРТ..."
+# === [МОДУЛ 11] ФИНАЛЕН ДИАЛОГ С ОПЕРАТОРА И РЕСТАРТ ========================
+echo "[11] ФИНАЛЕН ДИАЛОГ С ОПЕРАТОРА И РЕСТАРТ..."
 echo "-------------------------------------------------------------------------"
 echo ""
 # === Финален диалог с оператор ===============================================
@@ -1002,13 +906,6 @@ while true; do
       if sudo ufw --force enable; then
         echo "✅ UFW беше активиран успешно."
         echo "📝 Записване на крайния статус..."
-
-        # ✅ Запис на резултат за модула (с обновяване, ако вече съществува)
-        if sudo grep -q '^BASE_RESULT_MODULE11=' "$SETUP_ENV_FILE" 2>/dev/null; then
-          sudo sed -i 's|^BASE_RESULT_MODULE11=.*|BASE_RESULT_MODULE11=✅|' "$SETUP_ENV_FILE"
-        else
-          echo "BASE_RESULT_MODULE11=✅" | sudo tee -a "$SETUP_ENV_FILE" > /dev/null
-        fi
 
         # ✅ Обновяване на SETUP_VPS_BASE_STATUS
         if sudo grep -q '^SETUP_VPS_BASE_STATUS=' "$SETUP_ENV_FILE" 2>/dev/null; then
