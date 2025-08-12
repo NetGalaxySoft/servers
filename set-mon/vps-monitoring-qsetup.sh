@@ -1094,38 +1094,25 @@ EOF
   # Правим файла четим (детерминирано)
   sudo chmod 0644 "$PROM_DIR/rules/base.rules.yml"
 
-# --- 3) rule_files в prometheus.yml (твърдо, без условни проверки) ---
+  # --- 3) rule_files в prometheus.yml (твърдо, канонично в края) ---
   tmp_prom="/tmp/prom.$$"
   sudo cp -a "$PROM_DIR/prometheus.yml" "${PROM_DIR}/prometheus.yml.bak.$(date +%F-%H%M%S)"
 
+  # Премахваме всеки съществуващ rule_files блок и добавяме каноничен в края (топ-ниво)
   sudo awk '
-    BEGIN{inrf=0; injected=0}
+    BEGIN{inrf=0}
     {
-      # ако сме вътре в стар rule_files блок – прескачаме редовете с "- ..."
       if (inrf==1) {
-        if ($0 ~ /^\s*-\s*/) next;
-        else inrf=0;
+        if ($0 ~ /^\s*-\s+/) next;  # прескачаме елементите на списъка
+        inrf=0
       }
-      # начало на rule_files блок – не го печатаме (ще инжектираме наш)
-      if ($0 ~ /^\s*rule_files\s*:/) { inrf=1; next }
-
-      # преди scrape_configs: инжектираме каноничния блок (само веднъж)
-      if ($0 ~ /^\s*scrape_configs\s*:/ && injected==0) {
-        print "rule_files:"
-        print "  - /etc/prometheus/rules/*.yml"
-        print ""
-        injected=1
-      }
-
+      if ($0 ~ /^\s*rule_files\s*:/) { inrf=1; next }  # прескачаме заглавието на блока
       print
     }
     END{
-      # ако липсваше scrape_configs:, инжектираме в края
-      if(injected==0){
-        print ""
-        print "rule_files:"
-        print "  - /etc/prometheus/rules/*.yml"
-      }
+      print ""
+      print "rule_files:"
+      print "  - /etc/prometheus/rules/*.yml"
     }
   ' "$PROM_DIR/prometheus.yml" > "$tmp_prom" && sudo mv "$tmp_prom" "$PROM_DIR/prometheus.yml"
 
