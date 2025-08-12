@@ -1176,17 +1176,19 @@ EOF
   fi
   [ -z "${CHAT_ID:-}" ] && CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MODULES_FILE" 2>/dev/null)"
 
-  # Твърда проверка – спира, ако липсват
-  if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
-    echo "❌ Липсват BOT_TOKEN/CHAT_ID (Модул 9 не е завършен)."
+  # Твърда проверка – chat_id е задължителен, bot_token може да липсва (когато е bot_token_file в контейнера)
+  if [ -z "${CHAT_ID:-}" ]; then
+    echo "❌ Липсва CHAT_ID (Модул 9 не е завършен)."
     exit 1
   fi
 
-  # BOT_TOKEN
-  if sudo grep -q '^BOT_TOKEN=' "$MODULES_FILE" 2>/dev/null; then
-    sudo sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=${BOT_TOKEN}|" "$MODULES_FILE"
-  else
-    echo "BOT_TOKEN=${BOT_TOKEN}" | sudo tee -a "$MODULES_FILE" >/dev/null
+  # BOT_TOKEN (записвай само ако е наличен)
+  if [ -n "${BOT_TOKEN:-}" ]; then
+    if sudo grep -q '^BOT_TOKEN=' "$MODULES_FILE" 2>/dev/null; then
+      sudo sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=${BOT_TOKEN}|" "$MODULES_FILE"
+    else
+      echo "BOT_TOKEN=${BOT_TOKEN}" | sudo tee -a "$MODULES_FILE" >/dev/null
+    fi
   fi
 
   # CHAT_ID
