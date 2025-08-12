@@ -1150,19 +1150,23 @@ EOF
     check config /etc/prometheus/prometheus.yml \
     || { err "prometheus.yml е невалиден след добавяне на rule_files"; exit 1; }
 
-  # --- 4) Презареди само Prometheus, за да вземе новите правила ---
-  if [[ -d "$COMPOSE_DIR" ]]; then
-    (cd "$COMPOSE_DIR" && sudo docker compose up -d prometheus)
-    ok "Prometheus е презареден с правилата за алърти."
-  else
-    err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
-    exit 1
-  fi
+# --- 4) Рестарт на Prometheus и детерминирана проверка ---
+if [[ -d "$COMPOSE_DIR" ]]; then
+  (cd "$COMPOSE_DIR" && sudo docker compose restart -t 5 prometheus) \
+    || { err "Неуспешен рестарт на Prometheus"; exit 1; }
+else
+  err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
+  exit 1
+fi
 
-  resp="$(curl -fsS 'http://127.0.0.1:9090/api/v1/rules' || true)"
-  echo "$resp" | grep -q '"basic-health"' \
-    && ok "Rules loaded (group=basic-health)" \
-    || warn "Rules not visible в API (провери rule_files и mounts)"
+# Изчакай правилата да се появят в API
+tries=0
+until resp="$(curl -fsS 'http://127.0.0.1:9090/api/v1/rules' 2>/dev/null)" && echo "$resp" | grep -q '"basic-health"'; do
+  tries=$((tries+1))
+  [[ $tries -ge 20 ]] && { err "Rules not visible в API след рестарт (провери rule_files и mounts)"; exit 1; }
+  sleep 1
+done
+ok "Rules loaded (group=basic-health)"
 
   # --- 5) Маркиране на резултат ---
   if sudo grep -q '^MON_RESULT_MODULE8=' "$SETUP_ENV_FILE" 2>/dev/null; then
