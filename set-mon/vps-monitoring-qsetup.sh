@@ -1129,13 +1129,13 @@ EOF
     }
   ' "$PROM_DIR/prometheus.yml" > "$tmp_prom" && sudo mv "$tmp_prom" "$PROM_DIR/prometheus.yml"
 
-  # Валидация на правилата
+  # Валидация на правилата (без glob; директен файл)
   sudo docker run --rm \
     -v "$PROM_DIR/rules:/rules:ro" \
     --entrypoint /bin/promtool \
     prom/prometheus:latest \
-    check rules /rules/*.yml \
-    || { err "Невалидни Prometheus rules в $PROM_DIR/rules"; exit 1; }
+    check rules /rules/base.rules.yml \
+    || { err "Невалидни Prometheus rules в $PROM_DIR/rules/base.rules.yml"; exit 1; }
 
   # Валидация на основната конфигурация (с rule_files)
   sudo docker run --rm \
