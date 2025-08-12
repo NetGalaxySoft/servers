@@ -1039,7 +1039,6 @@ if sudo grep -q '^MON_RESULT_MODULE9=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 9 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-# Ако вече има telegram_configs в alertmanager.yml → хидратираме BOT_TOKEN/CHAT_ID от YAML
 if [[ -f "$ALERT_DIR/alertmanager.yml" ]] && sudo grep -q '^[[:space:]]*telegram_configs:' "$ALERT_DIR/alertmanager.yml" 2>/dev/null; then
   _Y="$ALERT_DIR/alertmanager.yml"
   _Y_DIR="$(dirname "$_Y")"
