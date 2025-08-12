@@ -1040,58 +1040,57 @@ if sudo grep -q '^MON_RESULT_MODULE9=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo ""
 else
 
-# Ако вече има telegram_configs в alertmanager.yml → изтегляме BOT_TOKEN/CHAT_ID от YAML (без въпроси)
+# Ако вече има telegram_configs в alertmanager.yml → извличаме BOT_TOKEN/CHAT_ID от YAML (без въпроси)
 if [[ -f "$ALERT_DIR/alertmanager.yml" ]] && sudo grep -q '^[[:space:]]*telegram_configs:' "$ALERT_DIR/alertmanager.yml" 2>/dev/null; then
   _Y="$ALERT_DIR/alertmanager.yml"
   _Y_DIR="$(dirname "$_Y")"
 
-  BOT_TOKEN=""; CHAT_ID=""
+  BOT_TOKEN=""; CHAT_ID=""; BOT_TOKEN_FILE=""; _BT_SOURCE=""
 
-  # bot_token (inline)
-  BOT_TOKEN="$(
-    sudo sed -nE "/^[[:space:]]*bot_token[[:space:]]*:/{
-      s/^[[:space:]]*bot_token[[:space:]]*:[[:space:]]*//;
-      s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
-      p; q
-    }" "$_Y" 2>/dev/null
-  )"
+  # helper: почистване
+  _clean() {
+    _v="${1%%#*}"; _v="${_v//$'\r'/}"; _v="${_v//\"/}"; _v="${_v//\'/}"
+    _v="${_v#"${_v%%[![:space:]]*}"}"; _v="${_v%"${_v##*[![:space:]]}"}"
+    printf "%s" "$_v"
+  }
 
-  # ако няма inline: bot_token_file
+  # --- chat_id (inline) ---
+  _raw_ci="$(sudo sed -nE "/^[[:space:]]*chat_id[[:space:]]*:/{
+    s/^[[:space:]]*chat_id[[:space:]]*:[[:space:]]*//; p; q
+  }" "$_Y" 2>/dev/null)"
+  CHAT_ID="$(_clean "$_raw_ci")"
+
+  # --- bot_token (inline) ---
+  _raw_bt="$(sudo sed -nE "/^[[:space:]]*bot_token[[:space:]]*:/{
+    s/^[[:space:]]*bot_token[[:space:]]*:[[:space:]]*//; p; q
+  }" "$_Y" 2>/dev/null)"
+  BOT_TOKEN="$(_clean "$_raw_bt")"
+  [ -n "$BOT_TOKEN" ] && _BT_SOURCE="inline"
+
+  # --- ако няма inline: bot_token_file ---
   if [ -z "$BOT_TOKEN" ]; then
-    _BT_FILE="$(
-      sudo sed -nE "/^[[:space:]]*bot_token_file[[:space:]]*:/{
-        s/^[[:space:]]*bot_token_file[[:space:]]*:[[:space:]]*//;
-        s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
-        p; q
-      }" "$_Y" 2>/dev/null
-    )"
-    if [ -n "$_BT_FILE" ]; then
-      [[ "$_BT_FILE" != /* ]] && _BT_FILE="$_Y_DIR/$_BT_FILE"
-      if sudo test -r "$_BT_FILE"; then
-        BOT_TOKEN="$(sudo cat "$_BT_FILE" 2>/dev/null || true)"
-        BOT_TOKEN="${BOT_TOKEN//$'\r'/}"; BOT_TOKEN="${BOT_TOKEN//$'\n'/}"
-        BOT_TOKEN="${BOT_TOKEN#"${BOT_TOKEN%%[![:space:]]*}"}"
-        BOT_TOKEN="${BOT_TOKEN%"${BOT_TOKEN##*[![:space:]]}"}"
+    _raw_file="$(sudo sed -nE "/^[[:space:]]*bot_token_file[[:space:]]*:/{
+      s/^[[:space:]]*bot_token_file[[:space:]]*:[[:space:]]*//; p; q
+    }" "$_Y" 2>/dev/null)"
+    BOT_TOKEN_FILE="$(_clean "$_raw_file")"
+    if [ -n "$BOT_TOKEN_FILE" ]; then
+      [[ "$BOT_TOKEN_FILE" != /* ]] && BOT_TOKEN_FILE="$_Y_DIR/$BOT_TOKEN_FILE"
+      if sudo test -r "$BOT_TOKEN_FILE"; then
+        BOT_TOKEN="$(sudo head -c 4096 "$BOT_TOKEN_FILE" | tr -d '\r\n')"
+        _BT_SOURCE="file"
+      else
+        _BT_SOURCE="file-unreadable"
       fi
     fi
   fi
 
-  # chat_id (inline)
-  CHAT_ID="$(
-    sudo sed -nE "/^[[:space:]]*chat_id[[:space:]]*:/{
-      s/^[[:space:]]*chat_id[[:space:]]*:[[:space:]]*//;
-      s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
-      p; q
-    }" "$_Y" 2>/dev/null
-  )"
-
-  # твърда проверка (без интеракция)
-  if [ -z "$BOT_TOKEN" ] || [ -з "$CHAT_ID" ]; then
-    err "Намерих telegram_configs, но липсва bot_token/chat_id (или bot_token_file е недостъпен): $_Y"
+  # --- твърда проверка: chat_id е задължителен ---
+  if [ -z "$CHAT_ID" ]; then
+    err "Намерих telegram_configs, но липсва chat_id в $_Y."
     exit 1
   fi
 
-  ok "Alertmanager вече е конфигуриран за Telegram (данните са заредени от alertmanager.yml)."
+  ok "Alertmanager вече е конфигуриран за Telegram (chat_id зареден; bot_token: ${_BT_SOURCE:-none})."
 else
     # --- 1) Изискване и валидиране на токен ---
     TELEGRAM_BOT_TOKEN=""
