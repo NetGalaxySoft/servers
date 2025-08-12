@@ -1042,44 +1042,63 @@ else
 # Ако вече има telegram_configs в alertmanager.yml → хидратираме BOT_TOKEN/CHAT_ID от YAML
 if [[ -f "$ALERT_DIR/alertmanager.yml" ]] && sudo grep -q '^[[:space:]]*telegram_configs:' "$ALERT_DIR/alertmanager.yml" 2>/dev/null; then
   _Y="$ALERT_DIR/alertmanager.yml"
+  _Y_DIR="$(dirname "$_Y")"
 
-  # --- извличане на bot_token (без pipe/awk; устойчиво на кавички/коментари/CRLF) ---
+  BOT_TOKEN=""
+  CHAT_ID=""
+
+  # --- bot_token (inline) ---
   BOT_TOKEN="$(
     sudo sed -nE "/^[[:space:]]*bot_token[[:space:]]*:/{
       s/^[[:space:]]*bot_token[[:space:]]*:[[:space:]]*//;
-      s/[#].*$//;             # махни inline коментар
-      s/[\r\"']//g;           # махни CR и кавички
-      s/^[[:space:]]+//; s/[[:space:]]+\$//;  # trim
+      s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
       p; q
     }" "$_Y" 2>/dev/null
   )"
 
-  # --- извличане на chat_id ---
+  # --- ако липсва: bot_token_file ---
+  if [ -z "$BOT_TOKEN" ]; then
+    _FILE="$(
+      sudo sed -nE "/^[[:space:]]*bot_token_file[[:space:]]*:/{
+        s/^[[:space:]]*bot_token_file[[:space:]]*:[[:space:]]*//;
+        s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
+        p; q
+      }" "$_Y" 2>/dev/null
+    )"
+    if [ -n "$_FILE" ]; then
+      # относителните пътища ги считаме спрямо директорията на YAML
+      if [[ "$_FILE" != /* ]]; then _FILE="$_Y_DIR/$_FILE"; fi
+      if sudo test -r "$_FILE"; then
+        BOT_TOKEN="$(sudo head -c 4096 "$_FILE" | tr -d '\r\n')"
+      fi
+    fi
+  fi
+
+  # --- chat_id (inline) ---
   CHAT_ID="$(
     sudo sed -nE "/^[[:space:]]*chat_id[[:space:]]*:/{
       s/^[[:space:]]*chat_id[[:space:]]*:[[:space:]]*//;
-      s/[#].*$//;
-      s/[\r\"']//g;
-      s/^[[:space:]]+//; s/[[:space:]]+\$//;
+      s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
       p; q
     }" "$_Y" 2>/dev/null
   )"
 
+  # Ако още липсват – поискаме ги еднократно (за да не блокираме модула)
+  if [ -z "$BOT_TOKEN" ]; then
+    read -rsp "Въведи BOT_TOKEN за @netgalaxy_alerts_bot: " BOT_TOKEN; echo
+  fi
+  if [ -z "$CHAT_ID" ]; then
+    read -rp "Въведи CHAT_ID (пример: -1002702882707): " CHAT_ID
+  fi
+
   # Твърда проверка
-  if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
-    err "Намерих telegram_configs, но липсва bot_token или chat_id в $_Y."
-    exit 1
+  if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+    err "Намерих telegram_configs, но липсва bot_token/chat_id (или токен файлът е недостъпен от хоста)."; exit 1
   fi
 
   # Идемпотентен запис в todo.modules (само съдържание; без промяна на права/owner)
-  if ! sudo test -f "$MODULES_FILE"; then
-    err "Липсва $MODULES_FILE (стартирайте Модул 1)."
-    exit 1
-  fi
-  if ! sudo sh -c "true >> '$MODULES_FILE'"; then
-    err "Нямам права за запис в $MODULES_FILE (immutable/readonly)."
-    exit 1
-  fi
+  if ! sudo test -f "$MODULES_FILE"; then err "Липсва $MODULES_FILE (стартирайте Модул 1)."; exit 1; fi
+  if ! sudo sh -c "true >> '$MODULES_FILE'"; then err "Нямам права за запис в $MODULES_FILE (immutable/readonly)."; exit 1; fi
 
   if sudo grep -q '^BOT_TOKEN=' "$MODULES_FILE" 2>/dev/null; then
     sudo sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=${BOT_TOKEN}|" "$MODULES_FILE"
