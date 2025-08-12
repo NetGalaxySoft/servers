@@ -1279,32 +1279,31 @@ if [ -z "${CHAT_ID:-}" ]; then
   exit 1
 fi
 
-# --- Telegram: извличане директно от alertmanager.yml (детерминирано) ---
+# --- Telegram: извличане САМО от inline ключове в alertmanager.yml ---
 YAML="/opt/netgalaxy/monhub/alertmanager/alertmanager.yml"
 sudo test -r "$YAML" || { echo "❌ Недостъпен файл: $YAML"; exit 1; }
 
-# bot_token (inline в YAML)
+# BOT_TOKEN
 BOT_TOKEN="$(
   sudo sed -nE "/^[[:space:]]*bot_token[[:space:]]*:/{
     s/^[[:space:]]*bot_token[[:space:]]*:[[:space:]]*//;
     s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
     p; q
-  }" "$YAML"
+  }" "$YAML" 2>/dev/null
 )"
 
-# chat_id (inline в YAML)
+# CHAT_ID
 CHAT_ID="$(
   sudo sed -nE "/^[[:space:]]*chat_id[[:space:]]*:/{
     s/^[[:space:]]*chat_id[[:space:]]*:[[:space:]]*//;
     s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
     p; q
-  }" "$YAML"
+  }" "$YAML" 2>/dev/null
 )"
 
-# Твърди проверки (fail-fast) – задължително и двете:
-: "${BOT_TOKEN:?❌ BOT_TOKEN липсва. Модул 10 не е завършен.}"
-: "${CHAT_ID:?❌ CHAT_ID липсва. Модул 10 не е завършен.}"
-
+# Твърди проверки (fail-fast)
+: "${BOT_TOKEN:?❌ BOT_TOKEN липсва в $YAML (очаква се ред: bot_token: <стойност>)}"
+: "${CHAT_ID:?❌ CHAT_ID липсва в $YAML (очаква се ред: chat_id: <стойност>)}"
 printf "\nTelegram Alerts:\n"
 printf "  • Бот ............... @netgalaxy_alerts_bot\n"
 printf "  • CHAT_ID ........... %s\n" "$CHAT_ID"
