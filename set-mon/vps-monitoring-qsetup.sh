@@ -1039,36 +1039,47 @@ if sudo grep -q '^MON_RESULT_MODULE9=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 9 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  # Ако вече има telegram_configs в alertmanager.yml → хидратирай BOT_TOKEN/CHAT_ID от YAML
+# Ако вече има telegram_configs в alertmanager.yml → хидратираме BOT_TOKEN/CHAT_ID от YAML
 if [[ -f "$ALERT_DIR/alertmanager.yml" ]] && sudo grep -q '^[[:space:]]*telegram_configs:' "$ALERT_DIR/alertmanager.yml" 2>/dev/null; then
   _Y="$ALERT_DIR/alertmanager.yml"
 
-  # --- bot_token ---
-  _line="$(sudo grep -m1 -E '^[[:space:]]*bot_token:[[:space:]]*' "$_Y" 2>/dev/null || true)"
-  BOT_TOKEN="${_line#*:}"
-  BOT_TOKEN="${BOT_TOKEN%%#*}"                                 # махни inline коментар
-  BOT_TOKEN="${BOT_TOKEN//$'\r'/}"                             # CR
-  BOT_TOKEN="${BOT_TOKEN//\"/}"; BOT_TOKEN="${BOT_TOKEN//\'/}" # кавички
-  BOT_TOKEN="${BOT_TOKEN#"${BOT_TOKEN%%[![:space:]]*}"}"       # trim left
-  BOT_TOKEN="${BOT_TOKEN%"${BOT_TOKEN##*[![:space:]]}"}"       # trim right
+  # --- извличане на bot_token (без pipe/awk; устойчиво на кавички/коментари/CRLF) ---
+  BOT_TOKEN="$(
+    sudo sed -nE "/^[[:space:]]*bot_token[[:space:]]*:/{
+      s/^[[:space:]]*bot_token[[:space:]]*:[[:space:]]*//;
+      s/[#].*$//;             # махни inline коментар
+      s/[\r\"']//g;           # махни CR и кавички
+      s/^[[:space:]]+//; s/[[:space:]]+\$//;  # trim
+      p; q
+    }" "$_Y" 2>/dev/null
+  )"
 
-  # --- chat_id ---
-  _line="$(sudo grep -m1 -E '^[[:space:]]*chat_id:[[:space:]]*' "$_Y" 2>/dev/null || true)"
-  CHAT_ID="${_line#*:}"
-  CHAT_ID="${CHAT_ID%%#*}"
-  CHAT_ID="${CHAT_ID//$'\r'/}"
-  CHAT_ID="${CHAT_ID//\"/}"; CHAT_ID="${CHAT_ID//\'/}"
-  CHAT_ID="${CHAT_ID#"${CHAT_ID%%[![:space:]]*}"}"
-  CHAT_ID="${CHAT_ID%"${CHAT_ID##*[![:space:]]}"}"
+  # --- извличане на chat_id ---
+  CHAT_ID="$(
+    sudo sed -nE "/^[[:space:]]*chat_id[[:space:]]*:/{
+      s/^[[:space:]]*chat_id[[:space:]]*:[[:space:]]*//;
+      s/[#].*$//;
+      s/[\r\"']//g;
+      s/^[[:space:]]+//; s/[[:space:]]+\$//;
+      p; q
+    }" "$_Y" 2>/dev/null
+  )"
 
   # Твърда проверка
   if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
-    err "Намерих telegram_configs, но липсва bot_token или chat_id в $_Y."; exit 1
+    err "Намерих telegram_configs, но липсва bot_token или chat_id в $_Y."
+    exit 1
   fi
 
-  # Идемпотентен запис в todo.modules (без промяна на права/owner)
-  if ! sudo test -f "$MODULES_FILE"; then err "Липсва $MODULES_FILE (стартирайте Модул 1)."; exit 1; fi
-  if ! sudo sh -c "true >> '$MODULES_FILE'"; then err "Нямам права за запис в $MODULES_FILE (immutable/readonly)."; exit 1; fi
+  # Идемпотентен запис в todo.modules (само съдържание; без промяна на права/owner)
+  if ! sudo test -f "$MODULES_FILE"; then
+    err "Липсва $MODULES_FILE (стартирайте Модул 1)."
+    exit 1
+  fi
+  if ! sudo sh -c "true >> '$MODULES_FILE'"; then
+    err "Нямам права за запис в $MODULES_FILE (immutable/readonly)."
+    exit 1
+  fi
 
   if sudo grep -q '^BOT_TOKEN=' "$MODULES_FILE" 2>/dev/null; then
     sudo sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=${BOT_TOKEN}|" "$MODULES_FILE"
