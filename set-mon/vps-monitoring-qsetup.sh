@@ -860,6 +860,17 @@ EOF
   sudo systemctl daemon-reload
   sudo systemctl enable --now monhub.service
 
+  # ✅ Публикуване на портове за Модул 10
+  upsert_kv(){ local k="$1" v="$2"; if sudo grep -q "^${k}=" "$MODULES_FILE" 2>/dev/null; then
+  sudo sed -i "s|^${k}=.*|${k}=${v}|" "$MODULES_FILE"; else echo "${k}=${v}" | sudo tee -a "$MODULES_FILE" >/dev/null; fi; }
+  upsert_kv GRAFANA_PORT 3000
+  upsert_kv PROMETHEUS_PORT 9090
+  upsert_kv LOKI_PORT 3100
+  upsert_kv ALERTMANAGER_PORT 9093
+  upsert_kv NODE_EXPORTER_PORT 9100
+  # BLACKBOX_EXPORTER_PORT се задава в Модул 7 (9115)
+
+
   # --- 6) Маркиране на резултат ---
   if sudo grep -q '^MON_RESULT_MODULE5=' "$SETUP_ENV_FILE" 2>/dev/null; then
     if sudo sed -i 's|^MON_RESULT_MODULE5=.*|MON_RESULT_MODULE5=✅|' "$SETUP_ENV_FILE"; then
