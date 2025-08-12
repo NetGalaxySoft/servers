@@ -1233,8 +1233,15 @@ BLACKBOX_PROBE="http://${IP4}:9115/probe?target=https://example.org"
 # Telegram (само четене на CHAT_ID; без токен)
 CHAT_ID=""
 
-# 1) Опит от monitoring.env
-CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE" 2>/dev/null)"
+# --- Зареждане на CHAT_ID (без awk/pipe; устойчиво на липсващ файл)
+[ -r "$MON_ENV_FILE" ] && . "$MON_ENV_FILE"
+[ -z "${CHAT_ID:-}" ] && [ -r "$MODULES_FILE" ] && . "$MODULES_FILE"
+CHAT_ID="${CHAT_ID%$'\r'}"
+
+if [ -z "${CHAT_ID:-}" ]; then
+  echo "❌ CHAT_ID липсва. Модул 9 (Telegram Alerts) не е завършен."
+  exit 1
+fi
 
 # 2) Fallback към todo.modules
 [ -z "$CHAT_ID" ] && CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MODULES_FILE" 2>/dev/null)"
