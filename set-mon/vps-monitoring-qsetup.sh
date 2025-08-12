@@ -885,7 +885,6 @@ fi
 echo ""
 echo ""
 
-exit 0
 # =====================================================================
 # [МОДУЛ 6] Node Exporter (хост метрики за Prometheus)
 # =====================================================================
@@ -1092,21 +1091,59 @@ groups:
           description: "Свободното пространство е под 10% (изкл. tmpfs/devtmpfs)."
 EOF
 
-  # --- 3) Увери се, че rule_files е в главния prometheus.yml (топ-ниво), ако липсва ---
-  if ! grep -q '^[[:space:]]*rule_files:' "$PROM_DIR/prometheus.yml"; then
-    tmp_prom="/tmp/prom.$$"
-    sudo cp -a "$PROM_DIR/prometheus.yml" "${PROM_DIR}/prometheus.yml.bak.$(date +%F-%H%M%S)"
-    sudo awk '
-      BEGIN{ins=0}
-      /^[[:space:]]*scrape_configs:/ && ins==0 {
+    # Правим файла четим (детерминирано)
+  sudo chmod 0644 "$PROM_DIR/rules/base.rules.yml"
+
+# --- 3) rule_files в prometheus.yml (твърдо, без условни проверки) ---
+  tmp_prom="/tmp/prom.$$"
+  sudo cp -a "$PROM_DIR/prometheus.yml" "${PROM_DIR}/prometheus.yml.bak.$(date +%F-%H%M%S)"
+
+  sudo awk '
+    BEGIN{inrf=0; injected=0}
+    {
+      # ако сме вътре в стар rule_files блок – прескачаме редовете с "- ..."
+      if (inrf==1) {
+        if ($0 ~ /^\s*-\s*/) next;
+        else inrf=0;
+      }
+      # начало на rule_files блок – не го печатаме (ще инжектираме наш)
+      if ($0 ~ /^\s*rule_files\s*:/) { inrf=1; next }
+
+      # преди scrape_configs: инжектираме каноничния блок (само веднъж)
+      if ($0 ~ /^\s*scrape_configs\s*:/ && injected==0) {
         print "rule_files:"
         print "  - /etc/prometheus/rules/*.yml"
-        print
-        ins=1
+        print ""
+        injected=1
       }
-      { print }
-    ' "$PROM_DIR/prometheus.yml" > "$tmp_prom" && sudo mv "$tmp_prom" "$PROM_DIR/prometheus.yml"
-  fi
+
+      print
+    }
+    END{
+      # ако липсваше scrape_configs:, инжектираме в края
+      if(injected==0){
+        print ""
+        print "rule_files:"
+        print "  - /etc/prometheus/rules/*.yml"
+      }
+    }
+  ' "$PROM_DIR/prometheus.yml" > "$tmp_prom" && sudo mv "$tmp_prom" "$PROM_DIR/prometheus.yml"
+
+  # Валидация на правилата
+  sudo docker run --rm \
+    -v "$PROM_DIR/rules:/rules:ro" \
+    --entrypoint /bin/promtool \
+    prom/prometheus:latest \
+    check rules /rules/*.yml \
+    || { err "Невалидни Prometheus rules в $PROM_DIR/rules"; exit 1; }
+
+  # Валидация на основната конфигурация (с rule_files)
+  sudo docker run --rm \
+    -v "$PROM_DIR:/etc/prometheus:ro" \
+    --entrypoint /bin/promtool \
+    prom/prometheus:latest \
+    check config /etc/prometheus/prometheus.yml \
+    || { err "prometheus.yml е невалиден след добавяне на rule_files"; exit 1; }
 
   # --- 4) Презареди само Prometheus, за да вземе новите правила ---
   if [[ -d "$COMPOSE_DIR" ]]; then
@@ -1116,6 +1153,11 @@ EOF
     err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
     exit 1
   fi
+
+  resp="$(curl -fsS 'http://127.0.0.1:9090/api/v1/rules' || true)"
+  echo "$resp" | grep -q '"basic-health"' \
+    && ok "Rules loaded (group=basic-health)" \
+    || warn "Rules not visible в API (провери rule_files и mounts)"
 
   # --- 5) Маркиране на резултат ---
   if sudo grep -q '^MON_RESULT_MODULE8=' "$SETUP_ENV_FILE" 2>/dev/null; then
