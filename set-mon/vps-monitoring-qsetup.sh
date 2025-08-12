@@ -1406,7 +1406,7 @@ printf "Мониторинг стек (линкове по IP на този съ
 printf "  • Grafana ........... %s  (default: admin / admin)\n" "$GRAFANA_URL"
 printf "  • Prometheus ........ %s  (UI: /, /graph, /targets)\n" "$PROM_URL"
 printf "  • Alertmanager ...... %s  (UI: /#/alerts, /#/silences)\n" "$ALERT_URL"
-printf "  • Loki API .......... %s  (API; визуализация през Grafana)\n" "$LOKI_URL"
+printf "  • Loki Ready ....... %s  (API; визуализация през Grafana)\n" "${LOKI_URL}/ready"
 printf "  • node_exporter ..... %s\n" "$NODE_URL"
 printf "  • Blackbox probe .... %s\n" "$BLACKBOX_PROBE"
 
