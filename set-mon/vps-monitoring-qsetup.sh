@@ -1094,27 +1094,45 @@ EOF
   # Правим файла четим (детерминирано)
   sudo chmod 0644 "$PROM_DIR/rules/base.rules.yml"
 
-  # --- 3) rule_files в prometheus.yml (твърдо, канонично в края) ---
-  tmp_prom="/tmp/prom.$$"
+    # --- 3) Презапис на prometheus.yml (каноничен, валиден) ---
   sudo cp -a "$PROM_DIR/prometheus.yml" "${PROM_DIR}/prometheus.yml.bak.$(date +%F-%H%M%S)"
+  sudo tee "$PROM_DIR/prometheus.yml" >/dev/null <<'EOF'
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
 
-  # Премахваме всеки съществуващ rule_files блок и добавяме каноничен в края (топ-ниво)
-  sudo awk '
-    BEGIN{inrf=0}
-    {
-      if (inrf==1) {
-        if ($0 ~ /^\s*-\s+/) next;  # прескачаме елементите на списъка
-        inrf=0
-      }
-      if ($0 ~ /^\s*rule_files\s*:/) { inrf=1; next }  # прескачаме заглавието на блока
-      print
-    }
-    END{
-      print ""
-      print "rule_files:"
-      print "  - /etc/prometheus/rules/*.yml"
-    }
-  ' "$PROM_DIR/prometheus.yml" > "$tmp_prom" && sudo mv "$tmp_prom" "$PROM_DIR/prometheus.yml"
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node_exporter:9100']
+
+  - job_name: 'blackbox_http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    file_sd_configs:
+      - files:
+        - /etc/prometheus/targets/blackbox_http.yml
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+EOF
 
   # Валидация на правилата (без glob; директен файл)
   sudo docker run --rm \
