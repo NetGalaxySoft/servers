@@ -514,22 +514,39 @@ if sudo grep -q '^MON_RESULT_MODULE5=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 5 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  # --- 1) Директории и .env ---
-  sudo mkdir -p "$PROM_DIR" "$ALERT_DIR" "$LOKI_DIR/data" "$GRAFANA_DIR/provisioning/datasources" "$COMPOSE_DIR/blackbox" "$GRAFANA_DIR/data"
+# --- 1) Директории, права и .env ---
 
-  # .env за docker compose (пътища и базови креденшъли)
-  sudo tee "$COMPOSE_DIR/.env" >/dev/null <<EOF
+# Директории (всичко нужно за bind mounts)
+sudo mkdir -p \
+  "$PROM_DIR/data" \
+  "$ALERT_DIR/data" \
+  "$LOKI_DIR/data" \
+  "$GRAFANA_DIR/data" \
+  "$GRAFANA_DIR/provisioning/datasources" \
+  "$GRAFANA_DIR/plugins" \
+  "$COMPOSE_DIR/blackbox"
+
+# Права (контейнерни UID/GID)
+sudo chown -R 65534:65534 "$PROM_DIR/data" "$ALERT_DIR/data"   || { err "chown prom/alert data"; exit 1; }
+sudo chown -R 10001:10001 "$LOKI_DIR"                           || { err "chown loki"; exit 1; }
+sudo chown -R 472:472   "$GRAFANA_DIR"                          || { err "chown grafana"; exit 1; }
+
+# По-щадящо, но достатъчно
+sudo chmod -R u+rwX,g+rwX "$GRAFANA_DIR" "$LOKI_DIR" || { err "chmod grafana/loki"; exit 1; }
+
+# .env за docker compose (пътища и базови креденшъли)
+sudo tee "$COMPOSE_DIR/.env" >/dev/null <<EOF
 PROM_DIR=$PROM_DIR
 ALERT_DIR=$ALERT_DIR
 LOKI_DIR=$LOKI_DIR
 GRAFANA_DIR=$GRAFANA_DIR
 
-# Базови Grafana креденшъли (сменете по-късно чрез security скрипта)
+# Временни Grafana креденшъли (ще се сменят в security модул)
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
 EOF
 
-  # --- 2) Конфигурации ---
+# --- 2) Конфигурации ---
 
   # Prometheus (targets: локален node_exporter, blackbox, самия prometheus, alertmanager)
   sudo tee "$PROM_DIR/prometheus.yml" >/dev/null <<'EOF'
@@ -549,7 +566,7 @@ scrape_configs:
 
   - job_name: 'node'
     static_configs:
-      - targets: ['localhost:9100']
+      - targets: ['node_exporter:9100']
 
   - job_name: 'blackbox_http'
     metrics_path: /probe
@@ -671,6 +688,22 @@ EOF
   # --- 3) docker-compose.yml ---
   sudo tee "$COMPOSE_DIR/docker-compose.yml" >/dev/null <<'EOF'
 services:
+  node_exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: monhub_node_exporter
+    command:
+      - '--path.rootfs=/rootfs'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    networks: [monhub]
+
   prometheus:
     image: prom/prometheus:latest
     container_name: monhub_prometheus
@@ -682,6 +715,11 @@ services:
       - ${PROM_DIR}/data:/prometheus
     ports:
       - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
     networks: [monhub]
 
@@ -693,6 +731,11 @@ services:
       - ${ALERT_DIR}/data:/alertmanager
     ports:
       - "9093:9093"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9093/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
     networks: [monhub]
 
@@ -700,7 +743,7 @@ services:
     image: prom/blackbox-exporter:latest
     container_name: monhub_blackbox
     volumes:
-      - ${PWD}/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+      - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
     ports:
       - "9115:9115"
     restart: unless-stopped
@@ -715,6 +758,11 @@ services:
       - ${LOKI_DIR}/data:/loki
     ports:
       - "3100:3100"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
     networks: [monhub]
 
@@ -725,6 +773,8 @@ services:
     volumes:
       - /var/log:/var/log:ro
       - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
       - ${LOKI_DIR}/promtail-config.yml:/etc/promtail/config.yml:ro
     restart: unless-stopped
     networks: [monhub]
@@ -740,6 +790,11 @@ services:
       - ${GRAFANA_DIR}/provisioning:/etc/grafana/provisioning
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
     depends_on:
       - prometheus
       - loki
@@ -750,6 +805,24 @@ networks:
   monhub:
     driver: bridge
 EOF
+
+# --- Предстартови валидации на конфигурациите ---
+sudo docker run --rm -v "$PROM_DIR:/etc/prometheus" \
+  --user 65534:65534 prom/prometheus:latest \
+  promtool check config /etc/prometheus/prometheus.yml \
+  || { err "Prometheus конфигурацията е невалидна."; exit 1; }
+
+sudo docker run --rm -v "$ALERT_DIR:/etc/alertmanager" \
+  prom/alertmanager:latest \
+  amtool check-config /etc/alertmanager/alertmanager.yml \
+  || { err "Alertmanager конфигурацията е невалидна."; exit 1; }
+
+sudo docker run --rm -v "$LOKI_DIR:/loki" \
+  --user 10001:10001 grafana/loki:2.9.8 \
+  -config.file=/loki/config.yml -verify-config \
+  || { err "Loki конфигурацията е невалидна."; exit 1; }
+
+ok "Конфигурациите са валидни. Стартирам стека..."
 
   # --- 4) Старт на стека ---
   (cd "$COMPOSE_DIR" && sudo docker compose pull && sudo docker compose up -d)
@@ -788,7 +861,7 @@ fi
 echo ""
 echo ""
 
-
+exit 0
 # =====================================================================
 # [МОДУЛ 6] Node Exporter (хост метрики за Prometheus)
 # =====================================================================
