@@ -1106,28 +1106,46 @@ EOF
   fi
 
   # --- Запис в todo.modules за следващите модули (без промяна на права/owner) ---
-if ! sudo test -f "$MODULES_FILE"; then
-  echo "❌ Липсва $MODULES_FILE (изпълнете Модул 1 преди Модул 9)."
-  exit 1
-fi
-if ! sudo test -w "$MODULES_FILE"; then
-  echo "❌ Нямам права за запис в $MODULES_FILE (immutable/readonly)."
-  exit 1
-fi
+  if ! sudo test -f "$MODULES_FILE"; then
+    echo "❌ Липсва $MODULES_FILE (изпълнете Модул 1 преди Модул 9)."
+    exit 1
+  fi
+  if ! sudo sh -c "true >> '$MODULES_FILE'"; then
+    echo "❌ Нямам права за запис в $MODULES_FILE (immutable/readonly)."
+    exit 1
+  fi
 
-# BOT_TOKEN
-if sudo grep -q '^BOT_TOKEN=' "$MODULES_FILE" 2>/dev/null; then
-  sudo sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=${BOT_TOKEN}|" "$MODULES_FILE"
-else
-  echo "BOT_TOKEN=${BOT_TOKEN}" | sudo tee -a "$MODULES_FILE" >/dev/null
-fi
+  # Хидратиране на BOT_TOKEN/CHAT_ID за set -u
+  # Източник 1: monitoring.env; Източник 2: todo.modules
+  if sudo test -f "$MON_ENV_FILE"; then
+    BOT_TOKEN="$(sudo awk -F= '/^[[:space:]]*BOT_TOKEN[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE" 2>/dev/null)"
+  fi
+  [ -z "${BOT_TOKEN:-}" ] && BOT_TOKEN="$(sudo awk -F= '/^[[:space:]]*BOT_TOKEN[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MODULES_FILE" 2>/dev/null)"
 
-# CHAT_ID
-if sudo grep -q '^CHAT_ID=' "$MODULES_FILE" 2>/dev/null; then
-  sudo sed -i "s|^CHAT_ID=.*|CHAT_ID=${CHAT_ID}|" "$MODULES_FILE"
-else
-  echo "CHAT_ID=${CHAT_ID}" | sudo tee -a "$MODULES_FILE" >/dev/null
-fi
+  if sudo test -f "$MON_ENV_FILE"; then
+    CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE" 2>/dev/null)"
+  fi
+  [ -z "${CHAT_ID:-}" ] && CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MODULES_FILE" 2>/dev/null)"
+
+  # Твърда проверка – спира, ако липсват
+  if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
+    echo "❌ Липсват BOT_TOKEN/CHAT_ID (Модул 9 не е завършен)."
+    exit 1
+  fi
+
+  # BOT_TOKEN
+  if sudo grep -q '^BOT_TOKEN=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i "s|^BOT_TOKEN=.*|BOT_TOKEN=${BOT_TOKEN}|" "$MODULES_FILE"
+  else
+    echo "BOT_TOKEN=${BOT_TOKEN}" | sudo tee -a "$MODULES_FILE" >/dev/null
+  fi
+
+  # CHAT_ID
+  if sudo grep -q '^CHAT_ID=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i "s|^CHAT_ID=.*|CHAT_ID=${CHAT_ID}|" "$MODULES_FILE"
+  else
+    echo "CHAT_ID=${CHAT_ID}" | sudo tee -a "$MODULES_FILE" >/dev/null
+  fi
 
   # --- 5) Маркиране на резултат ---
   if sudo grep -q '^MON_RESULT_MODULE9=' "$SETUP_ENV_FILE" 2>/dev/null; then
