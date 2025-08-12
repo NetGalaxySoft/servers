@@ -198,6 +198,17 @@ else
     [[ -f "$NETGALAXY_DIR/.nodelete" ]] && { sudo chown root:root "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true; sudo chmod 644 "$NETGALAXY_DIR/.nodelete" 2>/dev/null || true; }
   fi
 
+  # ✅ Създаване на празен monitoring.env (ако липсва)
+  if [[ ! -f "$MON_ENV_FILE" ]]; then
+    sudo touch "$MON_ENV_FILE" \
+      || { err "Неуспешно създаване на $MON_ENV_FILE"; exit 1; }
+    sudo chown root:root "$MON_ENV_FILE" \
+      || { err "Неуспешна смяна на собственост за $MON_ENV_FILE"; exit 1; }
+    sudo chmod 0644 "$MON_ENV_FILE" \
+      || { err "Неуспешна промяна на права за $MON_ENV_FILE"; exit 1; }
+    ok "Създаден празен файл: $MON_ENV_FILE"
+  fi
+
   # ✅ Запис или обновяване на SERVER_IP в todo.modules
   if sudo grep -q '^SERVER_IP=' "$MODULES_FILE" 2>/dev/null; then
     sudo sed -i "s|^SERVER_IP=.*|SERVER_IP=\"$SERVER_IP\"|" "$MODULES_FILE"
