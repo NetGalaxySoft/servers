@@ -713,6 +713,7 @@ services:
     volumes:
       - ${PROM_DIR}/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ${PROM_DIR}/data:/prometheus
+      - ${PROM_DIR}/targets:/etc/prometheus/targets:ro
     ports:
       - "9090:9090"
     healthcheck:
@@ -932,7 +933,7 @@ fi
 echo ""
 echo ""
 
-exit 0
+
 # =====================================================================
 # [МОДУЛ 7] Blackbox targets (file_sd) + промени в Prometheus/Compose
 # =====================================================================
@@ -961,22 +962,7 @@ else
 EOF
   fi
 
-  # --- 2) Увери се, че Prometheus има монтиран /etc/prometheus/targets ---
-  if ! grep -Fq '/etc/prometheus/targets' "$COMPOSE_DIR/docker-compose.yml"; then
-    tmp_comp="/tmp/dc.$$"
-    sudo awk -v ins="      - ${PROM_DIR}/targets:/etc/prometheus/targets:ro" '
-      BEGIN{inprom=0; done=0}
-      # начало на секцията за prometheus
-      /^[[:space:]]{2}prometheus:/ {inprom=1}
-      # ако сме в prometheus и видим ред "    volumes:", вмъкваме bind-а точно отдолу (ако не е правено)
-      inprom==1 && /^[[:space:]]{4}volumes:[[:space:]]*$/ && done==0 { print; print ins; done=1; next }
-      # излизаме от секцията на prometheus при следващ top-level service (две водещи интервала и име:)
-      inprom==1 && /^[[:space:]]{2}[a-zA-Z0-9_-]+:/ && $0 !~ /^[[:space:]]{2}prometheus:/ { inprom=0 }
-      { print }
-    ' "$COMPOSE_DIR/docker-compose.yml" > "$tmp_comp" && sudo mv "$tmp_comp" "$COMPOSE_DIR/docker-compose.yml"
-  fi
-
-  # --- 3) Инжектиране на file_sd_configs в prometheus.yml (ако липсва) ---
+  # --- 2) Инжектиране на file_sd_configs в prometheus.yml (ако липсва) ---
   if ! grep -q 'file_sd_configs:' "$PROM_DIR/prometheus.yml"; then
     tmp_prom="/tmp/prom.$$"
     sudo cp -a "$PROM_DIR/prometheus.yml" "${PROM_DIR}/prometheus.yml.bak.$(date +%F-%H%M%S)"
@@ -999,13 +985,30 @@ EOF
     ' "$PROM_DIR/prometheus.yml" > "$tmp_prom" && sudo mv "$tmp_prom" "$PROM_DIR/prometheus.yml"
   fi
 
-  # --- 4) Презареди само Prometheus, за да вземе новите настройки/targets ---
+  # --- 3) Презареди само Prometheus, за да вземе новите настройки/targets ---
   if [[ -d "$COMPOSE_DIR" ]]; then
     (cd "$COMPOSE_DIR" && sudo docker compose up -d prometheus)
     ok "Prometheus е презареден с file_sd targets."
   else
     err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
     exit 1
+  fi
+
+  # ✅ Финализиране: права и запис в todo.modules за Модул 10
+  sudo chmod 0644 "$PROM_DIR/targets/blackbox_http.yml" || true
+
+  # Път към файла с цели
+  if sudo grep -q '^BLACKBOX_TARGETS_FILE=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i 's|^BLACKBOX_TARGETS_FILE=.*|BLACKBOX_TARGETS_FILE="'"$PROM_DIR/targets/blackbox_http.yml"'"|' "$MODULES_FILE"
+  else
+    echo 'BLACKBOX_TARGETS_FILE="'"$PROM_DIR/targets/blackbox_http.yml"'"' | sudo tee -a "$MODULES_FILE" >/dev/null
+  fi
+
+  # Порт на Blackbox Exporter (за Модул 10)
+  if sudo grep -q '^BLACKBOX_EXPORTER_PORT=' "$MODULES_FILE" 2>/dev/null; then
+    sudo sed -i 's|^BLACKBOX_EXPORTER_PORT=.*|BLACKBOX_EXPORTER_PORT=9115|' "$MODULES_FILE"
+  else
+    echo 'BLACKBOX_EXPORTER_PORT=9115' | sudo tee -a "$MODULES_FILE" >/dev/null
   fi
 
   # --- 5) Маркиране на резултат ---
@@ -1019,7 +1022,7 @@ fi
 echo ""
 echo ""
 
-
+exit 0
 # =====================================================================
 # [МОДУЛ 8] Базови алърти (Prometheus rules + reload)
 # =====================================================================
