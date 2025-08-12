@@ -1276,6 +1276,8 @@ else
                  -d chat_id="${TELEGRAM_CHAT_ID}" \
                  -d text="✅ MonHub тестово известие" | jq -r '.ok' 2>/dev/null || echo "false")"
       [[ "$test_ok" == "true" ]] && { ok "Успешно изпратено тестово съобщение към chat_id=${TELEGRAM_CHAT_ID}."; break; }
+      BOT_TOKEN="$TELEGRAM_BOT_TOKEN"
+      CHAT_ID="$TELEGRAM_CHAT_ID"
       echo "❌ Неуспешно изпращане към този chat_id. Проверете дали ботът е в чата (и не е блокиран) и опитайте пак."
     done
 
@@ -1319,17 +1321,9 @@ EOF
     exit 1
   fi
 
-  # Хидратиране на BOT_TOKEN/CHAT_ID за set -u
-  # Източник 1: monitoring.env; Източник 2: todo.modules
-  if sudo test -f "$MON_ENV_FILE"; then
-    BOT_TOKEN="$(sudo awk -F= '/^[[:space:]]*BOT_TOKEN[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE" 2>/dev/null)"
-  fi
-  [ -z "${BOT_TOKEN:-}" ] && BOT_TOKEN="$(sudo awk -F= '/^[[:space:]]*BOT_TOKEN[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MODULES_FILE" 2>/dev/null)"
-
-  if sudo test -f "$MON_ENV_FILE"; then
-    CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MON_ENV_FILE" 2>/dev/null)"
-  fi
-  [ -z "${CHAT_ID:-}" ] && CHAT_ID="$(sudo awk -F= '/^[[:space:]]*CHAT_ID[[:space:]]*=/ {val=$0; sub(/^[^=]*=/,"",val); gsub(/\r/,"",val); gsub(/^[[:space:]]+|[[:space:]]+$/,"",val); print val; exit}' "$MODULES_FILE" 2>/dev/null)"
+  # fallback към въведените в тази сесия стойности (ако липсват във файловете)
+  [ -z "${BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && BOT_TOKEN="$TELEGRAM_BOT_TOKEN"
+  [ -z "${CHAT_ID:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ] && CHAT_ID="$TELEGRAM_CHAT_ID"
 
   # Твърда проверка – chat_id е задължителен, bot_token може да липсва (когато е bot_token_file в контейнера)
   if [ -z "${CHAT_ID:-}" ]; then
