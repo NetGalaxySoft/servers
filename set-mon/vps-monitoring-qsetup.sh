@@ -1039,10 +1039,60 @@ if sudo grep -q '^MON_RESULT_MODULE9=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 9 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  # Ако вече има telegram_configs в alertmanager.yml → приемаме за конфигуриран
-  if [[ -f "$ALERT_DIR/alertmanager.yml" ]] && sudo grep -q 'telegram_configs:' "$ALERT_DIR/alertmanager.yml" 2>/dev/null; then
-    ok "Alertmanager вече е конфигуриран за Telegram."
-  else
+
+# Ако вече има telegram_configs в alertmanager.yml → изтегляме BOT_TOKEN/CHAT_ID от YAML (без въпроси)
+if [[ -f "$ALERT_DIR/alertmanager.yml" ]] && sudo grep -q '^[[:space:]]*telegram_configs:' "$ALERT_DIR/alertmanager.yml" 2>/dev/null; then
+  _Y="$ALERT_DIR/alertmanager.yml"
+  _Y_DIR="$(dirname "$_Y")"
+
+  BOT_TOKEN=""; CHAT_ID=""
+
+  # bot_token (inline)
+  BOT_TOKEN="$(
+    sudo sed -nE "/^[[:space:]]*bot_token[[:space:]]*:/{
+      s/^[[:space:]]*bot_token[[:space:]]*:[[:space:]]*//;
+      s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
+      p; q
+    }" "$_Y" 2>/dev/null
+  )"
+
+  # ако няма inline: bot_token_file
+  if [ -z "$BOT_TOKEN" ]; then
+    _BT_FILE="$(
+      sudo sed -nE "/^[[:space:]]*bot_token_file[[:space:]]*:/{
+        s/^[[:space:]]*bot_token_file[[:space:]]*:[[:space:]]*//;
+        s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
+        p; q
+      }" "$_Y" 2>/dev/null
+    )"
+    if [ -n "$_BT_FILE" ]; then
+      [[ "$_BT_FILE" != /* ]] && _BT_FILE="$_Y_DIR/$_BT_FILE"
+      if sudo test -r "$_BT_FILE"; then
+        BOT_TOKEN="$(sudo cat "$_BT_FILE" 2>/dev/null || true)"
+        BOT_TOKEN="${BOT_TOKEN//$'\r'/}"; BOT_TOKEN="${BOT_TOKEN//$'\n'/}"
+        BOT_TOKEN="${BOT_TOKEN#"${BOT_TOKEN%%[![:space:]]*}"}"
+        BOT_TOKEN="${BOT_TOKEN%"${BOT_TOKEN##*[![:space:]]}"}"
+      fi
+    fi
+  fi
+
+  # chat_id (inline)
+  CHAT_ID="$(
+    sudo sed -nE "/^[[:space:]]*chat_id[[:space:]]*:/{
+      s/^[[:space:]]*chat_id[[:space:]]*:[[:space:]]*//;
+      s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
+      p; q
+    }" "$_Y" 2>/dev/null
+  )"
+
+  # твърда проверка (без интеракция)
+  if [ -z "$BOT_TOKEN" ] || [ -з "$CHAT_ID" ]; then
+    err "Намерих telegram_configs, но липсва bot_token/chat_id (или bot_token_file е недостъпен): $_Y"
+    exit 1
+  fi
+
+  ok "Alertmanager вече е конфигуриран за Telegram (данните са заредени от alertmanager.yml)."
+else
     # --- 1) Изискване и валидиране на токен ---
     TELEGRAM_BOT_TOKEN=""
     while true; do
