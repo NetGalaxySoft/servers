@@ -1279,12 +1279,21 @@ if [ -z "${CHAT_ID:-}" ]; then
   exit 1
 fi
 
+# --- Telegram (детерминирано, без плейсхолдери) ---
+# Зареждане на секрети от env и шината, без условни пътища в изхода:
+[ -r "$MON_ENV_FILE" ] && . "$MON_ENV_FILE"
+[ -r "$MODULES_FILE" ] && . "$MODULES_FILE"
+
+# Твърди проверки (fail-fast) – задължително и двете:
+: "${BOT_TOKEN:?❌ BOT_TOKEN липсва. Модул 9 не е завършен.}"
+: "${CHAT_ID:?❌ CHAT_ID липсва. Модул 9 не е завършен.}"
+
 printf "\nTelegram Alerts:\n"
 printf "  • Бот ............... @netgalaxy_alerts_bot\n"
 printf "  • CHAT_ID ........... %s\n" "$CHAT_ID"
 
 printf "\nБърз тест (през браузър):\n"
-printf "  https://api.telegram.org/bot<ТОКЕН>/sendMessage?chat_id=%s&text=NetGalaxy%%20Monitoring%%20test\n" "$CHAT_ID"
+printf "  https://api.telegram.org/bot%s/sendMessage?chat_id=%s&text=NetGalaxy%%20Monitoring%%20test\n" "$BOT_TOKEN" "$CHAT_ID"
 
 # UFW/портове (SSH включен сред останалите)
 printf "\nUFW: отворени портове → %s, 3000, 9090, 9093, 3100, 9100, 9115\n" "$SSH_PORT"
