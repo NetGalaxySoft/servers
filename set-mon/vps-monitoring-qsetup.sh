@@ -1283,27 +1283,27 @@ fi
 YAML="/opt/netgalaxy/monhub/alertmanager/alertmanager.yml"
 sudo test -r "$YAML" || { echo "❌ Недостъпен файл: $YAML"; exit 1; }
 
-# BOT_TOKEN
-BOT_TOKEN="$(
-  sudo sed -nE "/^[[:space:]]*bot_token[[:space:]]*:/{
-    s/^[[:space:]]*bot_token[[:space:]]*:[[:space:]]*//;
-    s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
-    p; q
-  }" "$YAML" 2>/dev/null
-)"
+# BOT_TOKEN (inline ред: [-] bot_token: <стойност>)
+_line="$(sudo grep -m1 -E '^[[:space:]]*[-]?[[:space:]]*bot_token[[:space:]]*:' /opt/netgalaxy/monhub/alertmanager/alertmanager.yml 2>/dev/null || true)"
+BOT_TOKEN="${_line#*:}"
+BOT_TOKEN="${BOT_TOKEN%%#*}"
+BOT_TOKEN="${BOT_TOKEN//$'\r'/}"
+BOT_TOKEN="${BOT_TOKEN//\"/}"; BOT_TOKEN="${BOT_TOKEN//\'/}"
+BOT_TOKEN="${BOT_TOKEN#"${BOT_TOKEN%%[![:space:]]*}"}"
+BOT_TOKEN="${BOT_TOKEN%"${BOT_TOKEN##*[![:space:]]}"}"
 
-# CHAT_ID
-CHAT_ID="$(
-  sudo sed -nE "/^[[:space:]]*chat_id[[:space:]]*:/{
-    s/^[[:space:]]*chat_id[[:space:]]*:[[:space:]]*//;
-    s/[#].*$//; s/[\r\"']//g; s/^[[:space:]]+//; s/[[:space:]]+\$//;
-    p; q
-  }" "$YAML" 2>/dev/null
-)"
+# CHAT_ID (inline ред: [-] chat_id: <стойност>)
+_line="$(sudo grep -m1 -E '^[[:space:]]*[-]?[[:space:]]*chat_id[[:space:]]*:' /opt/netgalaxy/monhub/alertmanager/alertmanager.yml 2>/dev/null || true)"
+CHAT_ID="${_line#*:}"
+CHAT_ID="${CHAT_ID%%#*}"
+CHAT_ID="${CHAT_ID//$'\r'/}"
+CHAT_ID="${CHAT_ID//\"/}"; CHAT_ID="${CHAT_ID//\'/}"
+CHAT_ID="${CHAT_ID#"${CHAT_ID%%[![:space:]]*}"}"
+CHAT_ID="${CHAT_ID%"${CHAT_ID##*[![:space:]]}"}"
 
-# Твърди проверки (fail-fast)
-: "${BOT_TOKEN:?❌ BOT_TOKEN липсва в $YAML (очаква се ред: bot_token: <стойност>)}"
-: "${CHAT_ID:?❌ CHAT_ID липсва в $YAML (очаква се ред: chat_id: <стойност>)}"
+: "${BOT_TOKEN:?❌ BOT_TOKEN липсва в /opt/netgalaxy/monhub/alertmanager/alertmanager.yml (очаква се ред: bot_token: <стойност>)}"
+: "${CHAT_ID:?❌ CHAT_ID липсва в /opt/netgalaxy/monhub/alertmanager/alertmanager.yml (очаква се ред: chat_id: <стойност>)}"
+
 printf "\nTelegram Alerts:\n"
 printf "  • Бот ............... @netgalaxy_alerts_bot\n"
 printf "  • CHAT_ID ........... %s\n" "$CHAT_ID"
