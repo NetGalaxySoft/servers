@@ -872,7 +872,7 @@ fi
 echo ""
 echo ""
 
-exit 0
+
 # =====================================================================
 # [МОДУЛ 6] Node Exporter (хост метрики за Prometheus)
 # =====================================================================
@@ -884,61 +884,55 @@ if sudo grep -q '^MON_RESULT_MODULE6=✅' "$SETUP_ENV_FILE" 2>/dev/null; then
   echo "ℹ️ Модул 6 вече е изпълнен успешно. Пропускане..."
   echo ""
 else
-  # --- 1) Инсталация на Node Exporter (systemd пакет) ---
-  sudo apt-get update -y
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y prometheus-node-exporter
-
-  # Уверяваме се, че услугата е активирана и стартирана
-  sudo systemctl enable --now prometheus-node-exporter
-  sudo systemctl is-active --quiet prometheus-node-exporter && ok "node_exporter е стартиран на порт 9100." || warn "node_exporter не изглежда активен."
-
-  # --- 2) Откриване на SERVER_IP за достъп от контейнера Prometheus ---
-  SERVER_IP_VALUE=""
-  if [[ -f "$MODULES_FILE" ]]; then
-    SERVER_IP_VALUE="$(awk -F= '/^SERVER_IP=/{gsub(/"/,"",$2); print $2}' "$MODULES_FILE" | tail -n1)"
-  fi
-  if [[ -z "$SERVER_IP_VALUE" ]]; then
-    # fallback – засичане на публичния IPv4 (без въпроси към оператора)
-    SERVER_IP_VALUE="$(curl -s -4 ifconfig.me || true)"
-  fi
-  if [[ -z "$SERVER_IP_VALUE" ]]; then
-    err "Неуспешно откриване на SERVER_IP. Моля, задайте SERVER_IP в $MODULES_FILE и стартирайте отново."
-    exit 1
-  fi
-  ok "Използван SERVER_IP за Prometheus target: $SERVER_IP_VALUE:9100"
-
-  # --- 3) Актуализация на Prometheus конфигурацията (target към хоста) ---
-  if [[ -f "$PROM_DIR/prometheus.yml" ]]; then
-    # Заменяме 'localhost:9100' или "localhost:9100" с "<SERVER_IP>:9100"
-    sudo sed -i -E "s@(['\"])localhost:9100\1@\"${SERVER_IP_VALUE}:9100\"@g" "$PROM_DIR/prometheus.yml"
-  else
-    err "Липсва файл $PROM_DIR/prometheus.yml – Модул 5 вероятно не е изпълнен."
+  # --- 1) Верификация: node_exporter е дефиниран в docker-compose.yml ---
+  sudo test -f "$COMPOSE_DIR/docker-compose.yml" || { err "Липсва $COMPOSE_DIR/docker-compose.yml"; exit 1; }
+  if ! (cd "$COMPOSE_DIR" && sudo docker compose config --services | grep -xq 'node_exporter'); then
+    err "Липсва service 'node_exporter' в docker-compose.yml (Модул 5)."
     exit 1
   fi
 
-  # --- 4) Рестарт само на Prometheus контейнера, за да прочете новата конфигурация ---
-  if [[ -d "$COMPOSE_DIR" ]]; then
-    (cd "$COMPOSE_DIR" && sudo docker compose up -d prometheus)
-    ok "Prometheus е презареден с новия target."
-  else
-    err "Липсва COMPOSE_DIR ($COMPOSE_DIR) – проверете Модул 5."
+  # --- 2) Стартиране/осигуряване на услугата ---
+  (cd "$COMPOSE_DIR" && sudo docker compose up -d node_exporter) || { err "Неуспешен старт на node_exporter"; exit 1; }
+
+  # --- 3) Health проверка на node_exporter (порт 9100) ---
+  ok "Извършвам health проверка на http://127.0.0.1:9100/metrics ..."
+  tries=0
+  until curl -fsS http://127.0.0.1:9100/metrics >/dev/null 2>&1; do
+    tries=$((tries+1))
+    [[ $tries -ge 15 ]] && { err "node_exporter не отговаря на порт 9100"; exit 1; }
+    sleep 1
+  done
+  ok "node_exporter е достъпен на порт 9100."
+
+  # --- 4) Верификация: Prometheus има target към node_exporter:9100 ---
+  sudo test -f "$PROM_DIR/prometheus.yml" || { err "Липсва $PROM_DIR/prometheus.yml (Модул 5)"; exit 1; }
+  if ! grep -q "node_exporter:9100" "$PROM_DIR/prometheus.yml"; then
+    err "В $PROM_DIR/prometheus.yml няма target 'node_exporter:9100'. Поправи Модул 5 (scrape_configs → job 'node')."
     exit 1
   fi
 
-  # --- 5) Маркиране на резултат ---
+  # --- 5) Валидиране и рестарт само на Prometheus ---
+  sudo docker run --rm \
+    -v "$PROM_DIR:/etc/prometheus:ro" \
+    --entrypoint /bin/promtool \
+    prom/prometheus:latest \
+    check config /etc/prometheus/prometheus.yml \
+    || { err "Prometheus конфигурацията е невалидна."; exit 1; }
+
+  (cd "$COMPOSE_DIR" && sudo docker compose up -d prometheus) || { err "Неуспешно презареждане на Prometheus"; exit 1; }
+  ok "Prometheus е активен с node_exporter target."
+
+  # --- 6) Маркиране на резултат ---
   if sudo grep -q '^MON_RESULT_MODULE6=' "$SETUP_ENV_FILE" 2>/dev/null; then
-    if sudo sed -i 's|^MON_RESULT_MODULE6=.*|MON_RESULT_MODULE6=✅|' "$SETUP_ENV_FILE"; then
-      echo "MON_RESULT_MODULE6=✅"
-    fi
+    sudo sed -i 's|^MON_RESULT_MODULE6=.*|MON_RESULT_MODULE6=✅|' "$SETUP_ENV_FILE" && echo "MON_RESULT_MODULE6=✅"
   else
     echo "MON_RESULT_MODULE6=✅" | sudo tee -a "$SETUP_ENV_FILE"
   fi
-
 fi
 echo ""
 echo ""
 
-
+exit 0
 # =====================================================================
 # [МОДУЛ 7] Blackbox targets (file_sd) + промени в Prometheus/Compose
 # =====================================================================
