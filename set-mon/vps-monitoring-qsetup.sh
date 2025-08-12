@@ -1091,7 +1091,7 @@ groups:
           description: "Свободното пространство е под 10% (изкл. tmpfs/devtmpfs)."
 EOF
 
-    # Правим файла четим (детерминирано)
+  # Правим файла четим (детерминирано)
   sudo chmod 0644 "$PROM_DIR/rules/base.rules.yml"
 
 # --- 3) rule_files в prometheus.yml (твърдо, без условни проверки) ---
