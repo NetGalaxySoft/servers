@@ -806,20 +806,31 @@ networks:
     driver: bridge
 EOF
 
-# --- Предстартови валидации на конфигурациите ---
-sudo docker run --rm -v "$PROM_DIR:/etc/prometheus" \
-  --user 65534:65534 prom/prometheus:latest \
-  promtool check config /etc/prometheus/prometheus.yml \
+# --- 3.5) Предстартови валидации (fixed) ---
+
+# Prometheus: promtool check config
+sudo docker run --rm \
+  -v "$PROM_DIR:/etc/prometheus:ro" \
+  --entrypoint /bin/promtool \
+  prom/prometheus:latest \
+  check config /etc/prometheus/prometheus.yml \
   || { err "Prometheus конфигурацията е невалидна."; exit 1; }
 
-sudo docker run --rm -v "$ALERT_DIR:/etc/alertmanager" \
+# Alertmanager: amtool check-config
+sudo docker run --rm \
+  -v "$ALERT_DIR:/etc/alertmanager:ro" \
+  --entrypoint /bin/amtool \
   prom/alertmanager:latest \
-  amtool check-config /etc/alertmanager/alertmanager.yml \
+  check-config /etc/alertmanager/alertmanager.yml \
   || { err "Alertmanager конфигурацията е невалидна."; exit 1; }
 
-sudo docker run --rm -v "$LOKI_DIR:/loki" \
-  --user 10001:10001 grafana/loki:2.9.8 \
-  -config.file=/loki/config.yml -verify-config \
+# Loki: верификация на конфигурацията
+sudo docker run --rm \
+  -v "$LOKI_DIR/config.yml:/etc/loki/config.yml:ro" \
+  -v "$LOKI_DIR/data:/loki" \
+  --user 10001:10001 \
+  grafana/loki:2.9.8 \
+  -config.file=/etc/loki/config.yml -verify-config \
   || { err "Loki конфигурацията е невалидна."; exit 1; }
 
 ok "Конфигурациите са валидни. Стартирам стека..."
