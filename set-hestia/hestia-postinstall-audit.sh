@@ -99,7 +99,8 @@ sep
 issues=0
 
 if [[ ! -f "$conf_file" ]]; then
-  err "Файлът $conf_file липсва – HestiaCP не изглежда инсталирана."
+  err "Файлът $conf_file липсва – HestiaCP не изглежда инсталирана или скриптът е стартиран на машина без HestiaCP. 
+  ⚠️ Проверете дали сте в правилния сървър."
   exit 1
 fi
 ok "Намерена конфигурация на Hestia: $conf_file"
