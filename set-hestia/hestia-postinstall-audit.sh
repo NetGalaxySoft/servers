@@ -286,6 +286,7 @@ else
 fi
 
 # --- Mail System ---
+
 # Проверка за Exim (SMTP сървър)
 if systemctl is-active --quiet exim4; then
   ok "Mail: Exim (SMTP) е активен"
@@ -311,15 +312,48 @@ if dpkg -l | grep -q dovecot-sieve && dpkg -l | grep -q dovecot-managesieved; th
     issues=$((issues+1))
   fi
 else
-  warn "Mail: Dovecot Sieve/ManageSieve липсва (няма филтри за поща)"
+  warn "Mail: Dovecot Sieve/ManageSieve липсва (няма филтри и autoresponder)"
 fi
 
 # Проверка за Roundcube (уеб поща)
-if dpkg -l | grep -q roundcube-core; then
-  ok "Mail: Roundcube е инсталиран"
+if dpkg -l | grep -q roundcube; then
+  ok "Mail: Roundcube е инсталиран (пакет открит)"
+elif [[ -d /var/lib/roundcube ]] || [[ -d /usr/share/roundcube ]]; then
+  ok "Mail: Roundcube е наличен (директории открити)"
 else
   err "Mail: Roundcube липсва"
   issues=$((issues+1))
+fi
+
+# Проверка за Roundcube quota плъгин
+if [[ -d /usr/share/roundcube/plugins/quota ]] || [[ -d /var/lib/roundcube/plugins/quota ]]; then
+  ok "Mail: Roundcube quota плъгин е наличен"
+else
+  warn "Mail: Roundcube quota плъгин липсва (потребителите няма да виждат използваното място)"
+fi
+
+# Проверка за DKIM
+if [[ -d /etc/exim4/domains ]] && sudo find /etc/exim4/domains -type d -name ".dkim" | grep -q .; then
+  ok "Mail: DKIM ключове присъстват"
+else
+  warn "Mail: DKIM ключове липсват или не са активирани"
+fi
+
+# SPF и DMARC не могат да се проверят локално
+warn "Mail: SPF запис трябва да е конфигуриран в DNS (не може да се провери локално)"
+warn "Mail: DMARC запис трябва да е конфигуриран в DNS (не може да се провери локално)"
+
+# Проверка за Fail2ban защита
+if sudo fail2ban-client status dovecot &>/dev/null; then
+  ok "Mail: Fail2ban защита за Dovecot е активна"
+else
+  warn "Mail: Fail2ban защита за Dovecot липсва"
+fi
+
+if sudo fail2ban-client status exim &>/dev/null; then
+  ok "Mail: Fail2ban защита за Exim е активна"
+else
+  warn "Mail: Fail2ban защита за Exim липсва"
 fi
 
 sep
