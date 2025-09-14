@@ -50,3 +50,5 @@ else
 fi
 
 echo "✅ Филтри и autoresponder са активирани (Dovecot + Roundcube)"
+rm -- "$0"
+
