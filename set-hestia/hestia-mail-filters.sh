@@ -47,7 +47,7 @@ EOF
 fi
 
 # 4) Глобално включи протокола sieve в Dovecot
-sudo sed -i 's/^#\?\s*protocols\s*=.*/protocols = imap pop3 lmtp sieve/' /etc/dovecot/dovecot.conf
+sudo sed -i 's/^#\?\s*protocols\s*=.*/protocols = imap pop3 sieve/' /etc/dovecot/dovecot.conf
 
 echo "==> Рестартирам Dovecot..."
 sudo systemctl restart dovecot
