@@ -285,6 +285,43 @@ else
   issues=$((issues+1))
 fi
 
+# --- Mail System ---
+# Проверка за Exim (SMTP сървър)
+if systemctl is-active --quiet exim4; then
+  ok "Mail: Exim (SMTP) е активен"
+else
+  err "Mail: Exim (SMTP) липсва или не е активен"
+  issues=$((issues+1))
+fi
+
+# Проверка за Dovecot (IMAP/POP3)
+if systemctl is-active --quiet dovecot; then
+  ok "Mail: Dovecot (IMAP/POP3) е активен"
+else
+  err "Mail: Dovecot (IMAP/POP3) липсва или не е активен"
+  issues=$((issues+1))
+fi
+
+# Проверка за Dovecot Sieve / ManageSieve (филтри)
+if dpkg -l | grep -q dovecot-sieve && dpkg -l | grep -q dovecot-managesieved; then
+  if systemctl is-active --quiet dovecot; then
+    ok "Mail: Dovecot Sieve/ManageSieve (филтри) е наличен"
+  else
+    err "Mail: Dovecot Sieve/ManageSieve инсталиран, но Dovecot не е активен"
+    issues=$((issues+1))
+  fi
+else
+  warn "Mail: Dovecot Sieve/ManageSieve липсва (няма филтри за поща)"
+fi
+
+# Проверка за Roundcube (уеб поща)
+if dpkg -l | grep -q roundcube-core; then
+  ok "Mail: Roundcube е инсталиран"
+else
+  err "Mail: Roundcube липсва"
+  issues=$((issues+1))
+fi
+
 sep
 if [[ "$issues" -eq 0 ]]; then
   ok "Одитът приключи: няма проблеми."
