@@ -1,134 +1,144 @@
-#!/bin/bash
-# Активиране на пощенски филтри: Dovecot Sieve/ManageSieve + Roundcube managesieve
+#!/usr/bin/env bash
+# Roundcube Filters: Dovecot Sieve + ManageSieve enable & wire-up
+# Ubuntu 24.04 / Dovecot 2.3+ / Roundcube (HestiaCP OK)
 set -euo pipefail
 
-echo "==> Инсталирам пакети dovecot-sieve и dovecot-managesieved..."
-sudo apt update
-sudo apt install -y dovecot-sieve dovecot-managesieved
+echo "==> Инсталирам Sieve/ManageSieve за Dovecot..."
+sudo apt-get update -y
+sudo apt-get install -y dovecot-sieve dovecot-managesieved
 
-# 1) Включи sieve за LDA или LMTP (според наличните конфиги)
+echo "==> Активирам sieve плъгина за LDA/LMTP..."
+# LDA (deliver)
+if [[ -f /etc/dovecot/conf.d/15-lda.conf ]]; then
+  sudo sed -i 's/^\s*#\?\s*mail_plugins\s*=\s*.*/mail_plugins = \$mail_plugins sieve/' /etc/dovecot/conf.d/15-lda.conf
+fi
+# LMTP
 if [[ -f /etc/dovecot/conf.d/20-lmtp.conf ]]; then
-  echo "==> Открит е 20-lmtp.conf – включвам sieve за LMTP..."
-  sudo sed -i 's/^#*\s*mail_plugins = .*/mail_plugins = $mail_plugins sieve/' /etc/dovecot/conf.d/20-lmtp.conf
-else
-  echo "==> Няма 20-lmtp.conf – включвам sieve за LDA в 15-lda.conf..."
-  if grep -q '^\s*mail_plugins\s*=' /etc/dovecot/conf.d/15-lda.conf; then
-    sudo sed -i 's/^\s*mail_plugins\s*=.*/mail_plugins = $mail_plugins sieve/' /etc/dovecot/conf.d/15-lda.conf
-  else
-    printf "\nprotocol lda {\n  mail_plugins = \$mail_plugins sieve\n}\n" | sudo tee -a /etc/dovecot/conf.d/15-lda.conf >/dev/null
-  fi
+  sudo sed -i 's/^\s*#\?\s*mail_plugins\s*=\s*.*/mail_plugins = \$mail_plugins sieve/' /etc/dovecot/conf.d/20-lmtp.conf
 fi
 
-# 2) Увери се, че ManageSieve услугата е налична (порт 4190)
-if ! grep -q "service managesieve-login" /etc/dovecot/conf.d/20-managesieve.conf 2>/dev/null; then
-  echo "==> Създавам 20-managesieve.conf..."
-  sudo tee /etc/dovecot/conf.d/20-managesieve.conf >/dev/null <<'EOF'
-service managesieve-login {
-  inet_listener sieve {
-    port = 4190
-  }
-}
-service managesieve {}
-protocol sieve {
-  managesieve_max_line_length = 65536
-}
-EOF
-fi
+echo "==> Дефинирам път за потребителските Sieve филтри..."
+sudo awk '
+/^plugin\s*\{/ { inplug=1 }
+inplug && /^\}/ { inplug=0 }
+{ print }
+/^plugin\s*\{/ && inplug==0 { }
+' /etc/dovecot/conf.d/90-sieve.conf >/tmp/90-sieve.conf.new || true
 
-# 3) Настройки за пътищата на Sieve (скриптовете на потребителя)
-if ! grep -q "plugin {" /etc/dovecot/conf.d/90-sieve.conf 2>/dev/null; then
-  echo "==> Създавам 90-sieve.conf..."
-  sudo tee /etc/dovecot/conf.d/90-sieve.conf >/dev/null <<'EOF'
+if ! grep -q "plugin {" /tmp/90-sieve.conf.new 2>/dev/null; then
+  # Файлът е празен или липсва секция plugin – създаваме минимален конфиг
+  cat <<'EOF' | sudo tee /tmp/90-sieve.conf.new >/dev/null
 plugin {
   sieve = ~/.dovecot.sieve
   sieve_dir = ~/sieve
 }
 EOF
+else
+  # Заменяме/вкарваме ключовете вътре в plugin { ... }
+  sudo awk '
+BEGIN{set=0}
+{
+  print
+}
+/^plugin\s*\{/ {inplug=1}
+inplug && $0 ~ /sieve\s*=/ { $0="  sieve = ~/.dovecot.sieve"; set=1 }
+inplug && $0 ~ /sieve_dir\s*=/ { $0="  sieve_dir = ~/sieve"; set=1 }
+inplug && /^\}/ && set==0 { print "  sieve = ~/.dovecot.sieve"; print "  sieve_dir = ~/sieve" }
+inplug && /^\}/ { inplug=0 }
+' /etc/dovecot/conf.d/90-sieve.conf > /tmp/90-sieve.conf.patched
+  sudo mv /tmp/90-sieve.conf.patched /tmp/90-sieve.conf.new
 fi
+sudo mv /tmp/90-sieve.conf.new /etc/dovecot/conf.d/90-sieve.conf
 
-# 4) Глобално включи протокола sieve в Dovecot
-sudo sed -i 's/^#\?\s*protocols\s*=.*/protocols = imap pop3 sieve/' /etc/dovecot/dovecot.conf
+echo "==> Включвам ManageSieve (порт 4190) в 20-managesieve.conf..."
+sudo sed -i 's/^\s*#\s*protocols\s*=.*/protocols = $protocols sieve/' /etc/dovecot/dovecot.conf || true
+
+# Увери се, че listener-ът е активен
+sudo sed -i \
+  -e 's/^\s*#\s*service managesieve\s*{.*/service managesieve {\n  inet_listener sieve { port = 4190 }\n}/' \
+  -e 's/^\s*service managesieve\s*{.*/service managesieve {\n  inet_listener sieve { port = 4190 }\n}/' \
+  /etc/dovecot/conf.d/20-managesieve.conf
+
+# Ако редът липсва напълно, добавяме секция:
+grep -q "service managesieve" /etc/dovecot/conf.d/20-managesieve.conf || \
+  sudo bash -c 'cat >>/etc/dovecot/conf.d/20-managesieve.conf <<EOF
+
+service managesieve {
+  inet_listener sieve {
+    port = 4190
+  }
+}
+EOF'
+
+echo "==> Създавам директории/линкове по подразбиране за текущи потребители (по избор)..."
+# Това е само демонстрационно. Реалните пощенски потребители ще си ги имат автоматично.
+for HOME_DIR in /home/*; do
+  [[ -d "$HOME_DIR" ]] || continue
+  if [[ ! -d "$HOME_DIR/sieve" ]]; then
+    sudo mkdir -p "$HOME_DIR/sieve"
+    sudo chown -R "$(stat -c %U:%G "$HOME_DIR")" "$HOME_DIR/sieve"
+    sudo chmod 700 "$HOME_DIR/sieve"
+  fi
+done
 
 echo "==> Рестартирам Dovecot..."
 sudo systemctl restart dovecot
+sudo systemctl enable dovecot
 
-# Проверка за слушащ порт 4190
-sudo ss -ltnp | grep -q ':4190' && echo "✅ Dovecot managesieve слуша на порт 4190" || echo "⚠️  NO_LISTEN_4190"
+echo "==> Проверка на конфигурацията (doveconf -n | grep -i sieve):"
+doveconf -n | grep -i sieve || true
 
-# 5) Активирай плъгина managesieve в Roundcube (идемпотентно)
-RC_CONF="/etc/roundcube/config.inc.php"
-if [[ -f "$RC_CONF" ]]; then
-  if grep -qE '\bmanagesieve\b' "$RC_CONF"; then
-    echo "==> Roundcube: managesieve вече е активен."
+echo "==> Roundcube: активирам плъгина managesieve..."
+RC_MAIN="/etc/roundcube/config.inc.php"
+RC_PLUG="/etc/roundcube/plugins/managesieve/config.inc.php"
+RC_PLUG_DIST="/usr/share/roundcube/plugins/managesieve/config.inc.php.dist"
+
+# Активиране на плъгина в глобалния конфиг
+if [[ -f "$RC_MAIN" ]]; then
+  sudo cp -a "$RC_MAIN" "${RC_MAIN}.bak.$(date +%F-%H%M%S)"
+  if grep -q "plugins.*managesieve" "$RC_MAIN"; then
+    : # вече е активиран
   else
-    echo "==> Активирам managesieve в $RC_CONF (бекъп ще бъде създаден)..."
-    sudo cp -a "$RC_CONF" "$RC_CONF.bak" || true
-    # Формат: $config["plugins"] = [];
-    sudo sed -i -E 's/(\$config\[[\"\047]plugins[\"\047]\]\s*=\s*)\[\s*\](\s*;)/\1["managesieve"]\2/' "$RC_CONF"
-    # Формат: $config["plugins"] = ["a","b"];
-    sudo sed -i -E 's/(\$config\[[\"\047]plugins[\"\047]\]\s*=\s*\[[^]]*?)\s*\](\s*;)/\1, "managesieve"]\2/' "$RC_CONF"
-    # Формат: $config['plugins'] = array();
-    sudo sed -i -E "s/(\$config\[['\"]plugins['\"]\]\s*=\s*array\s*)\(\s*\)(\s*;)/\1('managesieve')\2/" "$RC_CONF"
-    # Формат: $config['plugins'] = array('a','b');
-    sudo sed -i -E "s/(\$config\[['\"]plugins['\"]\]\s*=\s*array\s*\([^)']*)(\))(\s*;)/\1, 'managesieve'\2\3/" "$RC_CONF"
-
-    if grep -qE '\bmanagesieve\b' "$RC_CONF"; then
-      echo "✅ Roundcube: managesieve е активиран."
-    else
-      echo "❌ Roundcube: активирането на managesieve не успя – провери $RC_CONF и бекъп $RC_CONF.bak"
-      exit 1
-    fi
+    sudo awk '
+      BEGIN{done=0}
+      /\$config\[\x27plugins\x27\]\s*=\s*\[/ && done==0 {
+        print
+        print "    \"managesieve\","
+        done=1
+        next
+      }
+      {print}
+    ' "$RC_MAIN" | sudo tee /tmp/rc.conf.new >/dev/null
+    sudo mv /tmp/rc.conf.new "$RC_MAIN"
   fi
-else
-  echo "⚠️  Roundcube: конфигурацията липсва ($RC_CONF) – пропускам активиране на managesieve."
 fi
 
-# --- Roundcube managesieve: конфигурация на връзката към локалния сървър ---
-RC_MS_DIR="/etc/roundcube/plugins/managesieve"
-RC_MS_CONF="$RC_MS_DIR/config.inc.php"
-
-sudo mkdir -p "$RC_MS_DIR"
-
-if [[ ! -f "$RC_MS_CONF" ]]; then
-  sudo tee "$RC_MS_CONF" >/dev/null <<'PHP'
-<?php
-$config['managesieve_host'] = '127.0.0.1';
-$config['managesieve_port'] = 4190;
-$config['managesieve_usetls'] = false;
-$config['managesieve_default'] = '~/.dovecot.sieve';
-$config['managesieve_script_name'] = 'roundcube';
-PHP
-  echo "✅ Roundcube: създаден $RC_MS_CONF"
-else
-  # Идемпотентно задай/коригирай ключовете
-  sudo sed -i -E "s/^\s*\$config\['managesieve_host'\].*$/\$config['managesieve_host'] = '127.0.0.1';/g" "$RC_MS_CONF" || true
-  sudo sed -i -E "s/^\s*\$config\['managesieve_port'\].*$/\$config['managesieve_port'] = 4190;/g" "$RC_MS_CONF" || true
-  sudo sed -i -E "s/^\s*\$config\['managesieve_usetls'\].*$/\$config['managesieve_usetls'] = false;/g" "$RC_MS_CONF" || true
-  sudo sed -i -E "s/^\s*\$config\['managesieve_default'\].*$/\$config['managesieve_default'] = '~\/.dovecot.sieve';/g" "$RC_MS_CONF" || true
-  sudo sed -i -E "s/^\s*\$config\['managesieve_script_name'\].*$/\$config['managesieve_script_name'] = 'roundcube';/g" "$RC_MS_CONF" || true
-
-  # Ако някой ключ липсва напълно, добави го в края
-  grep -q "managesieve_host" "$RC_MS_CONF" || echo "\$config['managesieve_host'] = '127.0.0.1';"       | sudo tee -a "$RC_MS_CONF" >/dev/null
-  grep -q "managesieve_port" "$RC_MS_CONF" || echo "\$config['managesieve_port'] = 4190;"               | sudo tee -a "$RC_MS_CONF" >/dev/null
-  grep -q "managesieve_usetls" "$RC_MS_CONF" || echo "\$config['managesieve_usetls'] = false;"          | sudo tee -a "$RC_MS_CONF" >/dev/null
-  grep -q "managesieve_default" "$RC_MS_CONF" || echo "\$config['managesieve_default'] = '~/.dovecot.sieve';" | sudo tee -a "$RC_MS_CONF" >/dev/null
-  grep -q "managesieve_script_name" "$RC_MS_CONF" || echo "\$config['managesieve_script_name'] = 'roundcube';" | sudo tee -a "$RC_MS_CONF" >/dev/null
-
-  echo "✅ Roundcube: актуализиран $RC_MS_CONF"
+# Конфиг на плъгина
+if [[ -f "$RC_PLUG_DIST" ]]; then
+  sudo install -m 0644 "$RC_PLUG_DIST" "$RC_PLUG"
 fi
 
-# Рестарт на уеб слоя (зависи от стека) — try-restart, без да гърми при липсваща услуга
-sudo systemctl try-restart apache2 2>/dev/null || true
-sudo systemctl try-restart nginx 2>/dev/null || true
-for s in php7.4-fpm php8.0-fpm php8.1-fpm php8.2-fpm php8.3-fpm php8.4-fpm; do
-  sudo systemctl try-restart "$s" 2>/dev/null || true
-done
+if [[ -f "$RC_PLUG" ]]; then
+  sudo cp -a "$RC_PLUG" "${RC_PLUG}.bak.$(date +%F-%H%M%S)"
+  sudo sed -i "s/^\$config\['managesieve_host'\].*/\$config['managesieve_host'] = 'localhost';/" "$RC_PLUG"
+  sudo sed -i "s/^\$config\['managesieve_port'\].*/\$config['managesieve_port'] = 4190;/" "$RC_PLUG"
+  # На localhost STARTTLS не е нужен; ако искаш – смени на true
+  if grep -q "managesieve_usetls" "$RC_PLUG"; then
+    sudo sed -i "s/^\$config\['managesieve_usetls'\].*/\$config['managesieve_usetls'] = false;/" "$RC_PLUG"
+  else
+    echo "\$config['managesieve_usetls'] = false;" | sudo tee -a "$RC_PLUG" >/dev/null
+  fi
+  # По желание: глобални скриптове (ако използваш)
+  grep -q "managesieve_default" "$RC_PLUG" || echo "\$config['managesieve_default'] = null;" | sudo tee -a "$RC_PLUG" >/dev/null
+fi
 
-# Бърза проверка на managesieve порта
-sudo ss -ltnp | grep -q ':4190' && echo "✅ Managesieve (4190) слуша" || echo "⚠️  Managesieve (4190) не слуша"
+echo "==> Рестарт на уеб услугите (Hestia окружение)..."
+# В Hestia Roundcube върви зад nginx+apache; достатъчен е PHP-FPM рестарт, но не вреди:
+sudo systemctl reload nginx || true
+sudo systemctl reload apache2 || true
+sudo systemctl reload php*-fpm.service || true
 
-
-echo "✅ Готово: филтрите (Sieve/ManageSieve) са активирани. В Roundcube: Настройки → Филтри."
-
-# Самоизтриване
-rm -- "$0"
+echo "==> Бързи проверки:"
+echo " - dovecot.service: $(systemctl is-active dovecot)"
+echo " - LISTEN 4190: "; sudo ss -lntp | awk '/:4190/ || NR==1 {print}'
+echo "Готово."
