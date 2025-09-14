@@ -96,7 +96,14 @@ conf_file="/usr/local/hestia/conf/hestia.conf"
 echo "Config: $conf_file"
 sep
 
+# Броячи
 issues=0
+warnings=0
+
+# Функции за отчет
+ok()   { printf "✅ %s\n" "$*"; }
+err()  { printf "❌ %s\n" "$*"; issues=$((issues+1)); }
+warn() { printf "⚠️  %s\n" "$*"; warnings=$((warnings+1)); }
 
 if [[ ! -f "$conf_file" ]]; then
   err "Файлът $conf_file липсва – HestiaCP не изглежда инсталирана или скриптът е стартиран на машина без HestiaCP. 
@@ -356,11 +363,12 @@ else
   warn "Mail: Fail2ban защита за Exim липсва"
 fi
 
+# --- Финален отчет ---
 sep
-if [[ "$issues" -eq 0 ]]; then
-  ok "Одитът приключи: няма проблеми."
-  exit 0
+if [[ $issues -eq 0 && $warnings -eq 0 ]]; then
+  echo "✅ Одитът приключи: няма проблеми."
+elif [[ $issues -eq 0 ]]; then
+  echo "⚠️  Одитът приключи: няма критични грешки, но има $warnings предупреждения."
 else
-  err "Одитът приключи: открити са ${issues} несъответствия/грешки."
-  exit 1
+  echo "❌ Одитът приключи: има $issues грешки и $warnings предупреждения."
 fi
