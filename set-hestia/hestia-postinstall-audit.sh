@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # hestia-postinstall-audit.sh
-# Версия: 1.4 — ClamAV/SpamAssassin са задължителни при MAIL_SYSTEM=exim4 (policy-enforced)
+# Версия: 1.5 — фиксирано двойното броене на грешки/предупреждения, чист изход
 
 set -u
 
-ok()    { printf "✅ %s\n" "$*"; }
-warn()  { printf "⚠️  %s\n" "$*"; }
-err()   { printf "❌ %s\n" "$*"; }
 sep()   { printf -- "------------------------------------------------------------\n"; }
+
+# Броячи
+issues=0
+warnings=0
+
+# Единни функции за отчет (централизирано броене)
+ok()    { printf "✅ %s\n" "$*"; }
+warn()  { printf "⚠️  %s\n" "$*"; warnings=$((warnings+1)); }
+err()   { printf "❌ %s\n" "$*"; issues=$((issues+1)); }
 
 pkg_present() {
   local pkg="$1"
@@ -96,18 +102,11 @@ conf_file="/usr/local/hestia/conf/hestia.conf"
 echo "Config: $conf_file"
 sep
 
-# Броячи
-issues=0
-warnings=0
-
-# Функции за отчет
-ok()   { printf "✅ %s\n" "$*"; }
-err()  { printf "❌ %s\n" "$*"; issues=$((issues+1)); }
-warn() { printf "⚠️  %s\n" "$*"; warnings=$((warnings+1)); }
-
 if [[ ! -f "$conf_file" ]]; then
-  err "Файлът $conf_file липсва – HestiaCP не изглежда инсталирана или скриптът е стартиран на машина без HestiaCP. 
+  err "Файлът $conf_file липсва – HestiaCP не изглежда инсталирана или скриптът е стартиран на машина без HestiaCP.
   ⚠️ Проверете дали сте в правилния сървър."
+  echo
+  echo "❌ Одитът приключи: има $issues грешки и $warnings предупреждения."
   exit 1
 fi
 ok "Намерена конфигурация на Hestia: $conf_file"
@@ -122,7 +121,7 @@ FIREWALL_SYSTEM="$(conf_get FIREWALL_SYSTEM "$conf_file")"
 BACKUP_SYSTEM="$(conf_get BACKUP_SYSTEM "$conf_file")"
 BACKUP_DIR_RAW="$(conf_get BACKUP_DIR "$conf_file")"
 
-# Антиспам/антивирус — какво пише в конфигурацията (за отчет)
+# Антиспам/антивирус — стойности в конфигурацията (за отчет)
 ANTISPAM_SYSTEM="$(conf_get ANTISPAM_SYSTEM "$conf_file")"
 ANTISPAM="$(conf_get ANTISPAM "$conf_file")"
 ANTIVIRUS_SYSTEM="$(conf_get ANTIVIRUS_SYSTEM "$conf_file")"
@@ -132,7 +131,7 @@ printf "Настройки от hestia.conf:\n"
 printf "  WEB_SYSTEM=%s\n  PROXY_SYSTEM=%s\n  DNS_SYSTEM=%s\n  MAIL_SYSTEM=%s\n  DB_SYSTEM=%s\n  FIREWALL_SYSTEM=%s\n  BACKUP_SYSTEM=%s\n  BACKUP_DIR=%s\n" \
   "${WEB_SYSTEM:-}" "${PROXY_SYSTEM:-}" "${DNS_SYSTEM:-}" "${MAIL_SYSTEM:-}" "${DB_SYSTEM:-}" "${FIREWALL_SYSTEM:-}" "${BACKUP_SYSTEM:-}" "${BACKUP_DIR_RAW:-}"
 printf "  ANTISPAM_SYSTEM=%s  ANTISPAM=%s\n" "${ANTISPAM_SYSTEM:-}" "${ANTISPAM:-}"
-printf "  ANTIVIRUS_SYSTEM=%s  ANTIVIRUS=%s\n" "${ANTIVIRUS_SYSTEM:-}" "${ANTIVIRUS:-}"
+printf "  ANTIVIRUS_SYSTEM=%s  ANTIVИRUS=%s\n" "${ANTIVIRUS_SYSTEM:-}" "${ANTIVIRUS:-}"
 sep
 
 # Политика: при MAIL_SYSTEM=exim4 → изискваме ClamAV и SpamAssassin
@@ -145,16 +144,20 @@ fi
 
 # --- WEB ---
 if [[ "${WEB_SYSTEM:-}" == "apache2" ]]; then
-  pkg_present apache2 || { err "Пакет apache2 не е инсталиран (WEB_SYSTEM=apache2)"; issues=$((issues+1)); }
-  check_service "Web (apache2)" require_active apache2 || issues=$((issues+1))
+  if ! pkg_present apache2; then
+    err "Пакет apache2 не е инсталиран (WEB_SYSTEM=apache2)"
+  fi
+  check_service "Web (apache2)" require_active apache2 || true
 else
   ok "WEB_SYSTEM=${WEB_SYSTEM:-none} (apache2 не е изискано)"
 fi
 
 # --- PROXY ---
 if [[ "${PROXY_SYSTEM:-}" == "nginx" ]]; then
-  pkg_present nginx || { err "Пакет nginx не е инсталиран (PROXY_SYSTEM=nginx)"; issues=$((issues+1)); }
-  check_service "Proxy (nginx)" require_active nginx || issues=$((issues+1))
+  if ! pkg_present nginx; then
+    err "Пакет nginx не е инсталиран (PROXY_SYSTEM=nginx)"
+  fi
+  check_service "Proxy (nginx)" require_active nginx || true
 else
   ok "PROXY_SYSTEM=${PROXY_SYSTEM:-none} (nginx не е изискан)"
 fi
@@ -164,49 +167,49 @@ if [[ "${DNS_SYSTEM:-}" == "bind9" ]]; then
   if pkg_present bind9 || pkg_present bind9-utils || pkg_present bind9-dnsutils; then
     ok "Пакет(и) bind9 присъстват"
   else
-    err "bind9 липсва (DNS_SYSTEM=bind9)"; issues=$((issues+1))
+    err "bind9 липсва (DNS_SYSTEM=bind9)"
   fi
-  check_service "DNS (BIND9)" require_active bind9 named || issues=$((issues+1))
+  check_service "DNS (BIND9)" require_active bind9 named || true
 else
   ok "DNS_SYSTEM=${DNS_SYSTEM:-none} (bind9 не е изискан)"
 fi
 
 # --- MAIL ---
 if [[ "${MAIL_SYSTEM:-}" == "exim4" ]]; then
-  pkg_present exim4 || { err "exim4 не е инсталиран (MAIL_SYSTEM=exim4)"; issues=$((issues+1)); }
-  check_service "MTA (exim4)" require_active exim4 || issues=$((issues+1))
+  if ! pkg_present exim4; then
+    err "exim4 не е инсталиран (MAIL_SYSTEM=exim4)"
+  fi
+  check_service "MTA (exim4)" require_active exim4 || true
 
   if pkg_present dovecot-core || pkg_present dovecot-imapd; then
     ok "Пакети dovecot* са инсталирани"
   else
-    err "Dovecot не е инсталиран (очаква се при MAIL_SYSTEM=exim4)"; issues=$((issues+1))
+    err "Dovecot не е инсталиран (очаква се при MAIL_SYSTEM=exim4)"
   fi
-  check_service "IMAP/POP (dovecot)" require_active dovecot dovecot-imapd || issues=$((issues+1))
+  check_service "IMAP/POP (dovecot)" require_active dovecot dovecot-imapd || true
 else
   ok "MAIL_SYSTEM=${MAIL_SYSTEM:-none} (exim4/dovecot не са изискани)"
 fi
 
 # --- DB ---
 if [[ "${DB_SYSTEM:-}" == "mariadb" || "${DB_SYSTEM:-}" == "mysql" ]]; then
-  if pkg_present mariadb-server || pkg_present mysql-server; then
-    :
-  else
-    err "MariaDB/MySQL липсва (DB_SYSTEM=${DB_SYSTEM:-})"; issues=$((issues+1))
+  if ! ( pkg_present mariadb-server || pkg_present mysql-server ); then
+    err "MariaDB/MySQL липсва (DB_SYSTEM=${DB_SYSTEM:-})"
   fi
-  check_service "Database (MariaDB/MySQL)" require_active mariadb mysql || issues=$((issues+1))
+  check_service "Database (MariaDB/MySQL)" require_active mariadb mysql || true
 else
   ok "DB_SYSTEM=${DB_SYSTEM:-none} (БД не е изискана)"
 fi
 
 # --- PHP-FPM ---
-if dpkg -l | awk '{print $2}' | grep -Eq '^php([0-9.]+-)?fpm$'; then
+if dpkg -l 2>/dev/null | awk 'NR>5{print $2}' | grep -Eq '^php([0-9.]+-)?fpm$'; then
   if find_unit php-fpm php8.3-fpm php8.2-fpm php8.1-fpm; then
-    check_service "PHP-FPM" require_active "$FOUND_UNIT" || issues=$((issues+1))
+    check_service "PHP-FPM" require_active "$FOUND_UNIT" || true
   else
-    err "PHP-FPM пакет има, но unit не е намерен по известните имена"; issues=$((issues+1))
+    err "PHP-FPM пакет има, но unit не е намерен по известните имена"
   fi
 else
-  err "PHP-FPM не е инсталиран"; issues=$((issues+1))
+  err "PHP-FPM не е инсталиран"
 fi
 
 # --- ClamAV (policy-enforced) ---
@@ -217,7 +220,6 @@ if [[ "$policy_require_clam" -eq 1 ]]; then
     check_service "ClamAV (freshclam)" clamav-freshclam >/dev/null || true
   else
     err "ClamAV: ИЗИСКАН (политика при MAIL_SYSTEM=exim4), но НЕ е инсталиран"
-    issues=$((issues+1))
   fi
 else
   if pkg_present clamav-daemon || pkg_present clamav-freshclam; then
@@ -234,7 +236,6 @@ if [[ "$policy_require_sa" -eq 1 ]]; then
     check_service "SpamAssassin" spamassassin >/dev/null || true
   else
     err "SpamAssassin: ИЗИСКАН (политика при MAIL_SYSTEM=exim4), но НЕ е инсталиран"
-    issues=$((issues+1))
   fi
 else
   if pkg_present spamassassin || pkg_present sa-compile; then
@@ -254,9 +255,9 @@ fi
 
 # --- Fail2ban ---
 if pkg_present fail2ban; then
-  check_service "Fail2ban" require_active fail2ban || issues=$((issues+1))
+  check_service "Fail2ban" require_active fail2ban || true
 else
-  err "fail2ban не е инсталиран (препоръчително и очаквано с Hestia)"; issues=$((issues+1))
+  err "fail2ban не е инсталиран (препоръчително и очаквано с Hestia)"
 fi
 
 # --- Firewall ---
@@ -266,15 +267,12 @@ if [[ "${FIREWALL_SYSTEM:-}" == "iptables" ]]; then
       ok "Firewall режим: iptables (управляван от Hestia)"
     else
       err "Hestia firewall CLI не работи коректно (проверете hestia-firewall.service)"
-      issues=$((issues+1))
     fi
   else
     err "Hestia firewall CLI липсва (очаквано при FIREWALL_SYSTEM=iptables)"
-    issues=$((issues+1))
   fi
 else
   err "FIREWALL_SYSTEM=${FIREWALL_SYSTEM:-unknown} (очаквано: iptables)"
-  issues=$((issues+1))
 fi
 
 # --- Backups ---
@@ -285,72 +283,63 @@ if [[ "${BACKUP_SYSTEM:-}" == "local" ]]; then
     ok "Backups: local; директория: $BACKUP_DIR (налична)"
   else
     err "Backups: local; директорията липсва или е недостъпна: $BACKUP_DIR"
-    issues=$((issues+1))
   fi
 else
   err "BACKUP_SYSTEM=${BACKUP_SYSTEM:-none} (очаквано: local)"
-  issues=$((issues+1))
 fi
 
-# --- Mail System ---
-
-# Проверка за Exim (SMTP сървър)
+# --- Mail System (допълнителни проверки) ---
 if systemctl is-active --quiet exim4; then
   ok "Mail: Exim (SMTP) е активен"
 else
   err "Mail: Exim (SMTP) липсва или не е активен"
-  issues=$((issues+1))
 fi
 
-# Проверка за Dovecot (IMAP/POP3)
 if systemctl is-active --quiet dovecot; then
   ok "Mail: Dovecot (IMAP/POP3) е активен"
 else
   err "Mail: Dovecot (IMAP/POP3) липсва или не е активен"
-  issues=$((issues+1))
 fi
 
-# Проверка за Dovecot Sieve / ManageSieve (филтри)
-if dpkg -l | grep -q dovecot-sieve && dpkg -l | grep -q dovecot-managesieved; then
+# Dovecot Sieve / ManageSieve
+if dpkg -l 2>/dev/null | grep -q dovecot-sieve && dpkg -l 2>/dev/null | grep -q dovecot-managesieved; then
   if systemctl is-active --quiet dovecot; then
     ok "Mail: Dovecot Sieve/ManageSieve (филтри) е наличен"
   else
-    err "Mail: Dovecot Sieve/ManageSieve инсталиран, но Dovecot не е активен"
-    issues=$((issues+1))
+    err "Mail: Dovecot Sieve/ManageSieve е инсталиран, но Dovecot не е активен"
   fi
 else
   warn "Mail: Dovecot Sieve/ManageSieve липсва (няма филтри и autoresponder)"
 fi
 
-# Проверка за Roundcube (уеб поща)
-if dpkg -l | grep -q roundcube; then
+# Roundcube
+if dpkg -l 2>/dev/null | grep -q roundcube; then
   ok "Mail: Roundcube е инсталиран (пакет открит)"
 elif [[ -d /var/lib/roundcube ]] || [[ -d /usr/share/roundcube ]]; then
   ok "Mail: Roundcube е наличен (директории открити)"
 else
   err "Mail: Roundcube липсва"
-  issues=$((issues+1))
 fi
 
-# Проверка за Roundcube quota плъгин
+# Roundcube quota плъгин
 if [[ -d /usr/share/roundcube/plugins/quota ]] || [[ -d /var/lib/roundcube/plugins/quota ]]; then
   ok "Mail: Roundcube quota плъгин е наличен"
 else
   warn "Mail: Roundcube quota плъгин липсва (потребителите няма да виждат използваното място)"
 fi
 
-# Проверка за DKIM
+# DKIM
 if [[ -d /etc/exim4/domains ]] && sudo find /etc/exim4/domains -type d -name ".dkim" | grep -q .; then
   ok "Mail: DKIM ключове присъстват"
 else
   warn "Mail: DKIM ключове липсват или не са активирани"
 fi
 
-# SPF и DMARC не могат да се проверят локално
+# SPF/DMARC (DNS)
 warn "Mail: SPF запис трябва да е конфигуриран в DNS (не може да се провери локално)"
 warn "Mail: DMARC запис трябва да е конфигуриран в DNS (не може да се провери локално)"
 
-# Проверка за Fail2ban защита
+# Fail2ban jails за поща
 if sudo fail2ban-client status dovecot &>/dev/null; then
   ok "Mail: Fail2ban защита за Dovecot е активна"
 else
@@ -372,3 +361,30 @@ elif [[ $issues -eq 0 ]]; then
 else
   echo "❌ Одитът приключи: има $issues грешки и $warnings предупреждения."
 fi
+
+# --- Диалог: изтриване на скрипта ---
+echo
+while true; do
+  printf "\nЖелаете ли да изтрия този скрипт (%s)? [д/н]: " "${0##*/}"
+  read -r answer
+  answer="$(echo "${answer:-н}" | tr '[:upper:]' '[:lower:]' | sed 's/^ *//;s/ *$//')"
+  case "$answer" in
+    д|да|y|yes)
+      script_path="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
+      if rm -- "$0" 2>/dev/null; then
+        ok "Скриптът е изтрит: $script_path"
+        exit 0
+      else
+        err "Не успях да изтрия файла: $script_path"
+        exit 1
+      fi
+      ;;
+    н|не|n|no)
+      ok "Скриптът е запазен. Път: $(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
+      break
+      ;;
+    *)
+      warn "Невалиден отговор. Моля, отговорете с 'д/да' или 'н/не'."
+      ;;
+  esac
+done
