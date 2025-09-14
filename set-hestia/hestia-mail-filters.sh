@@ -40,15 +40,31 @@ fi
 # Рестарт на Dovecot
 sudo systemctl restart dovecot
 
-# Активиране на Roundcube managesieve плъгина
+# --- Activate Roundcube managesieve plugin (idempotent) ---
 RC_CONF="/etc/roundcube/config.inc.php"
 if sudo test -f "$RC_CONF"; then
-  sudo sed -i "s/^\(\$config\['plugins'\] = \).*/\1array('archive','managesieve','zipdownload','attachment_reminder');/" "$RC_CONF"
-  echo "✅ Roundcube: добавен плъгин managesieve"
+  if sudo grep -qE '\bmanagesieve\b' "$RC_CONF"; then
+    ok "Roundcube: managesieve вече е активен"
+  else
+    sudo cp -a "$RC_CONF" "$RC_CONF.bak" || true
+    # Формат: $config["plugins"] = [];
+    sudo sed -i -E 's/(\$config\[[\"\047]plugins[\"\047]\]\s*=\s*)\[\s*\](\s*;)/\1["managesieve"]\2/' "$RC_CONF"
+    # Формат: $config["plugins"] = ["a","b"];
+    sudo sed -i -E 's/(\$config\[[\"\047]plugins[\"\047]\]\s*=\s*\[[^]]*?)\s*\](\s*;)/\1, "managesieve"]\2/' "$RC_CONF"
+    # Формат: $config["plugins"] = array();
+    sudo sed -i -E "s/(\$config\[['\"]plugins['\"]\]\s*=\s*array\s*)\(\s*\)(\s*;)/\1('managesieve')\2/" "$RC_CONF"
+    # Формат: $config['plugins'] = array('a','b');
+    sudo sed -i -E "s/(\$config\[['\"]plugins['\"]\]\s*=\s*array\s*\([^)']*)(\))(\s*;)/\1, 'managesieve'\2\3/" "$RC_CONF"
+
+    if sudo grep -qE '\bmanagesieve\b' "$RC_CONF"; then
+      ok "Roundcube: добавен плъгин managesieve"
+    else
+      err "Roundcube: неуспешно активиране на managesieve (виж $RC_CONF и бекъп $RC_CONF.bak)"
+    fi
+  fi
 else
-  echo "⚠️  Roundcube конфигурацията не е намерена ($RC_CONF)"
+  warn "Roundcube: липсва конфигурация ($RC_CONF) – пропускам активиране на managesieve"
 fi
 
-echo "✅ Филтри и autoresponder са активирани (Dovecot + Roundcube)"
 rm -- "$0"
 
