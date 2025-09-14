@@ -1,19 +1,30 @@
 #!/bin/bash
 
-# --- Mail Filters (Dovecot Sieve / ManageSieve + Roundcube) ---
+# --- Fix: enable Sieve without relying on audit functions ---
 
-echo "==> Настройка на филтри (Sieve / ManageSieve) за Dovecot и Roundcube..."
+set -e
 
-# Инсталиране на нужните пакети
-sudo apt update
-sudo apt install -y dovecot-sieve dovecot-managesieved
+echo "==> Инсталирам пакети dovecot-sieve и dovecot-managesieved..."
+apt update
+apt install -y dovecot-sieve dovecot-managesieved
 
-# Включване на sieve плъгина за LMTP
-sudo sed -i 's/^#*\s*mail_plugins = .*/mail_plugins = $mail_plugins sieve/' /etc/dovecot/conf.d/20-lmtp.conf
+# 1) Включи sieve в LDA (ако няма LMTP файл)
+if [ -f /etc/dovecot/conf.d/20-lmtp.conf ]; then
+  echo "==> Открит е 20-lmtp.conf – включвам sieve за LMTP..."
+  sed -i 's/^#*\s*mail_plugins = .*/mail_plugins = $mail_plugins sieve/' /etc/dovecot/conf.d/20-lmtp.conf
+else
+  echo "==> Няма 20-lmtp.conf – включвам sieve за LDA в 15-lda.conf..."
+  if grep -q '^\s*mail_plugins\s*=' /etc/dovecot/conf.d/15-lda.conf; then
+    sed -i 's/^\s*mail_plugins\s*=.*/mail_plugins = $mail_plugins sieve/' /etc/dovecot/conf.d/15-lda.conf
+  else
+    printf "\nprotocol lda {\n  mail_plugins = \$mail_plugins sieve\n}\n" >> /etc/dovecot/conf.d/15-lda.conf
+  fi
+fi
 
-# Активиране на ManageSieve услугата
-if ! grep -q "service managesieve-login" /etc/dovecot/conf.d/20-managesieve.conf; then
-  cat <<'EOF' | sudo tee /etc/dovecot/conf.d/20-managesieve.conf >/dev/null
+# 2) Увери се, че ManageSieve услугата е налична
+if ! grep -q "service managesieve-login" /etc/dovecot/conf.d/20-managesieve.conf 2>/dev/null; then
+  echo "==> Създавам 20-managesieve.conf..."
+  cat >/etc/dovecot/conf.d/20-managesieve.conf <<'EOF'
 service managesieve-login {
   inet_listener sieve {
     port = 4190
@@ -27,9 +38,10 @@ protocol sieve {
 EOF
 fi
 
-# Настройка на Sieve директориите за потребителите
-if ! grep -q "plugin {" /etc/dovecot/conf.d/90-sieve.conf; then
-  cat <<'EOF' | sudo tee /etc/dovecot/conf.d/90-sieve.conf >/dev/null
+# 3) Настройки за пътищата на Sieve
+if ! grep -q "plugin {" /etc/dovecot/conf.d/90-sieve.conf 2>/dev/null; then
+  echo "==> Създавам 90-sieve.conf..."
+  cat >/etc/dovecot/conf.d/90-sieve.conf <<'EOF'
 plugin {
   sieve = ~/.dovecot.sieve
   sieve_dir = ~/sieve
@@ -37,34 +49,37 @@ plugin {
 EOF
 fi
 
-# Рестарт на Dovecot
-sudo systemctl restart dovecot
+echo "==> Рестартирам Dovecot..."
+systemctl restart dovecot
 
-# --- Activate Roundcube managesieve plugin (idempotent) ---
+# 4) Активирай плъгина managesieve в Roundcube (идемпотентно)
 RC_CONF="/etc/roundcube/config.inc.php"
-if sudo test -f "$RC_CONF"; then
-  if sudo grep -qE '\bmanagesieve\b' "$RC_CONF"; then
-    ok "Roundcube: managesieve вече е активен"
+if [ -f "$RC_CONF" ]; then
+  if grep -qE '\bmanagesieve\b' "$RC_CONF"; then
+    echo "==> Roundcube: managesieve вече е активен."
   else
-    sudo cp -a "$RC_CONF" "$RC_CONF.bak" || true
+    echo "==> Активирам managesieve в $RC_CONF (бекъп ще бъде създаден)..."
+    cp -a "$RC_CONF" "$RC_CONF.bak" || true
     # Формат: $config["plugins"] = [];
-    sudo sed -i -E 's/(\$config\[[\"\047]plugins[\"\047]\]\s*=\s*)\[\s*\](\s*;)/\1["managesieve"]\2/' "$RC_CONF"
+    sed -i -E 's/(\$config\[[\"\047]plugins[\"\047]\]\s*=\s*)\[\s*\](\s*;)/\1["managesieve"]\2/' "$RC_CONF"
     # Формат: $config["plugins"] = ["a","b"];
-    sudo sed -i -E 's/(\$config\[[\"\047]plugins[\"\047]\]\s*=\s*\[[^]]*?)\s*\](\s*;)/\1, "managesieve"]\2/' "$RC_CONF"
-    # Формат: $config["plugins"] = array();
-    sudo sed -i -E "s/(\$config\[['\"]plugins['\"]\]\s*=\s*array\s*)\(\s*\)(\s*;)/\1('managesieve')\2/" "$RC_CONF"
+    sed -i -E 's/(\$config\[[\"\047]plugins[\"\047]\]\s*=\s*\[[^]]*?)\s*\](\s*;)/\1, "managesieve"]\2/' "$RC_CONF"
+    # Формат: $config['plugins'] = array();
+    sed -i -E "s/(\$config\[['\"]plugins['\"]\]\s*=\s*array\s*)\(\s*\)(\s*;)/\1('managesieve')\2/" "$RC_CONF"
     # Формат: $config['plugins'] = array('a','b');
-    sudo sed -i -E "s/(\$config\[['\"]plugins['\"]\]\s*=\s*array\s*\([^)']*)(\))(\s*;)/\1, 'managesieve'\2\3/" "$RC_CONF"
-
-    if sudo grep -qE '\bmanagesieve\b' "$RC_CONF"; then
-      ok "Roundcube: добавен плъгин managesieve"
+    sed -i -E "s/(\$config\[['\"]plugins['\"]\]\s*=\s*array\s*\([^)']*)(\))(\s*;)/\1, 'managesieve'\2\3/" "$RC_CONF"
+    if grep -qE '\bmanagesieve\b' "$RC_CONF"; then
+      echo "==> Roundcube: managesieve е активиран."
     else
-      err "Roundcube: неуспешно активиране на managesieve (виж $RC_CONF и бекъп $RC_CONF.bak)"
+      echo "!! Roundcube: активирането на managesieve не успя – провери $RC_CONF и бекъп $RC_CONF.bak"
+      exit 1
     fi
   fi
 else
-  warn "Roundcube: липсва конфигурация ($RC_CONF) – пропускам активиране на managesieve"
+  echo "!! Roundcube: конфигурацията липсва ($RC_CONF) – пропускам активиране на managesieve."
 fi
+
+echo "✅ Готово: филтрите (Sieve/ManageSieve) са активирани. В Roundcube: Настройки → Филтри."
 
 rm -- "$0"
 
