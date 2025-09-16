@@ -233,7 +233,7 @@ fi
 if [[ "$policy_require_sa" -eq 1 ]]; then
   if pkg_present spamassassin || pkg_present sa-compile; then
     ok "SpamAssassin: ИЗИСКАН и инсталиран"
-    check_service "SpamAssassin" spamassassin || true
+    check_service "SpamAssassin" spamassassin spamd || true
   else
     err "SpamAssassin: ИЗИСКАН (политика при MAIL_SYSTEM=exim4), но НЕ е инсталиран"
   fi
