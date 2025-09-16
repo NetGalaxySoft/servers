@@ -131,7 +131,7 @@ printf "Настройки от hestia.conf:\n"
 printf "  WEB_SYSTEM=%s\n  PROXY_SYSTEM=%s\n  DNS_SYSTEM=%s\n  MAIL_SYSTEM=%s\n  DB_SYSTEM=%s\n  FIREWALL_SYSTEM=%s\n  BACKUP_SYSTEM=%s\n  BACKUP_DIR=%s\n" \
   "${WEB_SYSTEM:-}" "${PROXY_SYSTEM:-}" "${DNS_SYSTEM:-}" "${MAIL_SYSTEM:-}" "${DB_SYSTEM:-}" "${FIREWALL_SYSTEM:-}" "${BACKUP_SYSTEM:-}" "${BACKUP_DIR_RAW:-}"
 printf "  ANTISPAM_SYSTEM=%s  ANTISPAM=%s\n" "${ANTISPAM_SYSTEM:-}" "${ANTISPAM:-}"
-printf "  ANTIVIRUS_SYSTEM=%s  ANTIVИRUS=%s\n" "${ANTIVIRUS_SYSTEM:-}" "${ANTIVIRUS:-}"
+printf "  ANTIVIRUS_SYSTEM=%s  ANTIVIRUS=%s\n" "${ANTIVIRUS_SYSTEM:-}" "${ANTIVIRUS:-}"
 sep
 
 # Политика: при MAIL_SYSTEM=exim4 → изискваме ClamAV и SpamAssassin
@@ -216,8 +216,8 @@ fi
 if [[ "$policy_require_clam" -eq 1 ]]; then
   if pkg_present clamav-daemon || pkg_present clamav-freshclam; then
     ok "ClamAV: ИЗИСКАН и инсталиран"
-    check_service "ClamAV (daemon)" clamav-daemon >/dev/null || true
-    check_service "ClamAV (freshclam)" clamav-freshclam >/dev/null || true
+    check_service "ClamAV (daemon)" clamav-daemon || true
+    check_service "ClamAV (freshclam)" clamav-freshclam || true
   else
     err "ClamAV: ИЗИСКАН (политика при MAIL_SYSTEM=exim4), но НЕ е инсталиран"
   fi
@@ -233,7 +233,7 @@ fi
 if [[ "$policy_require_sa" -eq 1 ]]; then
   if pkg_present spamassassin || pkg_present sa-compile; then
     ok "SpamAssassin: ИЗИСКАН и инсталиран"
-    check_service "SpamAssassin" spamassassin >/dev/null || true
+    check_service "SpamAssassin" spamassassin || true
   else
     err "SpamAssassin: ИЗИСКАН (политика при MAIL_SYSTEM=exim4), но НЕ е инсталиран"
   fi
@@ -248,7 +248,7 @@ fi
 # --- FTP ---
 if pkg_present vsftpd; then
   ok "vsftpd е инсталиран"
-  check_service "FTP (vsftpd)" vsftpd >/dev/null || true
+  check_service "FTP (vsftpd)" vsftpd || true
 else
   ok "vsftpd не е инсталиран (по избор)"
 fi
