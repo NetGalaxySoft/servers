@@ -66,8 +66,6 @@ sudo awk '
       print "    client_body_timeout 300s;";
       print "    client_header_timeout 60s;";
       print "    send_timeout 300s;";
-      print "    aio on;";
-      print "    directio 4m;";
       print "    # --- end speedfix ---";
       done=1; next}
   }
