@@ -128,3 +128,6 @@ sudo systemctl restart hestia 2>/dev/null || true
 
 echo "✅ Готово. Настройките са приложени."
 echo "   При нужда от rollback върни .bak-${ts} файловете и рестартирай hestia."
+
+echo "✅ Скриптът приключи и се самоизтри."
+rm -- "$0"
