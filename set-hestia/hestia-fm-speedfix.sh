@@ -51,27 +51,6 @@ sudo sed -i '/# --- speedfix (Hestia FM) ---/,/# --- end speedfix ---/d' "$NGINX
 # server:8083 маркери
 sudo sed -i '/# --- speedfix (Hestia FM, server:8083) ---/,/# --- end speedfix ---/d' "$NGINX_CONF"
 
-# --- Nginx: инжектиране в http{} (след първия ред "http {") ---
-sudo awk '
-  BEGIN{in_http=0; done=0}
-  /^\s*http\s*{/ {print; in_http=1; if(!done){ 
-      print "    # --- speedfix (Hestia FM) ---";
-      print "    sendfile on;";
-      print "    tcp_nopush on;";
-      print "    tcp_nodelay on;";
-      print "    keepalive_timeout 65;";
-      print "    types_hash_max_size 4096;";
-      print "    client_max_body_size 4g;";
-      print "    client_body_buffer_size 512k;";
-      print "    client_body_timeout 300s;";
-      print "    client_header_timeout 60s;";
-      print "    send_timeout 300s;";
-      print "    # --- end speedfix ---";
-      done=1; next}
-  }
-  {print}
-' "$NGINX_CONF" | sudo tee "${NGINX_CONF}.tmp" >/dev/null && sudo mv "${NGINX_CONF}.tmp" "$NGINX_CONF"
-
 # --- Nginx: инжектиране в server{} който слуша 8083 ---
 sudo awk '
   BEGIN{in_srv=0; added=0}
