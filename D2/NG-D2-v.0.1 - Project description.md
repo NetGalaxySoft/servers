@@ -8,10 +8,10 @@
 **Document ID:** NG-D2-v.0.1 - Project description
 **Заглавие:** Описание на проекта  
 **Версия:** 0.1  
-**Статус:** Завършен — Bootstrap етап  
+**Статус:** В процес  
 **Дата:** 25.03.2026  
 **Автори:** Илко Йорданов, Владислав Великов  
-**Локация на документа:** GitHub Repository: servers/D1/NG-D2-01 – Project description.md  
+**Локация на документа:** GitHub Repository: servers/D2/NG-D2-v.0.1 – Project description  
 **Контакт:** 📧 [yordanov.netgalaxy@gmail.com](mailto:yordanov.netgalaxy@gmail.com)  
 
 **Copyright:** © 2026 NetGalaxy™ by Ilko Iordanov. All rights reserved.  
@@ -167,8 +167,8 @@
   * **Drives:** 2 x 512 GB NVMe SSD
 
 **Локация:** Финландия  
-**IPv4 address for ... :** ?????  
-**IPv6 address for ... :** ?????  
+**IPv4 address for enp9s0 :** 65.108.12.147
+**IPv6 address for enp9s0 :** 2a01:4f9:6a:485e::2
 
 ---
 
@@ -372,7 +372,7 @@
   * **Срок за изпълнение:** 25.03.2026
   * **Статус:** Изпълнено на 25.03.2026
     
-**2. Изпълнение на етапите 2 и 3**
+**2. Изпълнение на етапите 1, 2 и 3**
 
   * **Изпълнител:** Илко Йорданов
   * **Срок за изпълнение:** 27.03.2026
