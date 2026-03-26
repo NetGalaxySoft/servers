@@ -10,8 +10,8 @@
 **Document ID:** NG-D2-v.0.1 – Installation protocol Nr.1  
 **Заглавие:** Инсталационен протокол № 1  
 **Изпълнител:** Илко Йорданов  
+**Дата:** 26.03.2026  
 
-**Статус:** Изпълнен на 26.03.2026
 **Локация на документа:** GitHub Repository: servers/D2/NG-D2-v.0.1 – Installation protocol Nr.1  
 **Контакт:** 📧 [yordanov.netgalaxy@gmail.com](mailto:yordanov.netgalaxy@gmail.com)  
 
