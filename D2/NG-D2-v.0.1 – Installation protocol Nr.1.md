@@ -7,7 +7,7 @@
 ### Информация за документа
 
 **Проект:** NetGalaxy  
-**Document ID:** NG-D2-v.0.1 – Installation protocol Nr.1  
+**Документ ID:** NG-D2-v.0.1 – Installation protocol Nr.1.md  
 **Заглавие:** Инсталационен протокол № 1  
 **Изпълнител:** Илко Йорданов  
 **Дата:** 26.03.2026  
