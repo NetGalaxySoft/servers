@@ -5,7 +5,7 @@
 ### Информация за документа
 
 **Проект:** NetGalaxy  
-**Document ID:** NG-D2-v.0.1 - Project description
+**Document ID:** NG-D2-v.0.1 - Project description.md  
 **Заглавие:** Описание на проекта  
 **Версия:** 0.1  
 **Статус:** В процес  
