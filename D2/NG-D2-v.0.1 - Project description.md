@@ -11,7 +11,7 @@
 **Статус:** В процес  
 **Дата:** 25.03.2026  
 **Автори:** Илко Йорданов, Владислав Великов  
-**Локация на документа:** GitHub Repository: servers/D2/NG-D2-v.0.1 – Project description  
+**Локация на документа:** GitHub Repository: servers/D2/NG-D2-v.0.1 – Project description.md  
 **Контакт:** 📧 [yordanov.netgalaxy@gmail.com](mailto:yordanov.netgalaxy@gmail.com)  
 
 **Copyright:** © 2026 NetGalaxy™ by Ilko Iordanov. All rights reserved.  
