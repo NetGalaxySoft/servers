@@ -55,7 +55,9 @@
 
 ```bash
 sudo mkdir -p /srv/tools/backup/lib
+sudo mkdir -p /srv/tools/backup/restore
 sudo mkdir -p /etc/netgalaxy
+sudo mkdir -p /srv/backups/local
 sudo mkdir -p /srv/backups/tmp
 sudo mkdir -p /srv/backups/logs
 
