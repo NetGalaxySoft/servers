@@ -31,7 +31,7 @@
 **Срок за изпълнение:** 01.04.2026  
 **Изпълнител:** Илко Йорданов  
 **Статус:** Изпълнен на 26.03.2026  
-**Локация на документа:** GitHub Repository: servers/D2/NG-D2-v.0.1 – Installation protocol Nr.1  
+**Локация на документа:** GitHub Repository: servers/D2/NG-D2-v.0.1 – Installation protocol Nr.1.md  
 **Контакт:** 📧 [yordanov.netgalaxy@gmail.com](mailto:yordanov.netgalaxy@gmail.com)  
 
 **Copyright:** © 2026 NetGalaxy™ by Ilko Iordanov. All rights reserved.  
