@@ -2,7 +2,16 @@
 
 ## Инсталационен протокол № 2
 
-### Етап 2 - Конфигуриране на хостинг за управление на сървъра (d2.netgalaxy.network)
+### Етап 2 - Конфигуриране на Домейн (DNS & Security)
+
+🎯 ЦЕЛ
+
+Изграждане на напълно функционираща DNS инфраструктура с:
+
+  * Master DNS (ns1 – cp205)
+  * Slave DNS (ns2 – D2)
+  * DNSSEC защита
+  * Глобална резолюция и валидиране
 
 ---
 
@@ -15,23 +24,19 @@
 **Задачи за изпълнение:**
 
   * Инсталиране на DNS сървър (Bind9)
-  * Пренасочване на домейна към DNS сървърите на netgalaxy.network
-  * Конфигуриране на ns1.netgalaxy.network (сървър cp205)
-  * Конфигуриране на ns2.netgalaxy.network (сървър D2)
-  * Създаване на директории за административния хостинг
-  * Създаване на index.html („Under Construction“) за административния хостинг
-  * Конфигуриране на домейн d2.netgalaxy.network
-  * Конфигуриране на Nginx за работа с домейна d2.netgalaxy.network
-  * Инсталиране на SSL сертификат за d2.netgalaxy.network
-  * Създаване на системен потребител и група за административния сайт
-  * Ограничаване на достъпа до административни ресурси
-  * Ограничаване на достъпа до уеб директорията (permissions и ownership)
-  * Конфигуриране и проверка на firewall (UFW)
-  * Активиране на firewall
-  * Активиране на логове (access/error logs)
-  * Настройка на логовата ротация
-  * Проверка на хостинга (PASS)
-
+  * Конфигуриране на firewall за DNS достъп (cp205 Server)
+  * Конфигуриране на firewall за DNS достъп (D2 Server)
+  * Регистрация и "Glue Records"
+  * Конфигуриране на Master сървър (ns1)
+  * Създаване на зоновия файл (Master)
+  * Настройка на Reverse DNS
+  * Конфигуриране на вторичен сървър (Slave / ns2)
+  * Подготовка на инфраструктурата за DNSSEC
+  * Активиране на DNSSEC и автоматичното подписване
+  * Извличане на DNSSEC ключове (DS записи)
+  * Регистрация на ключа в BookMyName
+  * Финална проверка
+  
 **Срок за изпълнение:** 02.04.2026  
 **Изпълнител:** Илко Йорданов  
 **Статус:** Изпълнен на 02.04.2026  
@@ -48,76 +53,279 @@
 
 ## Етап 2, Стъпка 1: Инсталиране на DNS сървър (Bind9)
 
-Инсталиране на DNS сървър BIND9 и необходимите инструменти за управление и диагностика.
+Инсталиране на DNS сървър BIND9 и необходимите инструменти за управление и диагностика на двата сървъра, определени за ns1 и ns2.
 
-**Код за терминала**
+**1.1. Инсталиране на BIND на cp205**
 
 ```bash
-sudo apt update && sudo apt install -y bind9 bind9-utils bind9-dnsutils
+sudo apt update && sudo apt install -y bind9 bind9-utils dnsutils
 ```
 
-**Очакван резултат**
+Очакван резултат**
 
-* Пакетите `bind9`, `bind9-utils` и `bind9-dnsutils` са инсталирани
+* Пакетите bind9, bind9-utils и dnsutils са инсталирани
 * DNS услугата е налична в системата
 
-**PASS проверка**
+**1.2. Стартиране и активиране**
 
-```bash
-systemctl is-active bind9
+Активирайте услугата и включете автоматичното стартиране:
+
+```
+sudo systemctl enable bind9
+sudo systemctl start bind9
 ```
 
-Очакван резултат:
+PASS проверка:
 
-```text
+```bash
+systemctl is-active bind9 && systemctl is-enabled bind9
+```
+
+Очакван резултат: 
+
+```
 active
+enabled
+```
+
+**1.3. Повторете същите операции на сървър D2**
+
+---
+
+## Етап 2, Стъпка 2: Конфигуриране на firewall за DNS достъп (cp205 Server)
+
+**🎯 Цел**
+
+Осигуряване на достъп до DNS услугата (порт 53 на сървъра cp205) и гарантиране на непрекъснат SSH достъп преди активиране на firewall.
+
+
+**⚠️ ВАЖНО! Всички команди в тази стъпка се изпълняват на сървър cp205.**
+
+👉 Преди активиране на UFW **задължително** трябва да бъде разрешен SSH портът, използван на сървъра.
+👉 Проверете активният порт за SSH в конфигурационния файл на SSH демона (sshd_config):
+
+```
+grep -E "^Port [0-9]+" /etc/ssh/sshd_config || echo "Port 22 (Default)"
+```
+
+**2.1. Инсталиране на UFW**
+
+```
+sudo apt update && sudo apt install -y ufw
+```
+
+*PASS проверка (инсталация)*
+
+```
+ufw --version
+```
+
+*Очакван резултат*
+
+```
+ufw <версия>
+```
+
+**2.2. Добавяне на правила**
+
+```
+sudo ufw allow 32240/tcp
+sudo ufw allow 53/tcp
+sudo ufw allow 53/udp
+```
+
+*PASS проверка (преди активиране)*
+
+```
+sudo ufw show added
+```
+
+*Очакван резултат*
+
+```
+Status: inactive
+
+ufw allow 32240/tcp
+ufw allow 53/tcp
+ufw allow 53/udp
+```
+
+👉 Всички правила трябва да присъстват **преди активиране на firewall**.
+
+**2.3. Активиране на firewall**
+
+```
+sudo ufw enable
+```
+
+*Очакван резултат:*
+
+```
+Command may disrupt existing ssh connections. Proceed with operation (y|n)? 
+```
+
+Системата пита: "Сигурен ли сте, че искате да активирате защитната стена? При грешно посочен порт може да бъде прекъсната текущата SSH сесия. Въведете **y**, ако сте разрешили правилния порт." 
+
+*PASS проверка (след активиране)*
+
+```
+sudo ufw status
+```
+
+*Очакван резултат*
+
+```
+53/tcp                     ALLOW       Anywhere                  
+53/udp                     ALLOW       Anywhere                  
+32240/tcp                  ALLOW       Anywhere                  
+53/tcp (v6)                ALLOW       Anywhere (v6)             
+53/udp (v6)                ALLOW       Anywhere (v6)             
+32240/tcp (v6)             ALLOW       Anywhere (v6)  
 ```
 
 ---
 
-## Етап 2, Стъпка 2: Пренасочване на домейна към DNS сървърите на netgalaxy.network
+## Етап 2, Стъпка 3: Конфигуриране на firewall за DNS достъп (D2 Server)
 
-Свързване на домейна **netgalaxy.network** със DNS сървърите на мрежата NetGalaxy чрез GLUE записи и задаване на nameserver-и при регистратора.
+**🎯 Цел**
 
-**Действие (извън терминала)**
+Осигуряване на достъп до DNS услугата (порт 53 на сървъра D2) и гарантиране на непрекъснат SSH достъп преди активиране на firewall.
 
-В контролния панел на регистратора BookMyName:
 
-1. Създайте DNS сървъри (GLUE записи)**
+**⚠️ ВАЖНО! Всички команди в тази стъпка се изпълняват на сървър D2.**
+
+👉 Преди активиране на UFW **задължително** трябва да бъде разрешен SSH портът, използван на сървъра.
+👉 Проверете активният порт за SSH в конфигурационния файл на SSH демона (sshd_config):
+
+```
+grep -E "^Port [0-9]+" /etc/ssh/sshd_config || echo "Port 22 (Default)"
+```
+
+**3.1. Инсталиране на UFW**
+
+```
+sudo apt update && sudo apt install -y ufw
+```
+
+*PASS проверка (инсталация)*
+
+```
+ufw --version
+```
+
+*Очакван резултат*
+
+```
+ufw <версия>
+```
+
+**3.2. Добавяне на правила**
+
+```
+sudo ufw allow 59623/tcp
+sudo ufw allow 53/tcp
+sudo ufw allow 53/udp
+```
+
+*PASS проверка (преди активиране)*
+
+```
+sudo ufw show added
+```
+
+*Очакван резултат*
+
+```
+Status: inactive
+
+ufw allow 59623/tcp
+ufw allow 53/tcp
+ufw allow 53/udp
+```
+
+👉 Всички правила трябва да присъстват **преди активиране на firewall**.
+
+**3.3. Активиране на firewall**
+
+```
+sudo ufw enable
+```
+
+*Очакван резултат:*
+
+```
+Command may disrupt existing ssh connections. Proceed with operation (y|n)? 
+```
+
+Системата пита: "Сигурен ли сте, че искате да активирате защитната стена? При грешно посочен порт може да бъде прекъсната текущата SSH сесия. Въведете **y**, ако сте разрешили правилния порт." 
+
+*Очакван резултат*
+
+```
+Firewall is active and enabled on system startup
+```
+
+**PASS проверка (след активиране):**
+
+```
+sudo ufw status
+```
+
+*Очакван резултат*
+
+```
+53/tcp                     ALLOW       Anywhere                  
+53/udp                     ALLOW       Anywhere                  
+59623/tcp                  ALLOW       Anywhere                  
+53/tcp (v6)                ALLOW       Anywhere (v6)             
+53/udp (v6)                ALLOW       Anywhere (v6)             
+59623/tcp (v6)             ALLOW       Anywhere (v6)  
+```
+
+---
+
+## Етап 2, Стъпка 4: Регистрация и "Glue Records"
+
+След купуването на домейна, първата стъпка е създадаването на Glue Records при регистратора. Трябва да обвържете имената ns1.netgalaxy.network и ns2.netgalaxy.network с техните IP адреси, за да знае светът къде да търси тези сървъри.
+
+**Изпълнете в контролния панел на регистратора BookMyName**
+
+**4.1.** Отворете **> Register your DNS servers (hosts) to the registry**
+
+**4.2.** Въведете името на домейна **netgalaxy.network** натиснете **Submit**
+
+**4.3.** Въведете следните GLUE записи**
 
 ```text
 ns1.netgalaxy.network → 38.242.249.205
 ns2.netgalaxy.network → 65.108.12.147
 ```
 
-2. Добавете и съответните IPv6 адреси:
+**4.4.** Добавете и съответните IPv6 адреси:
 
 ```text
 ns1.netgalaxy.network → 2a02:c206:2240:6856::1
 ns2.netgalaxy.network → 2a01:4f9:6a:485e::2
 ```
 
-3. Проверете зададените DNS сървъри за домейна `netgalaxy.network`
+**4.5.** Проверете зададените DNS сървъри за домейна `netgalaxy.network` - PASS:
 
 ```text
 ns1.netgalaxy.network
 ns2.netgalaxy.network
 ```
 
-**PASS Проверка: Пълна DNS верига (trace)**
+*PASS Проверка 1: Валидация на Glue записи (директно от регистъра)*
+```bash
+dig +norecurse @a.nic.network ns1.netgalaxy.network
+```
+*Очакван резултат: В `ADDITIONAL SECTION` се вижда IP 38.242.249.205.*
 
+*PASS Проверка 2: Пълна DNS делегация (Trace)*
 ```bash
 dig NS netgalaxy.network +trace
 ```
-
-**PASS резултат:**
-
-В края на trace-а трябва да се виждат:
-
-```text
-netgalaxy.network.    NS    ns1.netgalaxy.network.
-netgalaxy.network.    NS    ns2.netgalaxy.network.
-```
+*Очакван резултат: В края на списъка се виждат твоите неймсървъри `ns1` и `ns2`.*
 
 **Краен резултат**
 
@@ -134,109 +342,235 @@ ns2.netgalaxy.network → 65.108.12.147
 
 ---
 
-## Етап 2, Стъпка 3: Конфигуриране на ns1.netgalaxy.network (сървър cp205)
+## Етап 2, Стъпка 5: Конфигуриране на Master сървър (ns1)
 
-Настройване на DNS сървъра **ns1.netgalaxy.network** (cp205) като master за зоната `netgalaxy.network`.
+Настройване на основния DNS сървър (cp205) за управление на зоната и разрешаване на трансфера към вторичния сървър.
 
-**1. Отваряне на конфигурационния файл:**
+**5.1. Глобални настройки на Bind9**
+
+Редактирайте `/etc/bind/named.conf.options`, за да добавите поддръжка за големи DNSSEC пакети и трансферни права:
+
+```bash
+sudo nano /etc/bind/named.conf.options
+```
+
+Добавете/редактирайте следните редове вътре в блока `options { ... };`:
+
+```text
+    listen-on { any; };
+    listen-on-v6 { any; };
+    allow-query { any; };
+
+    dnssec-validation auto;
+    auth-nxdomain no;
+    allow-recursion { 127.0.0.1; ::1; };
+    edns-udp-size 1232;
+    max-udp-size 1232;
+
+    allow-transfer { 65.108.12.147; };
+    also-notify    { 65.108.12.147; };
+    notify yes;
+```
+
+**5.2. Дефиниране на зоната**
+
+Добавете дефиницията на домейна в `/etc/bind/named.conf.local`:
+
+Отворете файла:
 
 ```bash
 sudo nano /etc/bind/named.conf.local
 ```
 
-Добавяне/промяна на зоната:
+Въведете следния блок:
 
 ```text
 zone "netgalaxy.network" {
     type master;
     file "/etc/bind/zones/netgalaxy.network.db";
-    allow-transfer { 65.108.12.147; };
 };
 ```
 
-**2. Създаване на директория за зоните:**
-
-```bash
-sudo mkdir -p /etc/bind/zones
-```
-
-**3. Създаване на zone файла:**
-
-```bash
-sudo nano /etc/bind/zones/netgalaxy.network.db
-```
-
-Добавяне на  съдържание на zone файла:
-
-```dns
-$TTL 3600
-@   IN  SOA ns1.netgalaxy.network. admin.netgalaxy.network. (
-        2026040202 ; Serial
-        3600       ; Refresh
-        1800       ; Retry
-        1209600    ; Expire
-        86400 )    ; Minimum TTL
-
-@       IN  NS  ns1.netgalaxy.network.
-@       IN  NS  ns2.netgalaxy.network.
-
-ns1     IN  A   38.242.249.205
-ns2     IN  A   65.108.12.147
-```
-
-*Проверка на конфигурацията:*
+*PASS проверка на конфигурацията:*
 
 ```bash
 sudo named-checkconf
 ```
 
-*Проверка на зоната:*
+**Очакван резултат:** Командата не трябва да връща никакъв изход (това означава липса на синтактични грешки).
+
+---
+
+## Етап 2, Стъпка 6: Създаване на зоновия файл (Master)
+
+Създаване на основния файл с DNS записи за домейна на сървър **cp205**.
+
+**6.1. Създаване на файла**
+
+Изпълнете командата за създаване на празен файл в правилната директория:
+
+```bash
+sudo mkdir -p /etc/bind/zones
+sudo chown bind:bind /etc/bind/zones
+sudo nano /etc/bind/zones/netgalaxy.network.db
+sudo chown bind:bind /etc/bind/zones/netgalaxy.network.db
+```
+
+**6.2. Попълване на DNS записите**
+
+Копирайте и поставете следното съдържание (заменете датата в Serial, ако е необходимо):
+
+```text
+$TTL 86400
+@   IN  SOA ns1.netgalaxy.network. admin.netgalaxy.network. (
+        2026040601 ; Serial (YYYYMMDDnn)
+        86400      ; Refresh
+        7200       ; Retry
+        2419200    ; Expire
+        3600 )     ; Minimum TTL
+
+@       IN  NS  ns1.netgalaxy.network.
+@       IN  NS  ns2.netgalaxy.network.
+
+ns1     IN  A     38.242.249.205
+ns1     IN  AAAA  2A02:C206:2240:6856::1
+
+ns2     IN  A     65.108.12.147
+ns2     IN  AAAA  2A01:4F9:6A:485E::2
+
+@       IN  A     38.242.249.205
+www     IN  CNAME netgalaxy.network.
+```
+
+**6.3. Проверка на синтаксиса на зоната**
+
+Преди да презаредите Bind, проверете дали файлът е написан правилно:
 
 ```bash
 sudo named-checkzone netgalaxy.network /etc/bind/zones/netgalaxy.network.db
 ```
 
-**4. Рестартиране на DNS сървъра:**
+*Очакван резултат PASS:*
+`zone netgalaxy.network/IN: loaded serial 2026040601`
+`OK`
+
+**6.4. Активиране на зоната**
+
+Презаредете конфигурацията на Bind, за да започне обслужването на зоната:
 
 ```bash
-sudo systemctl restart bind9
+sudo rndc reload
+sudo rndc zonestatus netgalaxy.network
 ```
 
-**PASS Проверка**
+*Очакван резултат:*
 
-```bash
-dig @38.242.249.205 netgalaxy.network
+В изхода трябва да присъстват редове от типа:
+
 ```
-
-**PASS резултат:**
-
-```text
-status: NOERROR
+type: master
+file: /etc/bind/zones/netgalaxy.network.db
 ```
-
-и наличен SOA запис:
-
-```text
-netgalaxy.network.    IN    SOA    ns1.netgalaxy.network. admin.netgalaxy.network.
-```
-
-**Краен резултат**
-
-DNS сървърът **ns1.netgalaxy.network (cp205)** е конфигуриран като master за зоната `netgalaxy.network` и отговаря коректно на DNS заявки.
 
 ---
 
-## Етап 2, Стъпка 4: Конфигуриране на ns2.netgalaxy.network (сървър D2)
+## Етап 2, Стъпка 7: Настройка на Reverse DNS
 
-Настройване на DNS сървъра **ns2.netgalaxy.network (D2)** като slave за зоната `netgalaxy.network`, който получава данните от master сървъра **ns1 (cp205)**.
+Настройването на PTR записи (Reverse DNS) е критично за избягване на спам филтри и за преминаване на DNSSEC тестовете за валидация.
 
-**1. Отваряне на конфигурационния файл:**
+**7.1. Конфигурация на сървъра cp205**
+
+>7.1.1. Влезте в провайдерския профил на сървъра cp205.  
+7.1.2. Отворете секцията **Reverse DNS Management**.  
+7.1.3. Конфигурирайте IPv4 адреса **38.242.249.205** със следните стойности:
+
+   * **TTL:** `86400`
+   * **PTR Record:** `ns1.netgalaxy.network`
+
+>7.1.4. Конфигурирайте IPv6 адреса: **2a02:c206:2240:6856::1** със същите стойности:
+
+   * **TTL:** `86400`
+   * **PTR Record:** `ns1.netgalaxy.network`
+
+**7.2. Конфигурация на сървъра D2**
+
+>**7.2.1.** Влезте в провайдерския профил на сървъра D2.  
+**7.2.2.** Навигирайте до **Robot / Server**.  
+**7.2.3.** Изберете сървъра **D2** с IP **65.108.12.147**  
+**7.2.4.** В полето **Reverse DNS entry** въведете `ns2.netgalaxy.network` и натиснете **Enter**  
+**7.2.5.** Под заглавието `Subnets` кликнете върху малката икона плюс (+) точно пред квадратчето до IPv6 адреса.   Това ще разгърне списъка и ще ти позволи да добавяте записи за конкретни IPv6 адреси в рамките на тази мрежа.  
+**7.2.6.** Кликнете върху линка `Add new Reverse DNS entry` за въвеждане на PTR записа.  
+**7.2.7.** Въведете в полето `IP adresses`:
+
+```
+2a01:4f9:6a:485e::2.
+```
+
+>**7.2.8.** Въведете в полето `Reverse DNS entry`:
+
+```
+ns2.netgalaxy.network
+```
+
+>**7.2.9.** Кликнете върху бутона `Create` или натиснете `Enter` за запазване на настройката.
+
+**ВАЖНО:** Промяната на Reverse DNS не е моментална. Изчакайте между **30 и 60 минути**, преди да преминете към проверката, за да може информацията да се разпространи в глобалната мрежа.
+
+**7.3. PASS проверка: Валидация на PTR записите**
+
+Изпълнете следните команди от вашия терминал (iMac или локален сървър), за да потвърдите, че обратните записи (Reverse DNS) са активни и се разпознават правилно от света.
+
+**Проверка за сървър ns1 (cp205):**
+
+```bash
+# Проверка за IPv4
+host 38.242.249.205
+
+# Проверка за IPv6
+host 2a02:c206:2240:6856::1
+```
+
+*Очакван резултат PASS (ns1):*
+
+Командите трябва да върнат следните низове:
+
+`38.242.249.205.in-addr.arpa domain name pointer ns1.netgalaxy.network.`
+`1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.6.5.8.6.0.4.2.2.6.0.2.c.2.0.a.2.ip6.arpa domain name pointer ns1.netgalaxy.network.`
+
+**Проверка за сървър ns2 (D2):**
+
+```bash
+# Проверка за IPv4
+host 65.108.12.147
+
+# Проверка за IPv6
+host 2a01:4f9:6a:485e::2
+```
+
+*Очакван резултат PASS (ns2):*
+
+Командите трябва да върнат следните низове:
+
+`147.12.108.65.in-addr.arpa domain name pointer ns2.netgalaxy.network.`
+`2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.e.5.8.4.a.6.0.0.9.f.4.1.0.a.2.ip6.arpa domain name pointer ns2.netgalaxy.network.`
+
+**Забележка:** Ако вместо името на сървъра получите съобщение `not found` или `NXDOMAIN`, проверете отново настройките в панелите на Contabo и Hetzner и изчакайте още 15-30 минути за опресняване на глобалните DNS кешове.
+
+---
+
+## Етап 2, Стъпка 8: Конфигуриране на вторичен сървър (Slave / ns2)
+
+Целта на тази стъпка е да настроим сървъра **D2** автоматично да репликира (копира) зоната от основния сървър в **cp205**.
+
+**8.1. Дефиниране на зоната на сървър D2 (Hetzner)**
+
+На този сървър **не** се създават ръчно файлове със записи и **не** се генерират ключове. Той само приема данни. Отворете конфигурационния файл:
 
 ```bash
 sudo nano /etc/bind/named.conf.local
 ```
 
-Добавяне на зоната:
+*Добавете следния блок:*
 
 ```text
 zone "netgalaxy.network" {
@@ -246,949 +580,449 @@ zone "netgalaxy.network" {
 };
 ```
 
-**2. Създаване на директория (ако не съществува):**
+**8.2. Проверка и активиране**
 
-```bash
-sudo mkdir -p /var/cache/bind
-sudo chown bind:bind /var/cache/bind
-```
-
-**3. Проверка на конфигурацията:**
+Проверете конфигурацията за грешки и презаредете Bind на **D2**:
 
 ```bash
 sudo named-checkconf
+sudo rndc reload
 ```
 
-Очакван резултат
+*PASS проверка: Валидация на трансфера*
 
-```
-(няма изход)
-```
-
-**4. Рестартиране на DNS сървъра:**
+Проверете дали файлът на зоната е пристигнал успешно от Master сървъра и дали е достъпен в кеша:
 
 ```bash
-sudo systemctl restart bind9
+ls -l /var/cache/bind/netgalaxy.network.db
 ```
 
-**PASS Проверка**
+*Очакван резултат PASS:*
+
+Трябва да видите файла в списъка. След това изпълнете финалния тест от вашия iMac:
 
 ```bash
-dig @65.108.12.147 netgalaxy.network
+dig @65.108.12.147 netgalaxy.network SOA +short
 ```
 
-**PASS резултат:**
+**Краен резултат:** Командата трябва да върне същия сериен номер, който виждате на ns1 (например `2026040601`).
+
+**Техническа бележка:**
+Обърнете внимание, че на **ns2** файлът се съхранява в `/var/cache/bind/`. Това е стандартната директория за Slave зони в Ubuntu, тъй като Bind има права да пише в нея автоматично, без да се налага да променяме AppArmor настройките (както направихме на ns1).
+
+---
+
+
+
+## Етап 2, Стъпка 9: Подготовка на инфраструктурата за DNSSEC
+
+Преди да активираме подписването, трябва да подготвим директориите и да дадем нужните права на Bind9, за да може той да управлява ключовете и зоновите файлове.
+
+**9.1. Създаване на директория за ключовете**
+
+Изпълнете на **cp205**:
+```bash
+sudo mkdir -p /etc/bind/keys
+sudo chown bind:bind /etc/bind/keys
+sudo chmod 750 /etc/bind/keys
+```
+
+**9.2. Задаване на права върху зоните**
+
+Bind се нуждае от права за запис в папката със зони, за да създава `.signed` и `.jnl` файловете.
+```bash
+sudo chown bind:bind /etc/bind/zones
+sudo chmod 775 /etc/bind/zones
+sudo chown bind:bind /etc/bind/zones/netgalaxy.network.db
+```
+
+**9.3. Настройка на AppArmor (Критично)**
+
+За да може системата да позволи на Bind да записва в новата папка `/etc/bind/keys`, трябва да добавим изключение:
+```bash
+echo "/etc/bind/keys/** rw," | sudo tee -a /etc/apparmor.d/local/usr.sbin.named
+sudo systemctl reload apparmor
+```
+
+---
+
+## Етап 2, Стъпка 10: Активиране на DNSSEC и автоматичното подписване
+
+След като инфраструктурата е готова, преминаваме към реалното пускане на защитата.
+
+**10.1. Промяна на конфигурационния файл**
+
+Отворете `/etc/bind/named.conf.local` и добавете параметрите за сигурност:
+
+```bash
+sudo nano /etc/bind/named.conf.local
+```
+
+Добавете в блока на зоната:
 
 ```text
-status: NOERROR
+    key-directory "/etc/bind/keys";
+    dnssec-policy default;
+    inline-signing yes;
 ```
 
-и наличен SOA запис:
+Трябва да стане така:
 
-```text
-netgalaxy.network.    IN    SOA    ns1.netgalaxy.network. admin.netgalaxy.network.
+```
+zone "netgalaxy.network" {
+    type master;
+    file "/etc/bind/zones/netgalaxy.network.db";
+    allow-transfer { 65.108.12.147; };
+
+    key-directory "/etc/bind/keys";
+    dnssec-policy default;
+    inline-signing yes;
+};
 ```
 
-**Краен резултат**
+**10.2. Актуализиране на серийния номер (Serial)**
 
-DNS сървърът **ns2.netgalaxy.network (D2)** е конфигуриран като slave и успешно получава зоната `netgalaxy.network` от master сървъра **cp205**, като отговаря коректно на DNS заявки.
-
----
-
-## Етап 2, Стъпка 5: Създаване на директории за административния хостинг
-
-**Кратка цел**
-Създаваме основната директория за служебния уеб хостинг и поддиректорията с непредсказуемо име, която ще се използва за административния достъп.
-
-**Код за терминала**
-
+Отворете зоновия файл и увеличете серийния номер (например от `...01` на `...02`), за да отразите промяната:
 ```bash
-sudo mkdir -p /srv/www-admin/cpanel_f7D1k6/public
-```
-
-**Код за проверка**
-
-```bash
-sudo ls -ld /srv/www-admin /srv/www-admin/cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6/public
-```
-
-**Очакван резултат**
-
-```bash
-drwxr-xr-x 3 root root ... /srv/www-admin
-drwxr-xr-x 3 root root ... /srv/www-admin/cpanel_f7D1k6
-drwxr-xr-x 2 root root ... /srv/www-admin/cpanel_f7D1k6/public
-```
-
-**PASS проверка**
-
-И трите директории съществуват и се виждат в изхода на командата за проверка.
-
-
-✔ И трите директории съществуват
-✔ Пътят е точно `/srv/www-admin/control.netgalaxy.network/public`
-✔ Няма грешки при създаването
-
----
-
-## Етап 2, Стъпка 6: Създаване на index.html („Under Construction“) за административния хостинг
-
-Създаваме начална страница `index.html` в директорията `public`, която ще се показва при достъп до административния адрес. Тя указва, че услугата е в процес на разработка.
-
-**Код за терминала**
-
-```bash
-sudo tee /srv/www-admin/cpanel_f7D1k6/public/index.html > /dev/null << 'EOF'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>NetGalaxy Control</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      margin: 0;
-      background-color: #0f172a;
-      color: #e5e7eb;
-      font-family: Arial, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-    }
-    .container {
-      text-align: center;
-    }
-    h1 {
-      color: #FCD170;
-      font-size: 2.5em;
-      margin-bottom: 0.5em;
-    }
-    p {
-      font-size: 1.2em;
-      color: #9ca3af;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>NetGalaxy Control Panel</h1>
-    <p>Server is under construction</p>
-  </div>
-</body>
-</html>
-EOF
-```
-
-**Код за проверка**
-
-```bash
-sudo ls -lh /srv/www-admin/cpanel_f7D1k6/public/index.html
-```
-
-**Очакван резултат**
-
-```bash
--rw-r--r-- 1 root root ... /srv/www-admin/cpanel_f7D1k6/public/index.html
-```
-
-**PASS проверка**
-
-Файлът `index.html` съществува в директорията `public` и има размер (не е празен).
-
----
-
-## Етап 2, Стъпка 7: Конфигуриране на домейн d2.netgalaxy.network
-
-В тази стъпка отваряме DNS сървъра на cp205 (MASTER) и вписваме домейна за управление на сървъра `d2.netgalaxy.network`, като го насочваме към сървъра D2.
-
-**Код за терминала (cp205)**
-Добавяне на DNS запис за домейна `d2.netgalaxy.network`, който сочи към IP адреса на D2.
-
-```bash id="7xk2qp"
 sudo nano /etc/bind/zones/netgalaxy.network.db
 ```
 
-**Действие в отворения файл**
+**10.3. Стартиране на процеса по подписване**
 
-1. Увеличаваме Serial с 1 (например от 2026040202 на 2026040203).
-
-2. Добавяме в края на файла следния запис:
-
-```dns id="s3k9lw"
-d2    IN    A    65.108.12.147
+Презаредете конфигурацията, за да започне автоматичното генериране на ключове:
+```bash
+sudo rndc reload netgalaxy.network
+sudo rndc notify netgalaxy.network
 ```
 
-**Код за проверка (локално на cp205)**
+**10.4. Проверка (PASS)**
 
-```bash id="j1m8fd"
-sudo named-checkzone netgalaxy.network /etc/bind/zones/netgalaxy.network.db
+Изчакайте 10 секунди, докато Bind извърши математическите изчисления, и проверете за наличие на цифрови подписи:
+```bash
+dig @38.242.249.205 netgalaxy.network +dnssec
 ```
-
-**Очакван резултат**
-
-```bash id="k8w2vz"
-zone netgalaxy.network/IN: loaded serial ...
-OK
-```
-
-**Код за прилагане на промените**
-
-```bash id="p4n2ys"
-sudo systemctl reload bind9
-```
-
-**Код за външна проверка**
-
-```bash id="x9q3rt"
-dig d2.netgalaxy.network +short
-```
-
-**Очакван резултат**
-
-```bash id="c7m1lu"
-65.108.12.147
-```
-
-**PASS проверка**
-
-Домейнът `d2.netgalaxy.network` се резолвира към IP адреса на D2.
+**Очакван резултат:** В секцията `ANSWER` трябва да видите редове с **`RRSIG`**.
 
 ---
 
-## Етап 2, Стъпка 8: Конфигуриране на Nginx за работа с домейна d2.netgalaxy.network
+## Етап 2, Стъпка 11: Извличане на DNSSEC ключове (DS записи)
 
-Създаваме Nginx конфигурация за домейна `d2.netgalaxy.network`, насочваме я към уеб директорията `public`, активираме сайта и презареждаме Nginx.
+След като в Стъпка 3 активирахме `dnssec-policy`, Bind автоматично е генерирал ключове в директорията `/etc/bind/keys`. Сега трябва да извлечем данните, които се подават към регистратора на домейна, за да се затвори веригата на доверие.
 
-**Кратка цел**
-Настройване на Nginx да обслужва домейна `d2.netgalaxy.network` от директорията `/srv/www-admin/cpanel_f7D1k6/public`.
+**11.1. Намиране на генерирания ключ**
 
-**Код за терминала**
+Влезте в папката с ключовете и проверете имената на генерираните файлове:
 
-```bash id="g7n2xk"
-sudo tee /etc/nginx/sites-available/d2.netgalaxy.network > /dev/null << 'EOF'
-server {
-    listen 80;
-    listen [::]:80;
-
-    server_name d2.netgalaxy.network;
-
-    root /srv/www-admin/cpanel_f7D1k6/public;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ =404;
-    }
-}
-EOF
-
-sudo ln -sfn /etc/nginx/sites-available/d2.netgalaxy.network /etc/nginx/sites-enabled/d2.netgalaxy.network
-sudo nginx -t
-sudo systemctl reload nginx
+```bash
+ls /etc/bind/keys
 ```
 
-**Код за проверка**
+**Очакван резултат:** Трябва да видите файлове, започващи с `Knetgalaxy.network...`. Търсим файла с разширение **.key**.
 
-```bash id="k3p9vs"
-sudo nginx -T | grep -A 12 "server_name d2.netgalaxy.network"
-curl -I -H "Host: d2.netgalaxy.network" http://127.0.0.1/
+**11.2. Генериране на DS запис**
+
+Използвайте инструмента `dnssec-dsfromkey`, за да извлечете записа от публичния ключ (заменете името на файла с вашето реално име от предната стъпка):
+
+```bash
+cd /etc/bind/keys
+dnssec-dsfromkey Knetgalaxy.network.+013+XXXXX.key
 ```
 
-**Очакван резултат**
+**Очакван резултат PASS:**
+Командата ще върне два реда, изглеждащи по този начин:
+`netgalaxy.network. IN DS 61423 13 2 86400... (дълъг хеш)`
 
-```bash id="q8x1md"
-server_name d2.netgalaxy.network;
-root /srv/www-admin/cpanel_f7D1k6/public;
-index index.html;
-```
+## Етап 2, Стъпка 12: Регистрация на ключа в BookMyName
 
-и от `curl`:
+1. Влезте в контролния панел на **BookMyName**.
+2. Отворете управлението на DNSSEC за `netgalaxy.network`.
+3. Въведете данните от получения резултат:
+   * **Key ID / Tag:** (в примера: `61423`)
+   * **Algorithm:** `13` (ECDSA Curve P-256 with SHA-256)
+   * **Digest Type:** `2` (SHA-256)
+   * **Digest:** (дългият хеш от края на реда)
 
-```bash id="w2z7lc"
-HTTP/1.1 200 OK
-```
-
-**PASS проверка**
-
-* `sudo nginx -t` завършва с `syntax is ok` и `test is successful`
-* `curl -I -H "Host: d2.netgalaxy.network" http://127.0.0.1/` връща `HTTP/1.1 200 OK`
+**ВАЖНО:** Изчакайте около **1-2 часа** за опресняване на кеша на Root сървърите.
 
 ---
 
-## Етап 2, Стъпка 9: Инсталиране на SSL сертификат за d2.netgalaxy.network
+## Етап 2, Стъпка 13: ФИНАЛНА ПРОВЕРКА
 
-Инсталираме SSL сертификат от Let’s Encrypt чрез Certbot и автоматично конфигурираме Nginx да работи през HTTPS.
+**1. Проверка на DNSSEC верига на доверие**
 
-**Кратка цел**
-Активиране на HTTPS за домейна `d2.netgalaxy.network` с валиден SSL сертификат.
+*Код за терминала (локален компютър)*
 
-**Код за терминала**
-
-```bash
-sudo apt update && sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d d2.netgalaxy.network --non-interactive --agree-tos -m yordanov.netgalaxy@gmail.com --redirect
+```
+delv @8.8.8.8 netgalaxy.network +rtrace
 ```
 
-**Код за проверка**
+*Очакван резултат*
 
-```bash
-sudo nginx -T | grep -A 8 "server_name d2.netgalaxy.network"
-curl -I https://d2.netgalaxy.network
+```
+; fully validated
+netgalaxy.network.      IN      A       38.242.249.205
+netgalaxy.network.      IN      RRSIG   A ...
 ```
 
-**Очакван резултат**
+**PASS:** Налице е ред "fully validated"
 
-В конфигурацията трябва да се появят SSL настройки, например:
+**2. Проверка на DNSSEC отговор от ns1**
 
-```bash
-listen 443 ssl;
-ssl_certificate /etc/letsencrypt/live/d2.netgalaxy.network/fullchain.pem;
-ssl_certificate_key /etc/letsencrypt/live/d2.netgalaxy.network/privkey.pem;
+*Код за терминала (локален компютър)*
+
+```
+dig @38.242.249.205 netgalaxy.network +dnssec
 ```
 
-И от `curl`:
-
-```bash
-HTTP/2 200
-```
-
-**PASS проверка**
-
-* HTTPS е активен и достъпен
-* `curl -I https://d2.netgalaxy.network` връща `HTTP/2 200`
-* Отворете в браузър:
+*Очакван резултат*
 
 ```text
-https://d2.netgalaxy.network
+netgalaxy.network.      IN      A       38.242.249.205
+netgalaxy.network.      IN      RRSIG   A ...
 ```
 
-* Страницата се зарежда без предупреждения за сигурност (валиден SSL сертификат)
+**PASS:** Налице е запис RRSIG
 
----
+**3. Проверка на DNSSEC отговор от ns2**
 
-## Етап 2, Стъпка 10: Създаване на системен потребител и група за административния сайт
+*Код за терминала (локален компютър)*
 
-Създаваме изолиран системен потребител и група за административния хостинг, след което задаваме собственост на уеб директорията. Това гарантира разделение и контрол на достъпа.
+```
+dig @65.108.12.147 netgalaxy.network +dnssec
+```
 
-**Кратка цел**
-Създаване на изолиран потребител и група и задаване на ownership върху `/srv/www-admin/cpanel_f7D1k6`.
+*Очакван резултат**
 
-**Код за терминала**
+```
+netgalaxy.network.      IN      A       38.242.249.205
+netgalaxy.network.      IN      RRSIG   A ...
+```
+
+**PASS:** Налице е запис RRSIG
+
+**4. Проверка на авторитетност на ns2**
+
+*Код за терминала (локален компютър)*
 
 ```bash
-sudo groupadd --system grp_cpanel_f7D1k6
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin -g grp_cpanel_f7D1k6 usr_cpanel_f7D1k6
-sudo chown -R usr_cpanel_f7D1k6:grp_cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6
+dig @65.108.12.147 netgalaxy.network SOA
 ```
 
-**Код за проверка**
+*Очакван резултат*
 
-```bash
-id usr_cpanel_f7D1k6
-sudo ls -ld /srv/www-admin/cpanel_f7D1k6
-sudo ls -ld /srv/www-admin/cpanel_f7D1k6/public
+```
+flags: qr aa
 ```
 
-**Очакван резултат**
+**PASS:** 
 
-```bash
-uid=... (usr_cpanel_f7D1k6) gid=... (grp_cpanel_f7D1k6)
-drwxr-xr-x ... usr_cpanel_f7D1k6 grp_cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6
-drwxr-xr-x ... usr_cpanel_f7D1k6 grp_cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6/public
+```
+В реда **flags** присъства **aa**
 ```
 
-**PASS проверка**
+**5. Проверка на синхронизация между ns1 и ns2**
 
-* Потребителят `usr_cpanel_f7D1k6` съществува
-* Групата `grp_cpanel_f7D1k6` съществува
-* Директорията е собственост на:
+*Код за терминала (локален компютър)*
 
-```bash
-usr_cpanel_f7D1k6:grp_cpanel_f7D1k6
+```
+dig @38.242.249.205 netgalaxy.network SOA +short
+dig @65.108.12.147 netgalaxy.network SOA +short
 ```
 
----
+*Очакван резултат PASS*
 
-## Етап 2, Стъпка 11: Ограничаване на достъпа до административни ресурси
-
-Забраняваме директен уеб достъп до чувствителни директории и файлове (напр. `config`, `logs`, скрити файлове), за да предотвратим изтичане на информация и неоторизиран достъп.
-
-**Кратка цел**
-Ограничаване на достъпа до чувствителни ресурси за административния хостинг.
-
-**Код за терминала**
-
-```bash id="0xk9sj"
-sudo tee /etc/nginx/snippets/d2.netgalaxy.network_restrictions.conf > /dev/null << 'EOF'
-# Забрана за достъп до скрити файлове (.env, .git, .htaccess и др.)
-location ~ /\. {
-    deny all;
-}
-
-# Забрана за директории извън public (ако бъдат достъпени по грешка)
-location ^~ /config/ {
-    deny all;
-}
-
-location ^~ /logs/ {
-    deny all;
-}
-
-# Забрана за потенциално чувствителни файлове
-location ~* \.(env|ini|log|conf|bak|sql)$ {
-    deny all;
-}
-EOF
-
-sudo sed -i '/server_name d2.netgalaxy.network;/a \    include /etc/nginx/snippets/d2.netgalaxy.network_restrictions.conf;' /etc/nginx/sites-available/d2.netgalaxy.network
-
-sudo nginx -t
-sudo systemctl reload nginx
+```
+Двата резултата са идентични (особено Serial номера)
 ```
 
-**Код за проверка**
+**6. Визуална проверка (DNSViz)**
 
-```bash id="m2x7vp"
-curl -I https://d2.netgalaxy.network/.env
-curl -I https://d2.netgalaxy.network/config/
-curl -I https://d2.netgalaxy.network/test.log
+*Отворете:*
+
+👉 [https://dnsviz.net](https://dnsviz.net)
+
+👉 Въведете: `netgalaxy.network`
+
+*PASS*
+
 ```
-
-**Очакван резултат**
-
-```bash id="l1z8qe"
-HTTP/2 403
+Няма червени стрелки или предупреждения.
 ```
+**7. Проверка с DNSSEC Debugger**
 
-или:
+*Отворете:*
 
-```bash id="q7r3kn"
-HTTP/1.1 403 Forbidden
-```
+👉 [https://dnssec-debugger.verisignlabs.com/netgalaxy.network](https://dnssec-debugger.verisignlabs.com/netgalaxy.network)
 
-**PASS проверка**
-
-* Забранените ресурси през HTTPS връщат `403`
-* Отвори в браузър:
+*PASS*
 
 ```text
-https://d2.netgalaxy.network/.env
-https://d2.netgalaxy.network/config/
-https://d2.netgalaxy.network/test.log
-```
-
-* Браузърът показва отказан достъп
-
----
-
-## Етап 2, Стъпка 12: Ограничаване на достъпа до уеб директорията (permissions и ownership)
-
-Задаваме строги права върху уеб директорията, така че:
-
-* собственикът (`usr_cpanel_f7D1k6`) има пълен контрол
-* групата има ограничен достъп
-* всички останали имат само четене (без запис)
-
-Това предотвратява неоторизирани промени и повишава сигурността.
-
-**Кратка цел**
-Задаване на сигурни права върху `/srv/www-admin/cpanel_f7D1k6` и съдържанието на `public`.
-
-**Код за терминала**
-
-```bash
-sudo chmod 755 /srv/www-admin/cpanel_f7D1k6
-sudo find /srv/www-admin/cpanel_f7D1k6/public -type d -exec chmod 755 {} \;
-sudo find /srv/www-admin/cpanel_f7D1k6/public -type f -exec chmod 644 {} \;
-```
-
-**Код за проверка**
-
-```bash
-sudo ls -ld /srv/www-admin/cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6/public
-sudo find /srv/www-admin/cpanel_f7D1k6/public -printf "%M %u %g %p\n" | head -n 10
-curl -I https://d2.netgalaxy.network
-```
-
-**Очакван резултат**
-
-```bash
-drwxr-xr-x usr_cpanel_f7D1k6 grp_cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6
-drwxr-xr-x usr_cpanel_f7D1k6 grp_cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6/public
--rw-r--r-- usr_cpanel_f7D1k6 grp_cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6/public/index.html
-HTTP/1.1 200 OK
-```
-
-**PASS проверка**
-
-* Директорията `/srv/www-admin/cpanel_f7D1k6` е с права `755`
-* Директориите в `public` са с права `755`
-* Файловете в `public` са с права `644`
-* Няма права за запис за `others`
-* Отвори в браузър:
-
-```text
-https://d2.netgalaxy.network
-```
-
-* Страницата се зарежда успешно
-
----
-
-## Етап 2, Стъпка 13: Конфигуриране и проверка на firewall (UFW)
-
-Конфигурираме firewall (UFW), като разрешаваме необходимите портове, но **не го активираме**, преди да извършим задължителна проверка.
-
-**Кратка цел**
-Подготовка на firewall с правилни правила и проверка преди активиране.
-
-**Код за терминала**
-
-```bash
-sudo ufw allow 59623/tcp
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-```
-
-**Код за проверка (ПРЕДИ АКТИВАЦИЯ)**
-
-```bash
-sudo ufw show added
-sudo ufw status verbose
-```
-
-**Очакван резултат**
-
-```text
-ufw allow 59623/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-```
-
-И статус:
-
-```text
-Status: inactive
-```
-
-**PASS проверка (ПРЕДИ АКТИВАЦИЯ)**
-
-* Firewall е **inactive**
-* Присъстват правилата:
-
-  * 59623/tcp
-  * 80/tcp
-  * 443/tcp
-* Няма други неочаквани правила
-
----
-
-## Етап 2, Стъпка 14: Активиране на firewall
-
-Активираме firewall само след успешна проверка.
-
-**Кратка цел**
-Безопасно активиране на UFW след потвърдени правила.
-
-**Код за терминала**
-
-```bash
-sudo ufw enable
-```
-
-**Код за проверка**
-
-```bash
-sudo systemctl is-active ufw
-sudo ufw status
-curl -I https://d2.netgalaxy.network
-```
-
-**Очакван резултат**
-
-```text
-active
-```
-
-и:
-
-```bash
-HTTP/2 200
-```
-
-**PASS проверка**
-
-* Firewall е активен
-* SSH достъпът работи на порт `59623`
-* Уеб достъпът (80/443) работи
-* Сайтът се зарежда успешно:
-
-```text
-https://d2.netgalaxy.network
-```
-
-Това вече е напълно по NetGalaxy логиката:
-
-* без риск
-* без „магия“
-* с контрол преди действие
-
----
-
-## Етап 2, Стъпка 15: Активиране на логове (access/error logs)
-
-Активираме access и error логове за домейна `d2.netgalaxy.network`, като ги записваме в отделна директория. Това позволява проследяване на трафика, грешките и евентуални проблеми със сигурността.
-
-**Кратка цел**
-Активиране на логове за административния хостинг в `/srv/www-admin/cpanel_f7D1k6/logs`.
-
-**Код за терминала**
-
-```bash
-sudo mkdir -p /srv/www-admin/cpanel_f7D1k6/logs
-sudo chown usr_cpanel_f7D1k6:grp_cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6/logs
-sudo chmod 750 /srv/www-admin/cpanel_f7D1k6/logs
-
-sudo sed -i '/server_name d2.netgalaxy.network;/a \
-    access_log /srv/www-admin/cpanel_f7D1k6/logs/access.log;\
-    error_log /srv/www-admin/cpanel_f7D1k6/logs/error.log;' \
-/etc/nginx/sites-available/d2.netgalaxy.network
-
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-**Код за проверка**
-
-```bash
-sudo ls -ld /srv/www-admin/cpanel_f7D1k6/logs
-curl -I https://d2.netgalaxy.network
-sudo tail -n 5 /srv/www-admin/cpanel_f7D1k6/logs/access.log
-```
-
-**Очакван резултат**
-
-```bash
-drwxr-x--- usr_cpanel_f7D1k6 grp_cpanel_f7D1k6 /srv/www-admin/cpanel_f7D1k6/logs
-HTTP/1.1 200 OK
-```
-
-и в `access.log` трябва да има запис от заявката.
-
-**PASS проверка**
-
-* Директорията `logs` съществува
-* Сайтът остава достъпен на:
-
-```text
-https://d2.netgalaxy.network
-```
-
-* В `access.log` се записват заявки
-* `nginx -t` завършва успешно
-
----
-
-## Етап 2, Стъпка 16: Настройка на логовата ротация
-
-Настройваме автоматична логова ротация чрез `logrotate`, за да предотвратим неконтролирано нарастване на лог файловете и да осигурим стабилна работа на сървъра.
-
-Използваме следните параметри:
-
-#### `daily`
-
-👉 върти логовете всеки ден
-✔ достатъчно детайлно
-✔ стандарт за уеб сървър
-
-#### `rotate 14`
-
-👉 пази 14 дни
-✔ достатъчно за анализ
-✔ не пълни диска
-
-(може да стане 30 по-късно)
-
-#### `compress`
-
-👉 компресира старите логове
-✔ пести място (много важно)
-
-#### `delaycompress`
-
-👉 не компресира последния лог веднага
-✔ избягва проблеми с nginx
-
-#### `missingok`
-
-👉 ако файл липсва → няма грешка
-✔ важно за стабилност
-
-#### `notifempty`
-
-👉 не върти празни логове
-✔ избягва излишни файлове
-
-#### `create 640 www-data www-data`
-
-👉 създава нов лог файл с правилни права
-✔ nginx може да пише
-✔ други не могат
-
-**Кратка цел**
-Конфигуриране на `logrotate` за логовете в `/srv/www-admin/cpanel_f7D1k6/logs`.
-
-**Код за терминала**
-
-```bash
-sudo tee /etc/logrotate.d/d2.netgalaxy.network > /dev/null << 'EOF'
-/srv/www-admin/cpanel_f7D1k6/logs/*.log {
-    daily
-    rotate 14
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 640 www-data www-data
-    sharedscripts
-    postrotate
-        systemctl reload nginx > /dev/null 2>&1 || true
-    endscript
-}
-EOF
-```
-
-**Код за проверка**
-
-```bash
-sudo logrotate -d /etc/logrotate.d/d2.netgalaxy.network
-```
-
-**Очакван резултат**
-
-* Няма грешки в изхода
-* Показва се симулация на ротация
-
-**PASS проверка**
-
-* Конфигурационният файл съществува:
-
-```bash
-/etc/logrotate.d/d2.netgalaxy.network
-```
-
-* Командата:
-
-```bash
-sudo logrotate -d /etc/logrotate.d/d2.netgalaxy.network
-```
-
-завършва без грешки
-
-* Сайтът остава достъпен:
-
-```text
-https://d2.netgalaxy.network
+Всички проверки са със зелена отметка (✓)
 ```
 
 ---
 
-## Етап 2, Стъпка 17: Проверка на хостинга (PASS)
-
-Извършваме финална проверка на хостинга, за да потвърдим, че всички компоненти работят коректно и сайтът е достъпен и защитен.
-
-**Кратка цел**
-Финална PASS проверка на хостинга за `d2.netgalaxy.network`.
-
-**Код за терминала**
-
-```bash
-curl -I https://d2.netgalaxy.network
-curl -I http://d2.netgalaxy.network
-```
-
-**Очакван резултат**
-
-```bash
-HTTP/2 200
-```
-
-и:
-
-```bash
-HTTP/1.1 301 Moved Permanently
-```
-
-(HTTP → HTTPS redirect)
-
-**Допълнителна проверка (логове)**
-
-```bash
-sudo tail -n 5 /srv/www-admin/cpanel_f7D1k6/logs/access.log
-```
-
-Трябва да има запис от заявката.
-
-**PASS проверка**
-
-* Сайтът се отваря:
+### PASS (общ)
 
 ```text
-https://d2.netgalaxy.network
+PASS: DNS инфраструктурата е напълно валидна и синхронизирана
 ```
-
-* HTTPS работи без предупреждения
-* HTTP се пренасочва към HTTPS
-* Nginx отговаря с `200`
-* Логовете записват заявки
-* Няма грешки в достъпа
 
 ---
 
-## ФИНАЛЕН ОТЧЕТ ЗА ИЗПЪЛНЕНИЕ
+## Етап 2, Стъпка 14: ОТЧЕТ ЗА ИЗПЪЛНЕНИЕ НА ЗАДАЧИТЕ
 
 **Към Инсталационен протокол № 2 (NG-D2-v.0.1)**
 
 **Дата на завършване:** 02.04.2026
 **Изпълнител:** Илко Йорданов
-**Обект:** Сървър D2 (IP: 65.108.12.147)
+**Обект:** DNS инфраструктура (cp205 + D2)
 **Статус:** <span style="color:green">✅ УСПЕШНО ЗАВЪРШЕН</span>
+
+---
 
 ### 1. РЕЗЮМЕ НА ИЗПЪЛНЕНИЕТО / EXECUTIVE SUMMARY
 
-Всички заложени задачи по Инсталационен протокол № 2 са изпълнени успешно съгласно стандартите на проекта NetGalaxy. Изградена е работеща DNS инфраструктура за домейна `netgalaxy.network` в архитектура **MASTER / SLAVE**, а на сървъра **D2** е конфигуриран и защитен административен хостинг за домейна `d2.netgalaxy.network`.
+Всички заложени задачи по Инсталационен протокол № 2 са изпълнени успешно съгласно стандартите на проекта NetGalaxy. Изградена е пълноценна DNS инфраструктура за домейна **netgalaxy.network**, базирана на архитектура **MASTER / SLAVE**, с активирана DNSSEC защита и валидирана глобална резолюция.
 
 Изпълнените дейности включват:
 
-* **DNS:** BIND9 MASTER на `cp205` и BIND9 SLAVE на `D2`
-* **Domain delegation:** `ns1.netgalaxy.network` и `ns2.netgalaxy.network`
-* **Admin hosting:** `d2.netgalaxy.network`
-* **Web stack:** Nginx + HTTPS (Let’s Encrypt)
-* **Security:** изолиран системен потребител, ограничения за чувствителни ресурси, UFW
-* **Observability:** access/error logs + logrotate
+* **DNS Servers:** BIND9 MASTER (`ns1` – cp205) и SLAVE (`ns2` – D2)
+* **Domain delegation:** GLUE записи и активна делегация
+* **Zone configuration:** SOA, NS, A, AAAA записи
+* **Reverse DNS:** PTR записи за IPv4 и IPv6
+* **Zone transfer:** автоматична синхронизация (AXFR)
+* **Security:** DNSSEC с `inline-signing` и `dnssec-policy`
+* **Validation:** успешно премината глобална DNSSEC валидация
+
+---
 
 ### 2. ДЕТАЙЛЕН ПРЕГЛЕД НА ЗАДАЧИТЕ / TASK DETAILS
 
-| Задача / Task                    | Статус | Коментар / Technical Note                                                                       |
-| :------------------------------- | :----: | :---------------------------------------------------------------------------------------------- |
-| **Bind9 Installation**           |  PASS  | `bind9`, `bind9-utils`, `bind9-dnsutils` са инсталирани и активни.                              |
-| **Domain Delegation**            |  PASS  | `netgalaxy.network` е делегиран към `ns1.netgalaxy.network` и `ns2.netgalaxy.network`.          |
-| **DNS MASTER (cp205)**           |  PASS  | Конфигурирана е master зона `netgalaxy.network` с разрешен zone transfer към D2.                |
-| **DNS SLAVE (D2)**               |  PASS  | D2 е конфигуриран като slave/secondary и обслужва зоната коректно.                              |
-| **Admin Hosting Directory**      |  PASS  | Създадена е структура `/srv/www-admin/cpanel_f7D1k6/public`.                                    |
-| **Initial Index Page**           |  PASS  | Създадена е начална страница “Under Construction”.                                              |
-| **DNS Record for d2**            |  PASS  | `d2.netgalaxy.network` сочи към `65.108.12.147`.                                                |
-| **Nginx Virtual Host**           |  PASS  | Активиран е отделен vhost за `d2.netgalaxy.network`.                                            |
-| **SSL Certificate**              |  PASS  | HTTPS е активен чрез Let’s Encrypt, с валиден сертификат.                                       |
-| **System Isolation User**        |  PASS  | Създадени са `usr_cpanel_f7D1k6` и `grp_cpanel_f7D1k6`.                                         |
-| **Resource Access Restrictions** |  PASS  | Забранен е директният достъп до чувствителни ресурси (`.env`, `config`, `logs`, `*.log` и др.). |
-| **Permissions & Ownership**      |  PASS  | Зададени са сигурни права върху `public` и ownership върху административния хостинг.            |
-| **Firewall Preparation**         |  PASS  | UFW е конфигуриран с правила за `59623/tcp`, `80/tcp`, `443/tcp` преди активация.               |
-| **Firewall Activation**          |  PASS  | UFW е активиран успешно след предварителна проверка.                                            |
-| **Access/Error Logging**         |  PASS  | Логовете се записват в `/srv/www-admin/cpanel_f7D1k6/logs`.                                     |
-| **Log Rotation**                 |  PASS  | Конфигурирана е ежедневна ротация с 14 копия и компресия.                                       |
-| **Final Hosting PASS Check**     |  PASS  | `HTTPS = 200`, `HTTP = 301 → HTTPS`, логовете записват заявки.                                  |
+| Задача / Task              | Статус | Коментар / Technical Note                                    |
+| :------------------------- | :----: | :----------------------------------------------------------- |
+| **Bind9 Installation**     |  PASS  | `bind9`, `bind9-utils`, `dnsutils` инсталирани на cp205 и D2 |
+| **Firewall (cp205)**       |  PASS  | Отворени портове `32240/tcp`, `53/tcp`, `53/udp`             |
+| **Firewall (D2)**          |  PASS  | Отворени портове `59623/tcp`, `53/tcp`, `53/udp`             |
+| **GLUE Records**           |  PASS  | `ns1` и `ns2` регистрирани с IPv4 и IPv6                     |
+| **Domain Delegation**      |  PASS  | Делегацията към собствените DNS сървъри е активна            |
+| **DNS MASTER (cp205)**     |  PASS  | Конфигурирана master зона                                    |
+| **Zone File Creation**     |  PASS  | Валиден SOA и ресурсни записи                                |
+| **Reverse DNS (PTR)**      |  PASS  | PTR записи активни за двата сървъра                          |
+| **DNS SLAVE (D2)**         |  PASS  | Зоната се репликира автоматично                              |
+| **Zone Transfer (AXFR)**   |  PASS  | Серийните номера съвпадат                                    |
+| **DNSSEC Preparation**     |  PASS  | Права и AppArmor конфигурирани                               |
+| **DNSSEC Activation**      |  PASS  | Подписването работи (`RRSIG` наличен)                        |
+| **DS Record Registration** |  PASS  | DS запис извлечен и регистриран                              |
+| **DNSSEC Validation**      |  PASS  | `fully validated` резултат                                   |
+| **Authoritative Response** |  PASS  | `aa` флаг наличен                                            |
+| **External Validation**    |  PASS  | DNSViz и Verisign проверки успешни                           |
+
+---
 
 ### 3. ПОДДРЪЖКА НА ЕЗИЦИ / LANGUAGE COMPLIANCE
 
 В съответствие с изискванията на NetGalaxy, документацията и работната среда поддържат:
 
 1. **Български:** основен език на протокола и техническите описания
-2. **English:** системни логове, команди, server responses
+2. **English:** системни логове, shell output, DNS отговори
 3. **Русский:** поддръжка на локализационна съвместимост в рамките на проекта
+
+---
 
 ### 4. КЛЮЧОВИ КОНФИГУРАЦИИ / KEY CONFIGURATIONS
 
 За бъдещи справки и автоматизация са валидни следните параметри:
 
 ```bash
-# DNS MASTER
-ns1.netgalaxy.network -> 38.242.249.205
-
-# DNS SLAVE
-ns2.netgalaxy.network -> 65.108.12.147
-
-# Административен хостинг
-https://d2.netgalaxy.network
-
 # Проверка на DNS MASTER
 dig @38.242.249.205 netgalaxy.network
 
 # Проверка на DNS SLAVE
 dig @65.108.12.147 netgalaxy.network
 
-# Проверка на HTTPS хостинга
-curl -I https://d2.netgalaxy.network
+# Проверка на DNSSEC
+dig @38.242.249.205 netgalaxy.network +dnssec
 
-# Проверка на HTTP -> HTTPS redirect
-curl -I http://d2.netgalaxy.network
+# Проверка на DNSSEC валидност
+delv @8.8.8.8 netgalaxy.network +rtrace
+
+# Проверка на синхронизация
+dig @38.242.249.205 netgalaxy.network SOA +short
+dig @65.108.12.147 netgalaxy.network SOA +short
+
+# Проверка на reverse DNS
+host 38.242.249.205
+host 65.108.12.147
 
 # Проверка на firewall
 sudo ufw status
-
-# Проверка на логовете
-sudo tail -n 5 /srv/www-admin/cpanel_f7D1k6/logs/access.log
 ```
+
+---
 
 ### 5. ЗАКЛЮЧЕНИЕ / CONCLUSION
 
-Сървър **D2** е успешно включен в DNS инфраструктурата на NetGalaxy като **SLAVE DNS сървър** и едновременно с това е подготвен като защитен хост за административен достъп чрез `d2.netgalaxy.network`.
+DNS инфраструктурата на NetGalaxy е успешно изградена и функционира стабилно в продукционен режим. Всички PASS проверки по протокола са преминати успешно.
 
-Всички PASS проверки по протокола са преминати успешно. DNS архитектурата **MASTER / SLAVE** работи, HTTPS е активно, уеб достъпът е ограничен и логван, а firewall конфигурацията е приложена по контролиран и проверяем начин.
+Системата е защитена и надеждна, благодарение на:
 
-**Следваща стъпка:** Преминаване към следващия етап от изграждането на NetGalaxy инфраструктурата съгласно проектния план.
+* независими MASTER и SLAVE DNS сървъри
+* автоматична синхронизация на зоните
+* активна DNSSEC защита
+* валидирана верига на доверие
+* коректно конфигуриран reverse DNS
+
+DNS слоят е в пълна оперативна готовност и може да обслужва всички бъдещи услуги в рамките на NetGalaxy инфраструктурата.
+
+---
 
 **Подпис:** ............................
 *(Илко Йорданов)*
 
 **Copyright:** © 2026 NetGalaxy™ | **Confidential**
 
-### ДЕТАЙЛНА СПЕЦИФИКАЦИЯ НА ТРУДА (BY STEPS)
+---
 
-*Тази таблица служи за проверка на реално извършената дейност спрямо технологичния норматив.*
+### 6. ДЕТАЙЛНА СПЕЦИФИКАЦИЯ НА ТРУДА (BY STEPS)
 
-| Стъпка от Протокола | Описание на дейността                               |  Категория  | Норматив (мин) |
-| :------------------ | :-------------------------------------------------- | :---------: | :------------: |
-| **Стъпка 1**        | Инсталиране на BIND9 и DNS инструменти              | **Level C** |        5       |
-| **Стъпка 2**        | Делегация на домейна и GLUE записи                  | **Level A** |       15       |
-| **Стъпка 3**        | Конфигуриране на DNS MASTER (cp205)                 | **Level A** |       20       |
-| **Стъпка 4**        | Конфигуриране на DNS SLAVE (D2)                     | **Level A** |       15       |
-| **Стъпка 5**        | Създаване на директории за административния хостинг | **Level C** |        5       |
-| **Стъпка 6**        | Създаване на начална index.html страница            | **Level C** |        5       |
-| **Стъпка 7**        | Добавяне на DNS запис за `d2.netgalaxy.network`     | **Level A** |       10       |
-| **Стъпка 8**        | Конфигуриране на Nginx virtual host                 | **Level B** |       10       |
-| **Стъпка 9**        | Инсталиране и конфигуриране на SSL сертификат       | **Level B** |       15       |
-| **Стъпка 10**       | Създаване на системен потребител и група            | **Level B** |        5       |
-| **Стъпка 11**       | Ограничаване на достъпа до чувствителни ресурси     | **Level A** |       10       |
-| **Стъпка 12**       | Настройка на permissions и ownership                | **Level B** |       10       |
-| **Стъпка 13**       | Подготовка на firewall (UFW)                        | **Level A** |       10       |
-| **Стъпка 14**       | Активиране и проверка на firewall                   | **Level A** |        5       |
-| **Стъпка 15**       | Активиране на access/error логове                   | **Level B** |       10       |
-| **Стъпка 16**       | Настройка на logrotate                              | **Level B** |       10       |
-| **Стъпка 17**       | Финална PASS проверка на хостинга                   | **Level C** |        5       |
-| **Отчет**           | Документиране и структуриране на резултата          | **Level B** |        5       |
+| Стъпка от Протокола | Описание на дейността | Категория | Норматив (мин) | Коментар |
+| :--- | :--- | :---: | :---: | :--- |
+| **Стъпка 1** | Инсталиране на BIND9 | **Level C** | 5 | Стандартна инсталация |
+| **Стъпка 2** | Конфигуриране на firewall (cp205) | **Level B** | 10 | Сигурност на порта |
+| **Стъпка 3** | Конфигуриране на firewall (D2) | **Level B** | 10 | Сигурност на порта |
+| **Стъпка 4** | Регистрация на GLUE записи | **Level A** | 15 | Външна регистрация |
+| **Стъпка 5** | Конфигуриране на DNS MASTER | **Level A** | 15 | Архитектурна настройка |
+| **Стъпка 6** | Създаване на зонов файл | **Level A** | 15 | DNS записи |
+| **Стъпка 7** | Настройка на Reverse DNS | **Level A** | 15 | PTR записи (Hetzner/Contabo) |
+| **Стъпка 8** | Конфигуриране на DNS SLAVE | **Level A** | 15 | Master-Slave репликация |
+| **Стъпка 9** | Подготовка за DNSSEC | **Level B** | 10 | Права и AppArmor |
+| **Стъпка 10** | Активиране на DNSSEC | **Level A** | 15 | Подписване на зоната |
+| **Стъпка 11** | Извличане на DS запис | **Level A** | 10 | Генериране на хеш |
+| **Стъпка 12** | Регистрация на DS в BookMyName | **Level A** | 20 | Критична външна верификация |
+| **Стъпка 13** | Финална пълна проверка | **Level A** | 25 | DNSViz, Debugger, репликация |
+| **Стъпка 14** | Документиране и калкулиране на изпълнението  | **Level B** | 20 | Пълно документиране |
 
-### СУМАРНА КАРТА НА ТРУДОВИЯ ПРИНОС (LABOR VALUE MAP)
+---
 
-*Автоматично генерирано резюме за Смарт Контракта.*
+### 7. СУМАРНА КАРТА НА ТРУДОВИЯ ПРИНОС (LABOR VALUE MAP)
 
-| Група дейности                                  | Категория труд |   Общо мин.  |   Ставка (€/час)   | Стойност (€) |
-| :---------------------------------------------- | :------------: | :----------: | :----------------: | :----------: |
-| **I. Базова DNS и файлова подготовка**          |   **Level C**  |    **20**    |     **100.00**     |   **33.33**  |
-| **II. Уеб конфигурация, SSL, логове и отчет**   |   **Level B**  |    **65**    |     **150.00**     |  **162.50**  |
-| **III. DNS архитектура, сигурност и hardening** |   **Level A**  |    **85**    |     **250.00**     |  **354.17**  |
-| **ОБЩО ЗА ПРОТОКОЛА:**                          |                | **170 мин.** | **Средна: 189.71** | **550.00 €** |
+| Група дейности | Категория труд | Общо мин. | Ставка (€/час) | Стойност (€) |
+| :--- | :---: | :---: | :---: | :---: |
+| **I. Базова DNS подготовка** | **Level C** | **5** | **100.00** | **8.33** |
+| **II. Конфигурация и интеграция** | **Level B** | **45** | **150.00** | **112.50** |
+| **III. DNS архитектура и сигурност** | **Level A** | **150** | **250.00** | **625.00** |
+| **ОБЩО ЗА ПРОТОКОЛА:** | | **200 мин.** | **Средна: 223.75** | **745.83 €** |
 
-### ДАННИ ЗА СМАРТ КОНТРАКТ (SMART CONTRACT PAYOUT)
+---
+
+### 8. ДАННИ ЗА СМАРТ КОНТРАКТ (SMART CONTRACT PAYOUT)
 
 * **ID на задачата:** NG-D2-INSTALL-P2
 * **Валута на изчисление:** EUR / NetGalaxy Token (NGT)
-* **Обща стойност:** **550.00 €**
-* **Разпределение:**
-
-  * 💵 **Cash (40%):** **220.00 €**
-  * 💎 **Tokens (60%):** **330.00 €**
+* **Обща стойност:** **745.83 €**
+* **Разпределение (съотношение 40/60):**
+    * 💵 **Cash (40%):** **298.33 €**
+    * 💎 **Tokens (60%):** **447.50 €**
 
 ---
